@@ -218,5 +218,5 @@ env = { PACIFICA_ENV_FILE = "/absolute/path/to/.pacifica.env", PACIFICA_BASE_URL
 - API keys are **trading-only**, this software cannot move funds out.
 - Testnet and mainnet keys are kept separate (`*_TESTNET` variables).
 - Money-moving tools preview first and execute only on explicit confirmation.
-- Leveraged perpetuals can lose more than the margin posted. Run on testnet until
+- Leveraged perpetuals can lose more than the margin posted. Run with `--dry` until
   you understand exactly what it does, and only risk what you can afford to lose.

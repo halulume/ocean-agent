@@ -88,7 +88,7 @@ python -m ocean_agent.autonomous --report  # performance summary
 ```
 
 Read `policy.yaml` before the first real run, capital, leverage cap, risk per
-trade and the hard-stop threshold all live there. Start with `--dry` on testnet.
+trade and the hard-stop threshold all live there. Start with `--dry`.
 
 Each cycle it reads the market, grades what it learned, manages open positions,
 and enters only setups that clear every gate.
@@ -209,7 +209,7 @@ prepend `uv run --with ocean-agent`.
 This is trading software. Leveraged perpetual futures can lose more than the
 margin you post. Measured win rates come from historical data and are
 regime-dependent, an edge that held for months can vanish when the market
-changes character. Nothing here is financial advice. Run it on testnet until
+changes character. Nothing here is financial advice. Run it with `--dry` until
 you understand exactly what it does, and only risk what you can afford to lose.
 
 ## License
