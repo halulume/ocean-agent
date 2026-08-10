@@ -347,7 +347,7 @@
 
   /* ---- opening screen: the mark lands large, settles, then the name is typed ---- */
   #splash{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;gap:15px;
-    background:var(--bg);animation:splash-lift .65s ease-out 3.65s forwards}
+    background:var(--bg);animation:splash-lift .65s ease-out 4.2s forwards}
   /* --shift is half of (wordmark + gap), so the mark sits dead centre while alone */
   #splash{--shift:85px}
   #splash .mark{width:46px;height:46px;color:var(--accent);flex:none;
@@ -398,7 +398,7 @@
           return;
         }
         typed.textContent = full.slice(0, ++i);
-        setTimeout(next, 105);
+        setTimeout(next, 158);
       })();
     }, 1900);
   })();
@@ -1357,7 +1357,7 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
     if(!s) return;
     var gone = false;
     function drop(){ if(gone) return; gone = true; s.remove(); }
-    setTimeout(drop, 4500);
+    setTimeout(drop, 5100);
     addEventListener('click', drop, {once:true});
     addEventListener('keydown', drop, {once:true});
   })();
