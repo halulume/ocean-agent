@@ -162,6 +162,35 @@
   .foot-copy{text-align:center;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--faint);padding-bottom:34px}
 
   .strip{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 24px;margin-top:34px;box-shadow:var(--shadow-sm)}
+
+  /* ── rotating word (hero) ───────────────────────────── */
+  .rotline{margin-top:16px;font-size:17px;color:var(--ink-2);letter-spacing:-.01em}
+  .rotwrap{display:inline-block;position:relative;vertical-align:bottom;
+    min-width:7.6ch;text-align:left}
+  .rotword{display:inline-block;color:var(--accent-deep);font-weight:600;
+    animation:rotIn .5s cubic-bezier(.22,1,.36,1)}
+  @keyframes rotIn{from{opacity:0;transform:translateY(.5em)}to{opacity:1;transform:none}}
+
+  /* ── marquee of example prompts ─────────────────────── */
+  .mq-sec{padding:6px 0 34px}
+  .mq-lede{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--faint);
+    letter-spacing:.18em;text-transform:uppercase;margin:0 0 14px 2px}
+  .mq{position:relative;overflow:hidden;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);
+            mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)}
+  .mq-track{display:flex;gap:12px;width:max-content;animation:mqScroll 46s linear infinite}
+  .mq:hover .mq-track{animation-play-state:paused}
+  @keyframes mqScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .mq-card{flex:0 0 320px;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:15px 17px}
+  .mq-card .tag{font-family:'JetBrains Mono',monospace;font-size:10.5px;
+    color:var(--accent-deep);letter-spacing:.09em;text-transform:uppercase}
+  .mq-card .say{margin:8px 0 9px;font-size:14.5px;color:var(--ink);line-height:1.45}
+  .mq-card .did{font-size:12.5px;color:var(--muted);line-height:1.55}
+  @media (max-width:720px){
+    .rotline{font-size:15.5px}
+    .mq-card{flex-basis:260px}
+  }
   .flow{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--ink-2)}
   .flow .step{color:var(--ink);white-space:nowrap}
   .flow .arw{color:var(--accent)}
@@ -372,8 +401,9 @@
         <h1>Everyone built hands, eyes, and ears.<br>We built the <em>brain</em>.</h1>
         <p class="lede">Ocean Agent is an AI native trading layer for Pacifica. Tell it what to trade; it fixes the tick, lot, and min order, then executes correctly.</p>
         <p class="subtle">It doesn't debate. It doesn't guess. It measures, then studies its own results.</p>
+        <div class="rotline">Ask it to <span class="rotwrap"><span class="rotword" id="rotWord">analyze</span></span> a trade.</div>
         <div class="hero-cta">
-          <a href="#overview" class="btn btn-primary">Get started</a>
+          <a href="#installation" class="btn btn-primary">Get started</a>
           <a href="#landscape" class="btn btn-ghost">See the comparison</a>
         </div>
         <div class="trust-strip">Ed25519 API key<span class="dot">·</span>633 measured configurations<span class="dot">·</span>Live on PyPI<span class="dot">·</span>Built on Pacifica</div>
@@ -389,6 +419,13 @@
       </div>
     </div>
   </header>
+
+  <section class="mq-sec">
+    <div class="mq-lede">What people actually say to it</div>
+    <div class="mq" aria-hidden="true">
+      <div class="mq-track" id="mqTrack"></div>
+    </div>
+  </section>
 
   <section class="community">
     <div class="eyebrow">Get involved</div>
@@ -1246,6 +1283,48 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
   </div>
 </div>
 <script>
+  // hero: rotate the verb
+  (function(){
+    var el = document.getElementById('rotWord');
+    if(!el) return;
+    var words = ['analyze','size','enter','protect','review'];
+    var i = 0;
+    setInterval(function(){
+      i = (i + 1) % words.length;
+      el.style.animation = 'none';
+      el.offsetHeight;                       // reflow so the animation replays
+      el.textContent = words[i];
+      el.style.animation = '';
+    }, 2100);
+  })();
+
+  // marquee: build the example cards, duplicated for a seamless loop
+  (function(){
+    var track = document.getElementById('mqTrack');
+    if(!track) return;
+    var items = [
+      ['Analysis', 'Anything worth buying right now?', 'Ranks live setups by measured edge, and says "no edge" when there is none.'],
+      ['Entry', 'Go long SOL, with a stop.', 'Corrects tick, lot and min order, sizes by risk, then previews before it fires.'],
+      ['Protection', 'Put a stop on everything I hold.', 'Attaches exchange-native TP/SL, so they trigger with your machine off.'],
+      ['Funding', 'Farm the funding on the top payer.', 'Spot buy plus perp short, executed atomically as one batch.'],
+      ['Review', 'How did last week go?', 'Grades past calls against what actually happened, wins and misses both.'],
+      ['Autonomy', 'Trade on your own inside my limits.', 'Runs 24/7 under policy.yaml, and it cannot act outside those bounds.'],
+      ['Learning', 'Remeasure what still works.', 'Rebuilds the coin x timeframe x signal matrix and updates what it trusts.'],
+      ['Safety', 'Close everything, now.', 'One call flattens the book; every money move needs explicit confirmation.']
+    ];
+    function card(it){
+      var d = document.createElement('div');
+      d.className = 'mq-card';
+      var t = document.createElement('div'); t.className = 'tag'; t.textContent = it[0];
+      var s = document.createElement('div'); s.className = 'say'; s.textContent = '"' + it[1] + '"';
+      var w = document.createElement('div'); w.className = 'did'; w.textContent = it[2];
+      d.appendChild(t); d.appendChild(s); d.appendChild(w);
+      return d;
+    }
+    items.forEach(function(it){ track.appendChild(card(it)); });
+    items.forEach(function(it){ track.appendChild(card(it)); });   // second copy
+  })();
+
   // terms gate: install commands stay blurred until the user agrees once.
   function openTerms(){
     var t = document.getElementById('ttext');
