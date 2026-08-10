@@ -1,4 +1,4 @@
-# Ocean Agent — website
+# Ocean Agent, website
 
 Static one-page site. Single self-contained file: `index.html` (fonts load from
 Google Fonts CDN; everything else is inline). No build step.
@@ -10,11 +10,11 @@ python -m http.server 8000 --directory website
 # then open http://localhost:8000
 ```
 
-## Deploy on Vercel (chosen) — free, no domain needed yet
+## Deploy on Vercel (chosen), free, no domain needed yet
 
 `vercel.json` in this folder is already set up (clean URLs, no trailing slash).
 
-**Option A — CLI (fastest)**
+**Option A, CLI (fastest)**
 ```bash
 npm i -g vercel        # once
 cd website
@@ -22,10 +22,10 @@ vercel                 # first run: log in + link project → preview URL
 vercel --prod          # promote to production → *.vercel.app URL
 ```
 
-**Option B — Dashboard (from GitHub)**
+**Option B, Dashboard (from GitHub)**
 1. Push this repo to GitHub.
 2. vercel.com → Add New → Project → import the repo.
-3. **Root Directory: `website`** (important — the site lives in this subfolder).
+3. **Root Directory: `website`** (important, the site lives in this subfolder).
 4. Framework preset: **Other** (it's static; no build command needed).
 5. Deploy → live at `https://<project>.vercel.app`.
 
@@ -45,9 +45,9 @@ Adjusted from the original draft to match the real system:
 - Final stop shown as **−20%** (matches `policy.yaml` `fatal_loss_pct: 0.20`),
   not −50%.
 - "126k **measurements**" (backtest matrix samples), not "126k trades".
-- Print feature reworded to "a verdict on whether an offer is worth it — and when
+- Print feature reworded to "a verdict on whether an offer is worth it, and when
   it isn't" (the tool exists to warn you off bad offers).
 - Live track record honestly marked **testnet**; no win-rate / PnL numbers claimed.
 
 If the competitor comparison table should be toned down (it names real
-companies), edit the `#compare` section — everything else can stay.
+companies), edit the `#compare` section, everything else can stay.

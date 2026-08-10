@@ -1,4 +1,4 @@
-"""Pacifica 요청 서명 — 공식 python-sdk common/utils.py 방식을 그대로 따름.
+"""Pacifica 요청 서명, 공식 python-sdk common/utils.py 방식을 그대로 따름.
 
 서명 대상 메시지는 {헤더 필드..., "data": 페이로드}를 키 정렬 후
 compact JSON으로 직렬화한 문자열이다.

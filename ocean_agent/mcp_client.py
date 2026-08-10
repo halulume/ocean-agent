@@ -113,7 +113,7 @@ def spawn_pacifica_mcp(base_url: str, address: str = "",
 
 
 class PacificaMCPClient:
-    """api_client.PacificaClient와 동일한 인터페이스 — 뒤에서 MCP 도구를 호출한다.
+    """api_client.PacificaClient와 동일한 인터페이스, 뒤에서 MCP 도구를 호출한다.
 
     전략 코드(scanner/position/main)는 이 클래스와 REST 클라이언트를
     구분하지 않고 그대로 쓸 수 있다.

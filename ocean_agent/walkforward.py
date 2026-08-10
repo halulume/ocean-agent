@@ -1,4 +1,4 @@
-"""Walk-forward validation — measure how well the bot's predicted win rate
+"""Walk-forward validation, measure how well the bot's predicted win rate
 actually matches reality, without waiting for live trades to mature.
 
 The problem this solves: a live observation on a 1h signal takes 24h to grade,
@@ -8,15 +8,15 @@ history, provided the test is done honestly.
 
 Honestly means: at each point in time T, only information available at T may be
 used to form the prediction. The bot at time T knows the outcome of a signal
-firing only if that firing is at least FWD bars old — anything more recent has
+firing only if that firing is at least FWD bars old, anything more recent has
 not resolved yet. So the training set is strictly `fired_at + FWD <= T`. Getting
 this wrong turns the whole exercise into the model grading its own homework.
 
 What comes out:
 
-  · calibration curve — when the bot says 60%, what actually happens? The gap is
+  · calibration curve, when the bot says 60%, what actually happens? The gap is
     overconfidence, and it is measurable per timeframe, per signal, per regime.
-  · sample-size reliability — how far off is a prediction built on 30 firings vs
+  · sample-size reliability, how far off is a prediction built on 30 firings vs
     300? This is the empirical basis for the shrinkage constants in
     signal_scanner, which are currently reasoned estimates, not measurements.
 
@@ -52,7 +52,7 @@ def _firings(closes, fwd=FWD):
 
     Computed once per series. Each firing carries the outcome of the trade the
     bot would have taken, so the walk-forward pass is pure bookkeeping after
-    this — no re-running indicators per checkpoint."""
+    this, no re-running indicators per checkpoint."""
     from .signal_scanner import _series, _signals
     n = len(closes)
     if n < WARMUP + fwd + MIN_TRAIN:
@@ -80,7 +80,7 @@ def walk_series(closes, symbol, tf, fwd=FWD, step=STEP_BARS):
 
     Yields (signal, pred, n_train, won) one at a time instead of returning a
     list. A 5m series alone produces over a million of these per symbol; holding
-    them costs gigabytes, and nothing downstream needs an individual record —
+    them costs gigabytes, and nothing downstream needs an individual record ,
     only the counts. Streaming keeps memory flat regardless of history length."""
     n = len(closes)
     for name, (side, hits) in _firings(closes, fwd).items():
@@ -107,7 +107,7 @@ def walk_series(closes, symbol, tf, fwd=FWD, step=STEP_BARS):
 
 
 class Agg:
-    """Streaming counters — everything the report and the curve need.
+    """Streaming counters, everything the report and the curve need.
 
     Each slot holds [wins, total, pred_sum] so both the actual rate and the
     average prediction can be recovered without keeping raw records."""
@@ -181,7 +181,7 @@ def summarize(agg) -> str:
 
     out = [f"검증 표본 {agg.n:,}건 "
            f"({len(agg.by_tf)}시간봉 · {len(agg.by_sig)}신호)", ""]
-    out.append("=== 보정 곡선 — 봇이 X%라 할 때 실제로는? ===")
+    out.append("=== 보정 곡선, 봇이 X%라 할 때 실제로는? ===")
     out.append("  예측구간      건수    예측평균   실제      차이")
     edges = [(0.0, .45), (.45, .50), (.50, .55), (.55, .60), (.60, .65),
              (.65, .70), (.70, .80), (.80, 1.01)]
@@ -232,7 +232,7 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
 
     Saves counters, not records. The previous version kept every prediction in a
     list: 5 timeframes already came to 1.67M entries / 236MB, and adding the
-    lower timeframes would have made it ~26M / 3.7GB — enough to run the process
+    lower timeframes would have made it ~26M / 3.7GB, enough to run the process
     out of memory before it could write anything. The counters answer every
     question the raw records did and fit in tens of KB."""
     from .api_client import PacificaClient
@@ -241,7 +241,7 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
     tfs = tfs or TFS
     # 항상 메인넷 가격으로 잰다(테스트넷 설정으로 돌려도 마찬가지). 이 표는
     # 시장이 실제로 어떻게 움직였는지를 담아야 하고, 테스트넷 가격은 실제 시장이
-    # 아니다. 결과 파일도 매트릭스처럼 네트워크 구분 없이 하나를 공유한다 —
+    # 아니다. 결과 파일도 매트릭스처럼 네트워크 구분 없이 하나를 공유한다 ,
     # 계좌 기록(상태·관측·손익)만 data_file()로 분리하는 것이 이 프로젝트의 규칙.
     client = PacificaClient("https://api.pacifica.fi")
     agg = Agg()
@@ -253,7 +253,7 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
                 log(f"  {sym} {tf}: 조회 실패 {e}")
                 continue
             if len(closes) < WARMUP + fwd + MIN_TRAIN:
-                log(f"  {sym} {tf}: 데이터 부족 ({len(closes)}봉) — 건너뜀")
+                log(f"  {sym} {tf}: 데이터 부족 ({len(closes)}봉), 건너뜀")
                 continue
             before = agg.n
             for sig, pred, n_train, won in walk_series(closes, sym, tf, fwd=fwd):
@@ -269,14 +269,14 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
 
 
 # 파일명 주의: 두뇌(brain)의 메타학습도 "calibration"이라는 말을 쓰고
-# ~/.ocean_agent_{net}_calibration.json 에 저장한다. 둘은 완전히 다른 것이다 —
+# ~/.ocean_agent_{net}_calibration.json 에 저장한다. 둘은 완전히 다른 것이다 ,
 # 이쪽은 9년 가격사에서 잰 보정표(신호별 실측 승률), 저쪽은 이 봇이 낸 예측이
 # 실제로 맞았는지의 기록. 이름이 비슷하면 나중에 반드시 헷갈리므로 구분한다.
 CURVE_FILE = os.path.join(os.path.expanduser("~"),
                           ".ocean_agent_walkforward_curve.json")
 CURVE_MIN_BIN = 2000     # bin must hold this many samples to be trusted
 # 신호별 표본 하한. 홀드아웃에서 300으로도 상위 1~25% 구간은 잘 넘어갔지만,
-# 극단(상위 0.1%)에서는 1등 조합 하나에 몰려 47%로 무너졌다 — 그 조합이
+# 극단(상위 0.1%)에서는 1등 조합 하나에 몰려 47%로 무너졌다, 그 조합이
 # 학습 종목에서만 좋았던 것이다. 봇이 그렇게까지 좁게 고르지는 않으나,
 # 얇은 조합이 1등을 차지하지 못하도록 하한을 넉넉히 잡는다.
 SIG_MIN_N = 1000
@@ -313,7 +313,7 @@ def build_curve(agg, save: bool = True) -> dict:
             ps = 0.0
     # 남은 꼬리 처리. 근거가 충분하면 제 구간으로 세우고, 얇을 때만 앞 구간에
     # 합친다. 무조건 합치면 마지막 구간이 다른 구간의 몇 배 크기로 부풀어 예측
-    # 평균이 위로 끌려간다(검증에서 0.505가 0.588로 밀렸다) — 곡선의 오른쪽 끝은
+    # 평균이 위로 끌려간다(검증에서 0.505가 0.588로 밀렸다), 곡선의 오른쪽 끝은
     # 고승률 구간이라 하필 제일 중요한 자리다.
     if t >= CURVE_MIN_BIN or (t and not curve):
         curve.append([round(ps / t, 4), round(w / t, 4), t])
@@ -322,7 +322,7 @@ def build_curve(agg, save: bool = True) -> dict:
         tot = n0 + t
         curve[-1] = [round((p0 * n0 + ps) / tot, 4),
                      round((a0 * n0 + w) / tot, 4), tot]
-    # 신호별 실측 승률 — 이게 진짜 순위 정보다.
+    # 신호별 실측 승률, 이게 진짜 순위 정보다.
     # 홀드아웃 검증(학습 7종목 / 검증 7종목, 다른 종목에서 채점)에서 상위 5%
     # 선택 시 백테 원값 52.60% vs 신호실측 55.16%, 상위 1%는 51.46% vs 53.01%.
     # 기준선이 50.5%이므로 엣지가 두 배 이상이 된다. 종목별 백테 숫자는
@@ -371,7 +371,7 @@ def measured_winrate(sig: str, tf: str):
     """This signal's measured win rate on this timeframe, pooled over symbols.
 
     Returns (win_rate, n) or None when the signal has not been measured with
-    enough samples. This is the number that actually ranks well out of sample —
+    enough samples. This is the number that actually ranks well out of sample ,
     see the holdout figures in build_curve."""
     try:
         c = _load_curve()
@@ -387,7 +387,7 @@ def calibrated(pwin: float):
     """Measured win rate for a backtest that claims `pwin`. None if unmeasured.
 
     Linear interpolation between bin centres; outside the measured range the
-    nearest end is held flat rather than extrapolated — beyond the data the
+    nearest end is held flat rather than extrapolated, beyond the data the
     honest answer is "no better than the last thing we saw"."""
     try:
         c = _load_curve()
@@ -425,16 +425,16 @@ def curve_age_days() -> float:
 
 
 def live_vs_measured(min_live: int = 20):
-    """실거래·실관측 결과가 보정표와 얼마나 어긋나는가 — 루프의 ④→⑤ 구간.
+    """실거래·실관측 결과가 보정표와 얼마나 어긋나는가, 루프의 ④→⑤ 구간.
 
     보정표는 과거 9년에서 '이 신호는 이만큼 이긴다'를 잰 값이다. 지금 시장에서
     실제로 그만큼 이기고 있는지는 별개 문제이고, 어긋난다면 국면이 바뀌었거나
     측정이 낡았다는 뜻이다. 여기서 그 격차를 신호별로 드러낸다.
 
-    관측 표본은 반드시 기간 관문을 통과한 것만 센다 — 한나절에 몰린 20건은
+    관측 표본은 반드시 기간 관문을 통과한 것만 센다, 한나절에 몰린 20건은
     20개의 표본이 아니라 같은 시장 1건을 20번 센 것이다(2026-08-04 교훈).
 
-    반환: (rows, overall) — rows는 (격차, 신호, 시간봉, 실측, 실전, 표본),
+    반환: (rows, overall), rows는 (격차, 신호, 시간봉, 실측, 실전, 표본),
     overall은 전체 합산 (실측평균, 실전승률, 표본) 또는 None."""
     try:
         from .observer import _load_stats, _span_days, MIN_SPAN_DAYS
@@ -474,7 +474,7 @@ def live_vs_measured(min_live: int = 20):
 def divergence_alarm(gap: float = 0.06, min_n: int = 60):
     """실전이 보정표보다 이만큼 못하면 경보 문자열, 아니면 None.
 
-    한쪽 방향만 본다 — 실전이 더 좋은 건 재측정을 서두를 이유가 아니다.
+    한쪽 방향만 본다, 실전이 더 좋은 건 재측정을 서두를 이유가 아니다.
 
     메인넷에서만 판정한다. 보정표는 실제 가격사(바이낸스+파시피카 메인넷)에서
     잰 값인데, 실전 성적은 네트워크별로 분리된 파일에서 온다. 테스트넷은 가격이
@@ -494,7 +494,7 @@ def divergence_alarm(gap: float = 0.06, min_n: int = 60):
 
 
 def ensure_fresh(policy: dict, log=print) -> bool:
-    """보정표가 낡았으면(또는 실전이 어긋나면) 백그라운드로 재측정 — 루프의 ⑥→②.
+    """보정표가 낡았으면(또는 실전이 어긋나면) 백그라운드로 재측정, 루프의 ⑥→②.
 
     이 연결이 없으면 보정표는 만든 날에 멈춘 사진이고, 자가개선이 아니라
     일회성 보정에 그친다. 매트릭스(rematrix)와 같은 방식으로 돈다."""
@@ -522,7 +522,7 @@ def ensure_fresh(policy: dict, log=print) -> bool:
                                          ["1h", "4h", "8h", "12h", "1d"]))],
             cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        log(f"보정표 재측정 시작 (마지막 측정 {curve_age_days():.1f}일 전) — "
+        log(f"보정표 재측정 시작 (마지막 측정 {curve_age_days():.1f}일 전), "
             f"백그라운드, 완료되면 다음 사이클부터 반영")
         return True
     except Exception as e:
@@ -538,7 +538,7 @@ def load():
         with open(RESULT_FILE, encoding="utf-8") as f:
             d = json.load(f)
     except (OSError, ValueError, MemoryError):
-        return None      # 옛 형식(원본 기록 236MB)일 수 있다 — 다시 측정하면 된다
+        return None      # 옛 형식(원본 기록 236MB)일 수 있다, 다시 측정하면 된다
     if "hist" not in d:
         return None      # 구버전 파일: 집계가 없으므로 요약 불가
     return Agg.from_dict(d)
@@ -553,7 +553,7 @@ def main():
     args = sys.argv[1:]
     if "--show" in args:
         a = load()
-        print(summarize(a) if a else "측정 기록이 없습니다 — python -m ocean_agent.walkforward 로 측정하세요.")
+        print(summarize(a) if a else "측정 기록이 없습니다, python -m ocean_agent.walkforward 로 측정하세요.")
         return
     if "--live" in args:
         rows, overall = live_vs_measured()
@@ -581,16 +581,16 @@ def main():
         syms = args[args.index("--symbols") + 1].split(",")
     if "--tf" in args:
         tfs = args[args.index("--tf") + 1].split(",")
-    print("워크포워드 검증 시작 — 과거 시점에서 예측하고 결과를 대조합니다...")
+    print("워크포워드 검증 시작, 과거 시점에서 예측하고 결과를 대조합니다...")
     agg = run(symbols=syms, tfs=tfs)
     # 보정표까지 만들어야 봇이 쓸 수 있다. 이게 빠지면 백그라운드 재측정이
     # 기록만 갱신하고 정작 판단에 쓰이는 표는 낡은 채로 남는다.
     c = build_curve(agg)
     if c:
-        print(f"보정표 갱신 — 곡선 {len(c['curve'])}구간 · "
+        print(f"보정표 갱신, 곡선 {len(c['curve'])}구간 · "
               f"신호별 {len(c.get('sig_tf', {}))}조합 (표본 {c['n']:,})")
     else:
-        print("보정표 생성 실패 — 표본 부족")
+        print("보정표 생성 실패, 표본 부족")
     print()
     print(summarize(agg))
     try:

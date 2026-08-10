@@ -10,7 +10,7 @@ import sys
 
 def check(name: str, ok: bool, detail: str = "") -> bool:
     mark = "✅" if ok else "❌"
-    print(f"{mark} {name}" + (f" — {detail}" if detail else ""))
+    print(f"{mark} {name}" + (f", {detail}" if detail else ""))
     return ok
 
 
@@ -40,7 +40,7 @@ def main():
     npx = shutil.which("npx")
     node_ok = npx is not None
     check("Node.js/npx (MCP 모드용)", node_ok,
-          npx or "없음 — MCP 모드를 쓰려면 nodejs.org에서 설치 (rest 모드는 불필요)")
+          npx or "없음, MCP 모드를 쓰려면 nodejs.org에서 설치 (rest 모드는 불필요)")
 
     # 4. 설정 파일
     cfg_ok = os.path.exists("config.yaml")
@@ -59,11 +59,11 @@ def main():
     address = address_from_env(_net_url)
     key = api_key_from_env(_net_url)
     net_label = "테스트넷" if "test-api" in _net_url else "메인넷"
-    check(f".env — 지갑 주소 ({net_label}용)", bool(address),
+    check(f".env, 지갑 주소 ({net_label}용)", bool(address),
           f"{address[:6]}...{address[-4:]}" if address
-          else "없음 — 계좌 조회/실주문에 필요 (시세 조회만은 가능)")
-    check(f".env — API 키 ({net_label}용)", bool(key),
-          "설정됨" if key else "없음 — dry-run은 가능, 실주문은 불가 "
+          else "없음, 계좌 조회/실주문에 필요 (시세 조회만은 가능)")
+    check(f".env, API 키 ({net_label}용)", bool(key),
+          "설정됨" if key else "없음, dry-run은 가능, 실주문은 불가 "
           "(app.pacifica.fi/apikey 에서 발급)")
 
     # 5. 실제 연결 테스트

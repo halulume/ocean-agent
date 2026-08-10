@@ -23,7 +23,7 @@ from .api_client import PacificaClient
 from .backtest import fetch_funding_history
 
 # ⚠️ 이 모듈은 Print 전용이다. 자동매매 경로(autonomous·signal_scanner의 판단
-#    로직)를 바꾸지 않는다. 아래 임포트는 전부 '읽기'다 — 지표 계산 함수와
+#    로직)를 바꾸지 않는다. 아래 임포트는 전부 '읽기'다, 지표 계산 함수와
 #    캐시된 가격 히스토리를 빌려 쓸 뿐, 그쪽 동작에 영향을 주지 않는다.
 #    Print 수정이 매매에 번지지 않게 하는 것이 이 파일의 규칙.
 
@@ -31,7 +31,7 @@ CYCLE_HOURS = 24         # Print 사이클(예치 후 잠기는 시간)
 
 
 def deep_prices(client: PacificaClient, symbol: str, log=lambda *a: None):
-    """시간당 종가 — 바이낸스 2017~ + 파시피카 최근을 이어붙인 것.
+    """시간당 종가, 바이낸스 2017~ + 파시피카 최근을 이어붙인 것.
 
     기존 경로(펀딩 히스토리)는 약 167일뿐이라 2018 하락장·2021 상승장·2022 붕괴
     같은 구간이 통째로 빠진다. Print는 '꼬리에서 체결되는' 상품이라 그 구간이
@@ -71,7 +71,7 @@ def evaluate(prices: list[float], distance_pct: float, side: str,
     # 사이클당 기대 손실 = 체결확률 × 평균 오버슛
     breakeven_cycle = p_fill * avg_overshoot
     # 연율화는 사이클 길이로 나눈다. 25시간 사이클을 24로 나누면 손익분기를
-    # 4% 과대평가한다 — 유·불리가 갈리는 경계에서 판단이 뒤집힐 수 있다.
+    # 4% 과대평가한다, 유·불리가 갈리는 경계에서 판단이 뒤집힐 수 있다.
     cycles_per_year = 8760.0 / hours
     return {
         "windows": total,
@@ -109,7 +109,7 @@ def evaluate_by_signal(prices: list[float], distance_pct: float, side: str,
     → 24시간 뒤 상승 확률이 높은 신호가 켜져 있으면 체결 위험이 낮아진다.
 
     반환: [(손익분기APY, 신호명, 표본, 체결확률, 평균오버슛), ...] 낮은 순.
-    표본이 min_windows 미만인 신호는 뺀다 — 얇은 표본의 낮은 확률은 우연이다."""
+    표본이 min_windows 미만인 신호는 뺀다, 얇은 표본의 낮은 확률은 우연이다."""
     from .signal_scanner import _series, _signals
     n = len(prices)
     if n < 300 + hours:
@@ -158,7 +158,7 @@ def realized_vol(prices: list[float]) -> float:
 # 왜 이게 유일하게 통과했나: Print 손익은 방향이 아니라 변동성이 정한다
 # (체결확률·오버슛 둘 다 변동성 함수). 변동성은 뭉쳐 오므로 '최근 7일이
 # 조용했다'로 '앞으로 24시간도 조용할 것'을 확률적으로 고를 수 있다.
-# 방향 신호로는 실패했다 — 최고 신호도 손익분기를 159%→139%로 낮췄을 뿐이다.
+# 방향 신호로는 실패했다, 최고 신호도 손익분기를 159%→139%로 낮췄을 뿐이다.
 #
 # BTC 는 뺐다. 같은 규칙으로 연 -30%다. 조용하다 한 방에 튀는 성질 때문에
 # 사고 1회가 프리미엄 196일치를 지운다(ETH 는 23일치).
@@ -169,7 +169,7 @@ VOL_GATE = {
 
 
 def vol_gate(client: PacificaClient) -> list[dict]:
-    """지금 Print 를 넣어도 되는 자산이 있는지 — 변동성 관문 판정.
+    """지금 Print 를 넣어도 되는 자산이 있는지, 변동성 관문 판정.
 
     Print 는 평상시 크게 불리하다(IV 26~38% vs 실현 40~53%). 유일하게
     흑자로 넘어오는 구간이 '최근 7일이 유난히 조용할 때'라서, 그 순간만
@@ -197,7 +197,7 @@ def format_gate(rows: list[dict]) -> str:
     """vol_gate() 결과를 사람이 읽는 형태로."""
     if not rows:
         return "Print 관문: 판정할 자산 없음"
-    out = ["Print 진입 관문 — 조용한 구간에만 열린다 (전체 시간의 약 3%)"]
+    out = ["Print 진입 관문, 조용한 구간에만 열린다 (전체 시간의 약 3%)"]
     for r in rows:
         if r.get("error"):
             out.append(f"  {r['asset']}: 조회 실패 {r['error']}")
@@ -221,7 +221,7 @@ def format_gate(rows: list[dict]) -> str:
 def live_compare(client: PacificaClient, hours: int = CYCLE_HOURS,
                  usd: float = 100.0, distances=(1.0, 2.0, 3.0),
                  levs=(1, 3, 5)) -> str:
-    """지금 파시피카가 주는 APY vs 실측 손익분기 — 넣어도 되는지 한눈에.
+    """지금 파시피카가 주는 APY vs 실측 손익분기, 넣어도 되는지 한눈에.
 
     주문은 넣지 않는다(시뮬레이터 조회만). Print에서 우리는 '옵션을 파는 쪽'이라,
     파시피카가 매기는 내재변동성(IV)이 실제 변동성보다 높을 때만 유리하다.
@@ -286,12 +286,12 @@ def live_compare(client: PacificaClient, hours: int = CYCLE_HOURS,
                 out.append(f"  {d:4.1f}% {lev:2d}x  {apy:7.0f}% ┃ "
                            f"{be_r:8.0f}%  {be_f:8.0f}%   {verdict}")
         out.append("")
-    out.append("Print에서 우리는 옵션을 파는 쪽 — IV가 실제 변동성보다 높아야 남는다.")
+    out.append("Print에서 우리는 옵션을 파는 쪽, IV가 실제 변동성보다 높아야 남는다.")
     return "\n".join(out)
 
 
 def forecast(client: PacificaClient, asset: str) -> dict:
-    """매매 쪽 측정치로 '24시간 뒤 오를 확률'을 낸다 — Print 방향 결정의 근거.
+    """매매 쪽 측정치로 '24시간 뒤 오를 확률'을 낸다, Print 방향 결정의 근거.
 
     Print 사이클(24h)과 매매 신호의 평가 지평(1시간봉 × 24봉)이 같은 길이라,
     워크포워드로 잰 신호별 실측 승률을 그대로 쓸 수 있다.
@@ -348,7 +348,7 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
 
     각 후보의 손익분기는 '지금 켜진 신호가 켜졌던 과거 순간들'만 골라 다시
     잰 값이고, 거기에 레버리지를 곱해 실제 호가와 비교한다.
-    주문은 넣지 않는다 — 시뮬레이터 조회만."""
+    주문은 넣지 않는다, 시뮬레이터 조회만."""
     from .signal_scanner import _series, _signals
     try:
         games = {g["game"]: g for g in client.print_games()}
@@ -401,7 +401,7 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
                            f"(표본 {fc['weight']:,}) → "
                            f"체결 피하려면 {fc['safer_side'].upper()} Print")
             else:
-                out.append("  ▶ 쓸 만한 신호 없음 — 방향 근거 없음(전 구간 통계로만 판단)")
+                out.append("  ▶ 쓸 만한 신호 없음, 방향 근거 없음(전 구간 통계로만 판단)")
         rows = []
         for side in ("long", "short"):
             # 켜진 신호 중 이 방향 Print에 가장 유리한(체결 손익분기를 가장 낮추는) 것
@@ -472,7 +472,7 @@ def format_report(symbol: str, distance_pct: float, side: str, stats: dict,
                   shown_apy: float | None = None) -> str:
     days = stats["windows"] / 24
     lines = [
-        f"Print 평가 — {symbol} {side} / 목표 거리 {distance_pct}% "
+        f"Print 평가, {symbol} {side} / 목표 거리 {distance_pct}% "
         f"(과거 {days:.0f}일 데이터)",
         f"  24h 체결 확률      : {stats['p_fill']:.1%}",
         f"  체결 시 평균 오버슛 : {stats['avg_overshoot']:.2%} (즉시 평가손 예상치)",
@@ -481,9 +481,9 @@ def format_report(symbol: str, distance_pct: float, side: str, stats: dict,
     ]
     if shown_apy is not None:
         edge = shown_apy / 100.0 - stats["breakeven_apy"]
-        verdict = ("✅ 표시 APY가 손익분기보다 높음 — 통계적으로 유리한 조건"
+        verdict = ("✅ 표시 APY가 손익분기보다 높음, 통계적으로 유리한 조건"
                    if edge > 0 else
-                   "⚠️ 표시 APY가 손익분기 미만 — 기대값이 마이너스인 조건")
+                   "⚠️ 표시 APY가 손익분기 미만, 기대값이 마이너스인 조건")
         lines.append(f"  표시 APY {shown_apy:.1f}% vs 손익분기 "
                      f"{stats['breakeven_apy']:.1%} → {verdict}")
     lines.append("  주의: 과거 분포 기반 추정치. 변동성 급변 구간에서는 빗나갈 수 있음.")
@@ -504,13 +504,13 @@ def main():
     p.add_argument("--shallow", action="store_true",
                    help="옛 경로(펀딩 히스토리 약 167일)로 계산")
     p.add_argument("--signals", action="store_true",
-                   help="신호별 조건부 통계 — 언제 예치하면 유리한가")
+                   help="신호별 조건부 통계, 언제 예치하면 유리한가")
     p.add_argument("--live", action="store_true",
                    help="지금 파시피카 APY vs 실측 손익분기 비교 (주문 안 함)")
     p.add_argument("--now", action="store_true",
-                   help="지금 켜진 신호 반영 — 롱/숏·거리·배율 순위 (주문 안 함)")
+                   help="지금 켜진 신호 반영, 롱/숏·거리·배율 순위 (주문 안 함)")
     p.add_argument("--gate", action="store_true",
-                   help="변동성 관문 판정 — 지금 넣어도 되는지만 (주문 안 함)")
+                   help="변동성 관문 판정, 지금 넣어도 되는지만 (주문 안 함)")
     args = p.parse_args()
 
     client = PacificaClient(args.url)
@@ -532,7 +532,7 @@ def main():
         if not rows:
             print("\n  신호별 통계를 낼 만큼 데이터가 없습니다.")
             return
-        print(f"\n신호별 — {args.side} Print 를 '그 신호가 켜졌을 때' 넣었다면")
+        print(f"\n신호별, {args.side} Print 를 '그 신호가 켜졌을 때' 넣었다면")
         print("  손익분기APY   체결확률  평균오버슛   표본   신호")
         for be, name, wins, pf, ov in rows:
             mark = ""

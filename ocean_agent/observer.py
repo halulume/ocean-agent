@@ -1,4 +1,4 @@
-"""관측 로거 + 학습 — 진입 여부와 무관하게 전 코인 신호를 기록·채점한다.
+"""관측 로거 + 학습, 진입 여부와 무관하게 전 코인 신호를 기록·채점한다.
 
 지금까지는 '진입한 거래'만 채점했다. 관측 로거는 거래량 상위 코인의
 '켜진 모든 신호'를 진입 안 했어도 기록하고, 만기가 지나면 실제 결과로
@@ -36,7 +36,7 @@ _STATS_CACHE = {"path": None, "mtime": None, "data": None, "pooled": None}
 
 
 def _load_stats() -> dict:
-    """Cached by (path, mtime) — the scanner asks per symbol x timeframe x signal,
+    """Cached by (path, mtime), the scanner asks per symbol x timeframe x signal,
     which meant re-parsing the whole stats file thousands of times per cycle.
     Keyed on mtime so a fresh grading pass is still picked up without a restart."""
     path = _stats_file()
@@ -76,7 +76,7 @@ def _regime_tag(client: PacificaClient) -> str:
 def _rot_file() -> str:  # 네트워크별 분리
     return data_file("observe_rotation.txt")
 
-# 빠른 국면 감지용 시간봉. 매매하지 않는 1h도 관측만 한다 —
+# 빠른 국면 감지용 시간봉. 매매하지 않는 1h도 관측만 한다 ,
 # 채점까지 24시간이면 끝나므로, 며칠~2주 걸리는 매매 시간봉보다 훨씬 빨리
 # "백테스트가 틀리기 시작했는지"를 알려주는 조기 경보가 된다.
 FAST_TF = "1h"
@@ -112,7 +112,7 @@ def observe(client: PacificaClient, universe: int = 15,
     나중에 조합(예: RSI과열+볼린저상단+공포장)별 승률까지 학습한다.
 
     universe=0 이면 파시피카 '전체 perp'를 대상으로 하되, 매 사이클 batch개씩
-    순회(rotation)하며 관측 — 전체를 커버하면서도 사이클당 부담을 낮춘다.
+    순회(rotation)하며 관측, 전체를 커버하면서도 사이클당 부담을 낮춘다.
     universe>0 이면 거래량 상위 그만큼만 (기존 방식).
     """
     prices = client.get_prices()
@@ -203,7 +203,7 @@ def grade(client: PacificaClient) -> dict:
         reg = o.get("regime", "?")
         if o.get("kind") == "combo":
             sig_label = "combo:" + "+".join(o["combo"])
-            # 조합은 국면축까지 함께 학습 (심볼 무관 — 조합의 일반적 엣지)
+            # 조합은 국면축까지 함께 학습 (심볼 무관, 조합의 일반적 엣지)
             key = f"*|{o['tf']}|{sig_label}@{reg}"
         else:
             sig_label = o["sig"]
@@ -213,7 +213,7 @@ def grade(client: PacificaClient) -> dict:
                                    "side": o["side"], "regime": reg})
         e["win"] += int(won)
         e["total"] += 1
-        # 관측이 언제부터 언제까지 걸쳐 모였는지 — 표본 독립성 판정용.
+        # 관측이 언제부터 언제까지 걸쳐 모였는지, 표본 독립성 판정용.
         # (하루에 몰린 20건은 사실상 1건이므로 signal_winrate가 이를 거른다)
         obs_ms = float(o.get("ts") or now_ms)
         e["first_ms"] = min(float(e.get("first_ms") or obs_ms), obs_ms)
@@ -257,7 +257,7 @@ def pooled_winrate(interval: str, signal: str):
     Why pooling is needed: per-symbol stats slice 3.6k observations into ~660
     buckets (~5 each), so `signal_winrate` can never clear its 10-sample gate and
     the bot ends up judging on backtest alone. Pooled by (timeframe, signal) the
-    same data gives hundreds of samples per signal — enough to say "this signal
+    same data gives hundreds of samples per signal, enough to say "this signal
     actually performs like X in live trading", which is the only measured opinion
     available early on.
 
@@ -265,7 +265,7 @@ def pooled_winrate(interval: str, signal: str):
     prior, never a hard gate: pooling adds independence across assets (gold,
     stocks and FX do not move with the coins) but crypto majors still move
     together, so a short collection window is still partly one event. Weight it
-    by both n and span_days — see EVIDENCE notes in signal_scanner."""
+    by both n and span_days, see EVIDENCE notes in signal_scanner."""
     stats = _load_stats()
     c = _STATS_CACHE
     pooled = c.get("pooled")
@@ -308,7 +308,7 @@ def _span_days(entry: dict) -> float:
 def top_learned(min_total: int = 15, top: int = 15) -> list:
     """축적 데이터에서 실전 승률 높은 신호 랭킹 (학습 결과).
 
-    반환: [(키, 승률, 표본, 수집일수), ...] — 수집일수까지 돌려주는 이유는,
+    반환: [(키, 승률, 표본, 수집일수), ...], 수집일수까지 돌려주는 이유는,
     이 목록이 사람이 보고 판단하는 화면이기 때문이다. 기간 관문을 통과 못 한
     항목은 100%/0% 같은 극단값으로 줄세우기 상단을 차지한다(2026-08-04:
     표본 8건 이상 조합의 80%가 전승 아니면 전패였고, 전부 65시간 한 구간에서
@@ -329,7 +329,7 @@ def combo_winrate(signals: list, interval: str, regime: str):
     ⚠️ 기간 관문은 signal_winrate와 동일한 이유로 필수다. 조합은 신호 여러 개가
     동시에 켜져야 해서 특정 시장 국면에 더 심하게 뭉친다. 실제로 2시간(0.1일)
     사이 16건이 전승 100%로 기록된 조합이 있었고, 관문이 없던 시절 이 값이
-    확신도를 최대 50%까지 밀어올렸다 — 단일 신호는 막고 조합만 뚫린 구멍이었다.
+    확신도를 최대 50%까지 밀어올렸다, 단일 신호는 막고 조합만 뚫린 구멍이었다.
     """
     stats = _load_stats()
     label = "combo:" + "+".join(sorted(signals))
@@ -344,7 +344,7 @@ def combo_winrate(signals: list, interval: str, regime: str):
 def top_combos(min_total: int = 12, top: int = 12) -> list:
     """학습된 조합 신호 중 승률 높은 순 (단일 신호 제외, 조합만).
 
-    top_learned와 같은 이유로 기간 관문을 건다 — 조합은 신호 여러 개가 동시에
+    top_learned와 같은 이유로 기간 관문을 건다, 조합은 신호 여러 개가 동시에
     켜져야 해서 특정 국면에 더 심하게 뭉친다(2시간 사이 16건 전승 사례)."""
     stats = _load_stats()
     rows = [(v["sig"], v.get("regime", "?"), k.split("|")[1],

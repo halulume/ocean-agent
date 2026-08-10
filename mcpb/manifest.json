@@ -3,8 +3,8 @@
   "name": "ocean-agent",
   "display_name": "Ocean Agent",
   "version": "0.3.6",
-  "description": "Talk to Claude and trade Pacifica perpetuals — measured-edge setups, exchange-native stop-loss/take-profit, and market analysis from ~9 years of price history.",
-  "long_description": "Ocean Agent turns natural language into correctly risk-sized perpetual-futures actions on Pacifica.\n\nEvery setup it shows is MEASURED, not backtested: win rates come from walk-forward validation over ~9 years of price history, where a prediction is formed using only data available at that moment and then checked against what actually happened. Entries are gated by a re-measured signal matrix (3,735 combinations) that ships with the extension, so it filters from day one.\n\nOrders always preview first — nothing is sent until you approve it. The API key trades only and cannot withdraw funds.",
+  "description": "Talk to Claude and trade Pacifica perpetuals, measured-edge setups, exchange-native stop-loss/take-profit, and market analysis from ~9 years of price history.",
+  "long_description": "Ocean Agent turns natural language into correctly risk-sized perpetual-futures actions on Pacifica.\n\nEvery setup it shows is MEASURED, not backtested: win rates come from walk-forward validation over ~9 years of price history, where a prediction is formed using only data available at that moment and then checked against what actually happened. Entries are gated by a re-measured signal matrix (3,735 combinations) that ships with the extension, so it filters from day one.\n\nOrders always preview first, nothing is sent until you approve it. The API key trades only and cannot withdraw funds.",
   "author": {
     "name": "Ocean Agent",
     "url": "https://oceanagent.vercel.app"
@@ -31,7 +31,7 @@
     "address": {
       "type": "string",
       "title": "Wallet address",
-      "description": "Your Pacifica account address. This is public information — safe to enter.",
+      "description": "Your Pacifica account address. This is public information, safe to enter.",
       "required": true
     },
     "api_key": {
@@ -44,7 +44,7 @@
     "network": {
       "type": "string",
       "title": "Network",
-      "description": "https://api.pacifica.fi for mainnet (real funds), https://test-api.pacifica.fi for testnet. API keys are approved per network — a mainnet key will not work on testnet.",
+      "description": "https://api.pacifica.fi for mainnet (real funds), https://test-api.pacifica.fi for testnet. API keys are approved per network, a mainnet key will not work on testnet.",
       "default": "https://api.pacifica.fi",
       "required": true
     }

@@ -1,11 +1,11 @@
-"""중앙 신경계 (Brain) — 모든 학습원을 하나로 잇는 허브.
+"""중앙 신경계 (Brain), 모든 학습원을 하나로 잇는 허브.
 
 지금까지 학습 조각들이 따로 존재했다:
-  · 매트릭스(rematrix)   — 과거 13개월 기대값
-  · 관측DB(observer)     — 실시간 신호 승률
-  · 원인분석(postmortem) — 청산별 '왜 이겼나/졌나' 귀인
-  · 적응(graded)         — 신호@시간봉 실전 손익
-  · 메타학습(이 모듈)     — '내 예측이 얼마나 정확한가'
+  · 매트릭스(rematrix)  , 과거 13개월 기대값
+  · 관측DB(observer)    , 실시간 신호 승률
+  · 원인분석(postmortem), 청산별 '왜 이겼나/졌나' 귀인
+  · 적응(graded)        , 신호@시간봉 실전 손익
+  · 메타학습(이 모듈)    , '내 예측이 얼마나 정확한가'
 
 Brain은 이것들을 한 셋업에 대해 종합해 '최종 확신도(conviction)'를 낸다.
 그 하나의 숫자가 진입 여부·사이즈·Print 회피까지 관통한다.
@@ -56,14 +56,14 @@ def _bucket(win_rate: float) -> str:
     예전 구간(80+/70s/60s/50s)은 백테 승률이 부풀려져 있던 시절 것이다.
     워크포워드 실측으로 이 시장의 실제 승률 범위가 50~58%임이 밝혀졌고
     (천장 58.0%), 그러면 모든 예측이 "50s" 한 칸에 몰려 52%짜리와 58%짜리를
-    구분하지 못한다 — 메타학습이 사실상 한 덩어리가 된다.
+    구분하지 못한다, 메타학습이 사실상 한 덩어리가 된다.
     운용 범위 안에서 갈리도록 잘게 나눈다."""
     lo = int(max(0.0, min(0.98, win_rate)) * 50) * 2
     return f"{lo}-{lo + 2}"
 
 
 def record_prediction(predicted_wr: float, won: bool) -> None:
-    """청산 시 호출 — '이 예측 승률이었고 실제로 이겼나'를 캘리브레이션에 축적.
+    """청산 시 호출, '이 예측 승률이었고 실제로 이겼나'를 캘리브레이션에 축적.
     이게 메타학습의 입력이다: 내 예측 vs 현실."""
     c = _load_calib()
     b = c["buckets"].setdefault(_bucket(predicted_wr),
@@ -76,7 +76,7 @@ def record_prediction(predicted_wr: float, won: bool) -> None:
 
 
 def calibration_factor(predicted_wr: float) -> float:
-    """메타학습 보정계수 — 이 예측 승률을 얼마나 신뢰할지(0.5~1.0).
+    """메타학습 보정계수, 이 예측 승률을 얼마나 신뢰할지(0.5~1.0).
 
     같은 구간에서 '실제 승률 / 예측 승률'을 반환. 표본 부족이면 1.0(무보정).
     예) 70%로 예측했는데 실제 55%만 이겼으면 → 0.79배로 하향.
@@ -85,7 +85,7 @@ def calibration_factor(predicted_wr: float) -> float:
     c = _load_calib()
     b = c["buckets"].get(_bucket(predicted_wr))
     if not b or b["n"] < MIN_CALIB_SAMPLES:
-        return 1.0   # 표본 부족 — 잡음 방지, 무보정
+        return 1.0   # 표본 부족, 잡음 방지, 무보정
     actual = b["won"] / b["n"]
     predicted = b["pred_sum"] / b["n"]
     if predicted <= 0:
@@ -94,7 +94,7 @@ def calibration_factor(predicted_wr: float) -> float:
 
 
 def calibration_report() -> dict:
-    """구간별 예측 vs 실제 — 봇이 얼마나 정확한지 성적표."""
+    """구간별 예측 vs 실제, 봇이 얼마나 정확한지 성적표."""
     c = _load_calib()
     out = {}
     for k, b in c.get("buckets", {}).items():
@@ -116,8 +116,8 @@ def conviction(symbol: str, signal: str, interval: str, side: str,
     """한 셋업에 대해 모든 학습원을 종합한 최종 확신도.
 
     입력:
-      base_win_rate — scanner가 이미 매트릭스+관측을 섞어 낸 승률
-      graded        — 이 봇의 실전 채점 {signal@tf: {win,total,pnl}}
+      base_win_rate, scanner가 이미 매트릭스+관측을 섞어 낸 승률
+      graded       , 이 봇의 실전 채점 {signal@tf: {win,total,pnl}}
     출력:
       {conviction: 0~1, meta_factor, real_pnl, notes}
     이 conviction 하나가 진입·사이즈·Print판단을 관통한다.
@@ -125,13 +125,13 @@ def conviction(symbol: str, signal: str, interval: str, side: str,
     notes = []
     wr = base_win_rate
 
-    # 1) 메타학습 보정 — 이 승률대의 과거 예측이 실제로 맞았나
+    # 1) 메타학습 보정, 이 승률대의 과거 예측이 실제로 맞았나
     meta = calibration_factor(base_win_rate)
     if meta < 1.0:
         wr *= meta
         notes.append(f"메타보정 x{meta:.2f}")
 
-    # 2) 이 봇의 실전 손익 — 매트릭스가 맞다 해도 실전에서 잃었으면 감점
+    # 2) 이 봇의 실전 손익, 매트릭스가 맞다 해도 실전에서 잃었으면 감점
     real_pnl = 0.0
     key = f"{signal.split(' +조합')[0]}@{interval}"
     if graded and key in graded:
@@ -146,7 +146,7 @@ def conviction(symbol: str, signal: str, interval: str, side: str,
                 wr *= 0.9   # 순손실 조합은 추가 감점
                 notes.append(f"순손실 {real_pnl:+.0f}")
 
-    # 3) 원인분석(postmortem) 귀인 — '역행패배'(유리한 국면인데 진 것)가
+    # 3) 원인분석(postmortem) 귀인, '역행패배'(유리한 국면인데 진 것)가
     #    쌓인 신호는 신호 자체가 나쁘다는 증거. '시장순풍'으로만 이긴 신호는
     #    국면이 바뀌면 무너진다 → 둘 다 감점.
     try:
@@ -168,7 +168,7 @@ def conviction(symbol: str, signal: str, interval: str, side: str,
     except Exception:
         pass
 
-    # 4) 표본 신뢰도 — 표본 적으면 확신을 중앙(0.5)으로 끌어당김
+    # 4) 표본 신뢰도, 표본 적으면 확신을 중앙(0.5)으로 끌어당김
     confidence = min(n_samples / 60, 1.0)
     conv = 0.5 + (wr - 0.5) * confidence
 

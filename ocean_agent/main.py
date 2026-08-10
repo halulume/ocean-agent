@@ -1,7 +1,7 @@
 """메인 루프: 스캔 → 판단 → 실행 → 알림 → 대기.
 
 실행:  python -m ocean_agent.main          (무한 루프)
-       python -m ocean_agent.main --once   (1사이클만 — 테스트용)
+       python -m ocean_agent.main --once   (1사이클만, 테스트용)
 """
 
 import argparse
@@ -24,7 +24,7 @@ def log(msg: str) -> None:
 
 
 def check_borrow_interest(client, st: dict) -> None:
-    """USDC를 넘겨 쓰면 자동 대출이 시작돼 이자가 붙는다 — 감지 시 1회 경고."""
+    """USDC를 넘겨 쓰면 자동 대출이 시작돼 이자가 붙는다, 감지 시 1회 경고."""
     try:
         acct = client.get_account()
     except Exception:
@@ -32,7 +32,7 @@ def check_borrow_interest(client, st: dict) -> None:
     pending = float(acct.get("pending_interest") or 0)
     if pending > 0 and not st.get("warned_interest"):
         notify.send(f"⚠️ 자동 대출 이자 발생 중 (미결제 이자 {pending} USDC). "
-                    f"포지션이 USDC 잔고를 초과했다는 뜻 — allocation_pct를 낮추면 "
+                    f"포지션이 USDC 잔고를 초과했다는 뜻, allocation_pct를 낮추면 "
                     f"펀딩 수익이 이자로 새는 걸 막을 수 있어요.")
         st["warned_interest"] = True
         state.save(st)
@@ -88,7 +88,7 @@ def run_cycle(cfg: dict, client: PacificaClient) -> None:
                     st["position"] = None
                     state.save(st)
                 notify.send(f"🛑 {tag}손절: {pos['symbol']} {side} {pos['amount']} "
-                            f"— 가격 {adverse:+.1%} 역행 (펀딩 수익보다 손실 방어 우선)")
+                            f", 가격 {adverse:+.1%} 역행 (펀딩 수익보다 손실 방어 우선)")
                 return
 
         if favorable < cfg["exit_threshold_apr"]:
@@ -113,7 +113,7 @@ def run_cycle(cfg: dict, client: PacificaClient) -> None:
                 st["position"] = None
                 state.save(st)
             notify.send(f"{tag}포지션 청산: {pos['symbol']} {side} {pos['amount']} "
-                        f"— {reason} (펀딩 APR {apr:+.1%})")
+                        f", {reason} (펀딩 APR {apr:+.1%})")
         return
 
     # ---- 진입 판단 ----
@@ -135,7 +135,7 @@ def run_cycle(cfg: dict, client: PacificaClient) -> None:
         budget = min(avail * float(cfg["allocation_pct"]), budget)
     amount = compute_amount(best, budget)
     if amount <= 0:
-        log(f"예산 {budget:.2f} USD로는 최소 주문 크기 미달 — 스킵")
+        log(f"예산 {budget:.2f} USD로는 최소 주문 크기 미달, 스킵")
         return
 
     if mode == "hedged":
@@ -165,7 +165,7 @@ def run_cycle(cfg: dict, client: PacificaClient) -> None:
             "opened_at": datetime.now().isoformat(),
         }
         state.save(st)
-    extreme = ("\n⚠️ 시간당 펀딩 1%+ — 급변동 중인 코인일 수 있음, 주의"
+    extreme = ("\n⚠️ 시간당 펀딩 1%+, 급변동 중인 코인일 수 있음, 주의"
                if abs(best.funding_hourly) >= 0.01 else "")
     notify.send(f"{tag}진입[{mode}]: {best.symbol} {side} {amount}개 "
                 f"(~{amount * best.mid_price:,.2f} USD, 펀딩 APR {best.apr:+.1%})"
@@ -198,7 +198,7 @@ def main():
 
     run_mode = "DRY-RUN" if cfg.get("dry_run", True) else "실거래"
     net = "테스트넷" if "test-api" in cfg["base_url"] else "메인넷"
-    log(f"봇 시작 — {net} / {run_mode} / 전략={cfg.get('strategy_mode', 'hedged')} "
+    log(f"봇 시작, {net} / {run_mode} / 전략={cfg.get('strategy_mode', 'hedged')} "
         f"/ API={api_mode.upper()} / 스캔 주기 {cfg['loop_interval_sec']}초")
     if not cfg.get("dry_run", True) and not api_key:
         log("경고: 실거래 모드인데 API 키가 없습니다. .env의 PACIFICA_API_KEY를 확인하세요.")

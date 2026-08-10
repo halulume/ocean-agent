@@ -1,4 +1,4 @@
-"""Ocean Agent — Pacifica trading MCP server.
+"""Ocean Agent, Pacifica trading MCP server.
 
 사람들이 Claude 등 AI에 이 서버를 등록하면, 자연어로 거래와 시장 분석을 시킬 수 있다.
 모든 주문에는 빌더 코드 'mustache'가 첨부된다 (사용자가 사전 승인 필요).
@@ -12,7 +12,7 @@
       "args": ["ocean-agent"],
       "env": {
         "ADDRESS": "<your Pacifica account address>",
-        "PACIFICA_API_KEY": "<API key from app.pacifica.fi/apikey — optional, read-only without it>",
+        "PACIFICA_API_KEY": "<API key from app.pacifica.fi/apikey, optional, read-only without it>",
         "PACIFICA_BASE_URL": "https://test-api.pacifica.fi"
       }
     }
@@ -66,14 +66,14 @@ def _confirm_gate(confirm: bool, action_desc: str) -> str | None:
         return None
     net = "테스트넷" if "test-api" in os.environ.get(
         "PACIFICA_BASE_URL", "https://test-api.pacifica.fi") else "⚠️ 메인넷(실거래)"
-    return (f"[체결 전 확인 — {net}]\n{action_desc}\n\n"
+    return (f"[체결 전 확인, {net}]\n{action_desc}\n\n"
             f"위 내용으로 진행하려면 같은 도구를 confirm=true 로 다시 호출하세요. "
             f"(confirm 없이는 주문이 나가지 않습니다.)")
 
 # MCP 서버는 어느 폴더에서 실행될지 모르므로 상태 파일은 홈 디렉터리에 둔다.
-# 라이브 파일은 네트워크별로 분리(테스트넷/메인넷) — data_file()이 접두어를 붙인다.
+# 라이브 파일은 네트워크별로 분리(테스트넷/메인넷), data_file()이 접두어를 붙인다.
 # (PACIFICA_BASE_URL 환경변수를 .mcp.json이 이미 설정하므로 import 시점에 확정된다)
-# NOTE: 여기서 migrate_legacy_data()(네트워크 태그 이전)는 호출하지 않는다 —
+# NOTE: 여기서 migrate_legacy_data()(네트워크 태그 이전)는 호출하지 않는다 ,
 #       MCP 서버는 언제든 재시작될 수 있어, 동시에 돌고 있는 자율봇이 쓰는 파일을
 #       이름변경하면 봇이 상태를 잃는다. 그 이전은 자율봇 main()에서만 한다.
 #
@@ -89,7 +89,7 @@ _ss.PREDICTIONS_FILE = data_file("predictions.json")
 
 # Display name shown to MCP clients. Mainnet-only brand ("Ocean Agent"); testnet
 # stays "mustache" unchanged. Tool namespace (mcp__mustache__*) comes from the
-# .mcp.json server key, not this — so this is brand-only and safe to change.
+# .mcp.json server key, not this, so this is brand-only and safe to change.
 from . import agent_name as _agent_name
 mcp = FastMCP(_agent_name(default="mustache"))
 
@@ -112,7 +112,7 @@ def _markets() -> dict:
 
     캐시가 없으면 도구를 부를 때마다 마켓 전체를 다시 조회한다. 자율봇이
     같은 계좌·같은 API 를 쓰므로 그 여분 호출이 봇의 잔고/포지션 조회를
-    429 로 밀어낸다 — 2026-08-06 에 실제로 사이클 13개가 그렇게 날아갔다."""
+    429 로 밀어낸다, 2026-08-06 에 실제로 사이클 13개가 그렇게 날아갔다."""
     global _MARKETS_CACHE
     import time as _t
     now = _t.monotonic()
@@ -151,18 +151,18 @@ def scan_funding(top: int = 10, hedgeable_only: bool = False) -> str:
 def recommend_settings() -> str:
     """Read the connected account and recommend how to size trading: risk per
     trade, number of concurrent positions, leverage, margin mode (isolated vs
-    cross), and the notional cap — with the reasoning behind each number.
+    cross), and the notional cap, with the reasoning behind each number.
 
     Read-only: it changes nothing, it only proposes. Every figure is derived
     from the account balance, the exchange's own market specs (max leverage,
     maintenance margin), and win rates measured by walk-forward validation over
-    ~9 years of price history — not from convention or rules of thumb.
+    ~9 years of price history, not from convention or rules of thumb.
 
     The central point most people get wrong: leverage does NOT make positions
     bigger. Position size comes from the stop distance (notional = capital x
     risk% / stop%), where leverage cancels out. Leverage only changes how much
     margin is locked, so the best leverage is the SMALLEST one that fits the
-    notional you want — going higher just moves the liquidation price closer
+    notional you want, going higher just moves the liquidation price closer
     for no gain. This tool computes that minimum for the connected account."""
     from .advisor import recommend, format_recommendation
     try:
@@ -280,7 +280,7 @@ def close_funding_position(confirm: bool = False) -> str:
     except PacificaError as e:
         naked = getattr(e, "naked", None)
         if naked:
-            # perp 은 청산됐고 스팟만 남은 비대칭 상태 — 구조적으로 기록해
+            # perp 은 청산됐고 스팟만 남은 비대칭 상태, 구조적으로 기록해
             # 이후 세션에서도 노출이 추적되게 한다 (수동 매도 필요).
             st["naked_exposure"] = naked
             state.save(st)
@@ -298,7 +298,7 @@ def plan_oi_hedge(top: int = 10, min_carry_apr: float = 0.0) -> str:
     (this builds your OI / points), which exchange to open the OPPOSITE position
     on (this cancels the price risk), and the resulting net funding carry APR.
     Positive carry = you get PAID to farm OI delta-neutrally. Note: extreme APRs
-    on exotic/pre-market symbols are often illiquid — prefer major coins."""
+    on exotic/pre-market symbols are often illiquid, prefer major coins."""
     client = _client()
     plans = plan_hedges(client)
     return format_plans(plans, top=top, min_carry=min_carry_apr)
@@ -310,7 +310,7 @@ def open_pacifica_leg(symbol: str, side: str, max_usd: float = 50,
     """Open the Pacifica leg of an OI-farming hedge: a perp position on the
     given symbol and side ('long' or 'short'). Use plan_oi_hedge first to pick
     the symbol/side, and open the opposite position on the recommended exchange
-    yourself — this tool only executes the Pacifica side. Requires
+    yourself, this tool only executes the Pacifica side. Requires
     PACIFICA_API_KEY. IMPORTANT: places a REAL order. Call with confirm=false
     first to preview; only confirm=true after the user approves. Orders carry
     builder code 'mustache' (attached only if approved)."""
@@ -394,7 +394,7 @@ def print_quote(game: str = "BTC_24H", usd: float = 100, side: str = "long",
     waiting; fills at your strike if the 24h checkpoint lands beyond it.
     side long = buy below market, short = sell above market.
     strike_price 0 = auto (1% away from mark). Uses Pacifica's own simulator
-    (undocumented web API — may change without notice). Free, no execution."""
+    (undocumented web API, may change without notice). Free, no execution."""
     if side not in ("long", "short"):
         raise ToolError("side must be 'long' or 'short'")
     client = _client()
@@ -412,7 +412,7 @@ def print_quote(game: str = "BTC_24H", usd: float = 100, side: str = "long",
                                str(leverage))
         prem = float(sim.get("premium") or 0)
         apy = prem / float(usd) * 365 * 100 if usd else 0
-        return (f"Print quote — {game} {side} ${usd:g} @ strike {strike:,.6g} "
+        return (f"Print quote, {game} {side} ${usd:g} @ strike {strike:,.6g} "
                 f"(mark {mark:,.6g}), {leverage:g}x\n"
                 f"  Premium per 24h cycle: ${prem:.4f} (≈{apy:.0f}% APY)\n"
                 f"  Implied volatility: {float(sim.get('iv_pct') or 0):.1f}%\n"
@@ -428,11 +428,11 @@ def print_quote(game: str = "BTC_24H", usd: float = 100, side: str = "long",
 def print_order(game: str = "BTC_24H", usd: float = 100, side: str = "long",
                 strike_price: float = 0, leverage: float = 5,
                 confirm: bool = False) -> str:
-    """Place a Pacifica Print order via API (what the web UI does — first
+    """Place a Pacifica Print order via API (what the web UI does, first
     programmatic access; undocumented, may change). Deposits usd into the
     Print market: you earn premium each 24h cycle while your strike order
     waits, and get filled at your strike if the checkpoint lands beyond it.
-    IMPORTANT: moves real funds — call with confirm=false first to preview,
+    IMPORTANT: moves real funds, call with confirm=false first to preview,
     confirm=true only after the user approves. Run evaluate_print and
     print_quote first to check the expected value."""
     if side not in ("long", "short"):
@@ -449,7 +449,7 @@ def print_order(game: str = "BTC_24H", usd: float = 100, side: str = "long",
             mark * (0.99 if side == "long" else 1.01), 2)
         direction = 0 if side == "long" else 1
         # 매매 두뇌와 연결: 매트릭스 국면 판단이 이 방향 Print을 경고하는가.
-        # Print 롱(아래 매수대기)은 하락 국면에서 체결되며 물리는 구조다 —
+        # Print 롱(아래 매수대기)은 하락 국면에서 체결되며 물리는 구조다 ,
         # 매트릭스가 숏 우위(=하락 국면)로 판단 중이면 경고를 미리보기에 포함.
         brain_warn = ""
         try:
@@ -458,11 +458,11 @@ def print_order(game: str = "BTC_24H", usd: float = 100, side: str = "long",
             if base_short is not None:
                 if side == "long" and base_short > 0.005:
                     brain_warn = ("\n⚠️ 두뇌 경고: 매트릭스가 하락 국면(숏 기준선 "
-                                  f"EV {base_short:+.1%})으로 판단 중 — 롱 Print은 "
+                                  f"EV {base_short:+.1%})으로 판단 중, 롱 Print은 "
                                   "체결 시 물리는 방향입니다.")
                 elif side == "short" and base_short < -0.005:
                     brain_warn = ("\n⚠️ 두뇌 경고: 매트릭스가 상승 국면으로 판단 중 "
-                                  "— 숏 Print은 체결 시 물리는 방향입니다.")
+                                  ", 숏 Print은 체결 시 물리는 방향입니다.")
         except Exception:
             pass
         gate = _confirm_gate(confirm,
@@ -512,13 +512,13 @@ def print_status() -> str:
 @mcp.tool(title="Close Print Deposit", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True))
 def print_close(game: str = "BTC_24H", confirm: bool = False) -> str:
     """End a Pacifica Print deposit early and withdraw (signed end_game +
-    withdraw_from_game). IMPORTANT: moves funds — confirm=false previews,
+    withdraw_from_game). IMPORTANT: moves funds, confirm=false previews,
     confirm=true executes after user approval."""
     client = _client()
     gate = _confirm_gate(confirm, f"Print 종료·회수: {game}")
     if gate:
         return gate
-    # 마켓 이름이 아니라 '예치 계정 주소'로 종료한다 — 서버가 요구하는 필드가
+    # 마켓 이름이 아니라 '예치 계정 주소'로 종료한다, 서버가 요구하는 필드가
     # game_account 다. 예전엔 마켓 이름을 보내 항상 400으로 실패했다.
     try:
         accounts = [a for a in client.print_positions().get("game_accounts", [])
@@ -553,7 +553,7 @@ def top_setups(top: int = 3, budget_usd: float = 100) -> str:
     size, take-profit and stop-loss (as price move AND as % of margin), win
     rate with sample count, and fee-adjusted expected value.
 
-    The three timeframes are NOT fixed — they are whichever ones currently
+    The three timeframes are NOT fixed, they are whichever ones currently
     measure the highest expected value, re-selected every 7 days by the
     re-measurement job. Ask analyze_chart if you need a specific timeframe.
 
@@ -591,13 +591,13 @@ def top_setups(top: int = 3, budget_usd: float = 100) -> str:
     text = signal_scanner.format_setups(setups, max(1, int(top)))
     if setups:
         signal_scanner.log_predictions(setups, max(1, int(top)))
-        text += "\n(예측 기록됨 — 지평 경과 후 review_predictions로 채점 가능)"
+        text += "\n(예측 기록됨, 지평 경과 후 review_predictions로 채점 가능)"
     return text
 
 
 @mcp.tool(title="Learned Signal Win Rates", annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def learned_winrates(top: int = 15) -> str:
-    """Show the signal win rates LEARNED from continuous observation — the bot
+    """Show the signal win rates LEARNED from continuous observation, the bot
     records every firing signal across the top-volume coins (whether or not it
     traded them) and grades them against what actually happened, building a
     real-world win-rate database over time. This is measured live performance,
@@ -613,14 +613,14 @@ def learned_winrates(top: int = 15) -> str:
         lines.append(f"  {sym} {tf} · {sig} → 승률 {wr:.0%} "
                      f"(실전 {n}건, {sp:.0f}일에 걸쳐 수집)")
     lines.append("\n※ 실시간 관측 결과이며, 여러 날에 걸쳐 모인 것만 표시합니다 "
-                 "— 하루에 몰린 표본은 같은 시장 한 건을 여러 번 센 것이라 "
+                 ", 하루에 몰린 표본은 같은 시장 한 건을 여러 번 센 것이라 "
                  "100%/0% 같은 값이 나오고, 그건 실력이 아닙니다.")
     return "\n".join(lines)
 
 
 @mcp.tool(title="Learned Combo Win Rates", annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def learned_combos(top: int = 12) -> str:
-    """Show COMBINATION signal win rates learned from live observation — cases
+    """Show COMBINATION signal win rates learned from live observation, cases
     where multiple indicators fire together (e.g. RSI-overbought + Bollinger-upper)
     in a given market regime (fear/neutral/greed). Combos usually carry a stronger
     edge than any single signal, and the setup scanner automatically boosts picks
@@ -656,11 +656,11 @@ def open_with_bracket(symbol: str, side: str, usd: float,
                       stop_loss_pct: float = 0, take_profit_pct: float = 0,
                       confirm: bool = False) -> str:
     """Open a perp position with EXCHANGE-NATIVE take-profit / stop-loss attached,
-    so the position is protected even if this bot or the user's computer is off —
+    so the position is protected even if this bot or the user's computer is off ,
     Pacifica closes it at the trigger price. side: 'long'/'short'. usd: notional
     size. stop_loss_pct / take_profit_pct: distance from entry as a percent
     (e.g. 3 = 3%); 0 disables that leg. Triggers use mark price. IMPORTANT:
-    places a REAL order — call with confirm=false first to preview, confirm=true
+    places a REAL order, call with confirm=false first to preview, confirm=true
     only after the user approves. Carries builder code 'mustache' (if approved)."""
     if side not in ("long", "short"):
         raise ToolError("side must be 'long' or 'short'")
@@ -678,7 +678,7 @@ def open_with_bracket(symbol: str, side: str, usd: float,
     entry = c.mid_price
     order_side = "bid" if side == "long" else "ask"
     tick = _tick_size(symbol)
-    # 롱: 손절은 아래, 익절은 위 / 숏: 반대 (가격은 틱 배수로 — 아니면 400 거부)
+    # 롱: 손절은 아래, 익절은 위 / 숏: 반대 (가격은 틱 배수로, 아니면 400 거부)
     def px(pct, is_stop):
         if pct <= 0:
             return ""
@@ -708,17 +708,17 @@ def open_with_bracket(symbol: str, side: str, usd: float,
         raise ToolError(f"Order failed: {e}") from e
     return (f"Opened {side} {amount} {symbol} (~${amount*entry:,.2f}) with "
             f"native protection: {' / '.join(legs) if legs else 'none'}. "
-            f"These triggers live on Pacifica — safe even if this bot is offline.")
+            f"These triggers live on Pacifica, safe even if this bot is offline.")
 
 
 @mcp.tool(title="Attach Stop-Loss / Take-Profit", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True))
 def protect_position(symbol: str, stop_loss_pct: float = 3,
                      take_profit_pct: float = 0, confirm: bool = False) -> str:
     """Attach EXCHANGE-NATIVE stop-loss / take-profit to a position that is
-    ALREADY OPEN (opened anywhere — this bot, the website, or another tool).
+    ALREADY OPEN (opened anywhere, this bot, the website, or another tool).
     Percentages are distances from the current mark price (e.g. 3 = 3%);
     0 disables that leg. Once set, Pacifica enforces the triggers even if this
-    bot or the user's PC is offline. IMPORTANT: modifies live protection —
+    bot or the user's PC is offline. IMPORTANT: modifies live protection ,
     call with confirm=false first to preview, confirm=true after the user
     approves."""
     client = _client()
@@ -752,7 +752,7 @@ def protect_position(symbol: str, stop_loss_pct: float = 3,
     gate = _confirm_gate(confirm,
         f"보호 부착: {symbol} {'롱' if is_long else '숏'} "
         f"{pos.get('amount')}개 (진입가 {pos.get('entry_price')}) · "
-        + " / ".join(legs) + "\n(거래소 등록 — 봇/PC 꺼져도 작동)")
+        + " / ".join(legs) + "\n(거래소 등록, 봇/PC 꺼져도 작동)")
     if gate:
         return gate
     try:
@@ -761,13 +761,13 @@ def protect_position(symbol: str, stop_loss_pct: float = 3,
     except PacificaError as e:
         raise ToolError(f"Failed: {e}") from e
     return (f"{symbol} 포지션에 보호 등록 완료: {' / '.join(legs)}. "
-            f"이 트리거는 Pacifica가 지킵니다 — 봇이 꺼져 있어도 작동해요.")
+            f"이 트리거는 Pacifica가 지킵니다, 봇이 꺼져 있어도 작동해요.")
 
 
 @mcp.tool(title="Market Context", annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def market_context() -> str:
     """Live market context to pair with chart analysis: crypto Fear & Greed index
-    (with a regime note — dip-buying historically loses in extreme fear), the
+    (with a regime note, dip-buying historically loses in extreme fear), the
     latest headlines, and the current funding-rate extremes on Pacifica. Use this
     before acting on any indicator signal, since signal hit-rates depend heavily
     on the market regime. Context is for risk management and regime read, not
@@ -790,7 +790,7 @@ def analyze_chart(symbol: str = "BTC", interval: str = "multi") -> str:
     Pass a single interval (1m/3m/5m/15m/30m/1h/2h/4h/8h/12h/1d/1w) for a deep
     8-indicator snapshot of just that timeframe (incl. StochRSI, ATR, VWAP).
     Takes ~30s in multi mode. Win rates are past-regime measurements, not
-    guarantees — pair with market_context for regime read."""
+    guarantees, pair with market_context for regime read."""
     from .indicators import INTERVAL_MS, analyze, analyze_multi
     if interval != "multi" and interval not in INTERVAL_MS:
         raise ToolError(
@@ -823,10 +823,10 @@ def check_position() -> str:
         adverse = move if side == "short" else -move
         lines.append(f"price move since entry: {move:+.2%} (adverse: {adverse:+.2%})")
         if pos.get("mode") == "directional" and adverse >= 0.05:
-            lines.append("⚠️ RECOMMENDATION: price moved >5% against the position — "
+            lines.append("⚠️ RECOMMENDATION: price moved >5% against the position, "
                          "consider closing (stop-loss).")
     if favorable < 0:
-        lines.append("⚠️ RECOMMENDATION: funding has flipped — the position now PAYS "
+        lines.append("⚠️ RECOMMENDATION: funding has flipped, the position now PAYS "
                      "funding. Consider closing.")
     return "\n".join(lines)
 
@@ -858,7 +858,7 @@ def _update_notice() -> str:
             r = _rq.get("https://pypi.org/pypi/ocean-agent/json", timeout=2)
             if r.ok:
                 v = str(r.json()["info"]["version"])
-                # 형식 검증 — 응답이 오염돼도 버전 숫자 외에는 채팅에 못 들어간다
+                # 형식 검증, 응답이 오염돼도 버전 숫자 외에는 채팅에 못 들어간다
                 import re as _re
                 if _re.fullmatch(r"[0-9]+(\.[0-9]+){0,3}([a-z]{1,2}[0-9]{0,3})?", v):
                     _UPDATE_STATE["latest"] = v

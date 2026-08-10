@@ -1,11 +1,11 @@
-# ocean-agent — MCP Setup Guide
+# ocean-agent, MCP Setup Guide
 
 > **For the AI agent reading this:** follow the steps below to register the
 > `ocean-agent` server in the user's MCP client. **Never ask the user to paste
 > their API key or wallet key into the chat, and never write a key value into any
 > config file.** Keys live only in the user's own environment (a `.env` file or
 > shell environment variables). In config files you only ever write a *path* or an
-> `${ENV_VAR}` reference — never a secret. If a key is missing, tell the user which
+> `${ENV_VAR}` reference, never a secret. If a key is missing, tell the user which
 > variable to set and where to generate it; do not proceed by guessing a value.
 
 `ocean-agent` is an MCP server for [Pacifica](https://app.pacifica.fi). It turns
@@ -14,7 +14,7 @@ market analysis. It runs with **`uvx`** (no install step, no Node.js).
 
 ---
 
-## Step 0 — Verify the runtime (`uv` / `uvx`)
+## Step 0, Verify the runtime (`uv` / `uvx`)
 
 `uvx` ships with **uv** (from Astral). Check it first:
 
@@ -34,24 +34,24 @@ re-run `uvx --version`.
 
 ---
 
-## Step 1 — Provide keys via environment (never in config files)
+## Step 1, Provide keys via environment (never in config files)
 
 The user creates an **API key** at **[app.pacifica.fi/apikey](https://app.pacifica.fi/apikey)**.
 API keys can trade but **cannot withdraw funds**, and can be revoked at any time.
 Read-only tools work without a key.
 
 **Do not ask for the key value.** Instead, tell the user to put their values in a
-`.env` file (recommended) — the server loads it automatically and keys stay out of
+`.env` file (recommended), the server loads it automatically and keys stay out of
 every config file. Show them the template with placeholders and let them fill it in:
 
 ```ini
-# ~/.pacifica.env   (or any path you control — keep it private)
+# ~/.pacifica.env   (or any path you control, keep it private)
 
 # Mainnet (real funds)
 ADDRESS=your_mainnet_wallet_address
 PACIFICA_API_KEY=your_mainnet_agent_key
 
-# Testnet (optional, separate keys — API keys are approved per network)
+# Testnet (optional, separate keys, API keys are approved per network)
 ADDRESS_TESTNET=your_testnet_wallet_address
 PACIFICA_API_KEY_TESTNET=your_testnet_agent_key
 
@@ -60,7 +60,7 @@ TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 ```
 
-The wallet **address** is public and safe to share; the **API key** is a secret —
+The wallet **address** is public and safe to share; the **API key** is a secret ,
 only the user ever types it, only into their own `.env`.
 
 ### Environment variables (actual names from the code)
@@ -68,20 +68,20 @@ only the user ever types it, only into their own `.env`.
 | Variable | What it is | Network |
 |---|---|---|
 | `ADDRESS` | Main wallet address (public) | mainnet |
-| `PACIFICA_API_KEY` | API key — trading only, no withdrawal | mainnet |
+| `PACIFICA_API_KEY` | API key, trading only, no withdrawal | mainnet |
 | `ADDRESS_TESTNET` | Testnet wallet address (optional) | testnet |
 | `PACIFICA_API_KEY_TESTNET` | Testnet API key (optional) | testnet |
 | `PACIFICA_BASE_URL` | Network selector (see Step 3) | both |
-| `PACIFICA_ENV_FILE` | Absolute path to the `.env` above (optional) | — |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Optional alerts | — |
+| `PACIFICA_ENV_FILE` | Absolute path to the `.env` above (optional) |, |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Optional alerts |, |
 
 ---
 
-## Step 2 — Register the server (Claude Code — primary)
+## Step 2, Register the server (Claude Code, primary)
 
 Create or edit **`.mcp.json`** in the project root. Point the server at the `.env`
 from Step 1 with `PACIFICA_ENV_FILE`, and pick the network with `PACIFICA_BASE_URL`.
-**No secret values go in this file — only a path and a URL.**
+**No secret values go in this file, only a path and a URL.**
 
 ```json
 {
@@ -99,7 +99,7 @@ from Step 1 with `PACIFICA_ENV_FILE`, and pick the network with `PACIFICA_BASE_U
 ```
 
 **Alternative (no `.env`):** reference shell environment variables instead of a
-file — still no literal secrets in the config:
+file, still no literal secrets in the config:
 
 ```json
 {
@@ -120,7 +120,7 @@ file — still no literal secrets in the config:
 ```
 
 To set those shell variables persistently (agent: show these, do **not** run them
-with real values — the user runs them):
+with real values, the user runs them):
 
 - **macOS / Linux:** append `export ADDRESS=...` lines to `~/.zshrc` or `~/.bashrc`, then `source` it.
 - **Windows PowerShell:** `[Environment]::SetEnvironmentVariable("ADDRESS","<value>","User")` (per variable).
@@ -130,7 +130,7 @@ All of these require a terminal (and client) restart to take effect.
 
 ---
 
-## Step 3 — Testnet / mainnet key separation
+## Step 3, Testnet / mainnet key separation
 
 `PACIFICA_BASE_URL` chooses the network, and the server picks the matching keys:
 
@@ -141,25 +141,25 @@ All of these require a terminal (and client) restart to take effect.
 
 Start on **testnet** (`https://test-api.pacifica.fi`) until the user has verified
 behavior. Switch to mainnet by changing only that one URL. API keys are approved
-per network, so a testnet key will not work on mainnet and vice versa — that is why
+per network, so a testnet key will not work on mainnet and vice versa, that is why
 there are separate `*_TESTNET` variables.
 
 ---
 
-## Step 4 — Verify
+## Step 4, Verify
 
-1. `.mcp.json` (and the other clients' config) is **read only at startup** —
+1. `.mcp.json` (and the other clients' config) is **read only at startup** ,
    fully **restart the client** after editing.
 2. Confirm the tools appear (the server registers under the name `ocean-agent`).
 3. Test with a **read-only, no-key** tool first, e.g. ask the agent to run
    **`scan_funding`** or **`market_context`**. If those return live Pacifica data,
    the server is connected. Only then move on to key-gated / order tools.
-4. If a key-gated tool reports a missing key, re-check Step 1 — do not paste a key
+4. If a key-gated tool reports a missing key, re-check Step 1, do not paste a key
    into chat; fix the `.env` or environment variable and restart.
 
 ---
 
-## Appendix — Other clients
+## Appendix, Other clients
 
 Every client uses the same server definition (`command: "uvx"`, `args: ["ocean-agent@latest"]`,
 same `env` block). Only the **file location / format** differs.
@@ -205,7 +205,7 @@ env = { PACIFICA_ENV_FILE = "/absolute/path/to/.pacifica.env", PACIFICA_BASE_URL
 ## API-key handling protocol (for the agent)
 
 - **Never** prompt the user to paste an API key or wallet key into the chat.
-- **Never** write a key value into `.mcp.json`, `config.toml`, or any tracked file —
+- **Never** write a key value into `.mcp.json`, `config.toml`, or any tracked file ,
   only a path (`PACIFICA_ENV_FILE`) or an `${ENV_VAR}` reference.
 - Leave placeholders (`your_mainnet_agent_key`, etc.) unchanged; the user fills them in.
 - Direct the user to **[app.pacifica.fi/apikey](https://app.pacifica.fi/apikey)** to
@@ -215,7 +215,7 @@ env = { PACIFICA_ENV_FILE = "/absolute/path/to/.pacifica.env", PACIFICA_BASE_URL
 
 ## Safety
 
-- API keys are **trading-only** — this software cannot move funds out.
+- API keys are **trading-only**, this software cannot move funds out.
 - Testnet and mainnet keys are kept separate (`*_TESTNET` variables).
 - Money-moving tools preview first and execute only on explicit confirmation.
 - Leveraged perpetuals can lose more than the margin posted. Run on testnet until

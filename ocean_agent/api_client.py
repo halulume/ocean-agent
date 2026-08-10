@@ -42,11 +42,11 @@ class PacificaClient:
             return r.json()
         except ValueError:
             raise PacificaError(
-                f"{ctx} 비정상 응답 (HTTP {r.status_code}) — 레이트리밋 가능성. "
+                f"{ctx} 비정상 응답 (HTTP {r.status_code}), 레이트리밋 가능성. "
                 f"본문: {r.text[:80]!r}")
 
     # 429 재시도 대기(초). 무거운 측정(rematrix·harness)이 같은 API 를 두드리면
-    # 10초 한 번으로는 못 넘긴다 — 2026-08-06 에 사이클 13개가 이걸로 날아갔다.
+    # 10초 한 번으로는 못 넘긴다, 2026-08-06 에 사이클 13개가 이걸로 날아갔다.
     _RETRY_BACKOFF = (5, 20, 45)
 
     def _get(self, path: str, params: dict | None = None) -> dict:
@@ -86,7 +86,7 @@ class PacificaClient:
 
     def approve_builder_code(self, builder_code: str,
                              max_fee_rate: str) -> dict:
-        """빌더 코드 승인 — 반드시 사용자가 동의한 뒤에만 호출할 것.
+        """빌더 코드 승인, 반드시 사용자가 동의한 뒤에만 호출할 것.
 
         max_fee_rate 는 소수 문자열("0.0001" = 1bps). 사용자 보호를 위해
         실제 빌더 수수료율보다 낮으면 거래소가 주문을 거부한다."""
@@ -111,20 +111,20 @@ class PacificaClient:
                 request["agent_wallet"] = signer_pubkey
             r = self.session.post(f"{self.base}/{path}", json=request, timeout=15)
             if r.status_code == 429 and attempt == 1:
-                _t.sleep(10)          # 레이트리밋 — 한 번만 쉬고 재서명·재시도
+                _t.sleep(10)          # 레이트리밋, 한 번만 쉬고 재서명·재시도
                 continue
             body = self._parse_json(r, f"POST /{path}")
             # success 키가 없으면 실패로 간주(안전). 200인데 스펙 밖 응답이
-            # 오면 '주문 성공'으로 오독하지 않는다 — 돈이 걸린 경로라 보수적으로.
+            # 오면 '주문 성공'으로 오독하지 않는다, 돈이 걸린 경로라 보수적으로.
             if r.status_code != 200 or not body.get("success", False):
                 raise PacificaError(f"POST /{path} 실패 ({r.status_code}): {r.text}")
             return body.get("data", body)
         raise PacificaError(f"POST /{path} 레이트리밋 지속 (429)")
 
-    # 하드 사이징 가드 — 한 주문의 명목가 절대 상한(USD). 봇 정책($3,000)보다
+    # 하드 사이징 가드, 한 주문의 명목가 절대 상한(USD). 봇 정책($3,000)보다
     # 넉넉히 높게 두되, '폭주'는 확실히 막는 최후 방어선. 봇·스크립트·웹 등
     # 어느 경로로 온 주문이든 이 함수를 통과하므로 여기서 한 번에 막는다.
-    # reduce_only(청산)는 예외 — 큰 포지션 정리를 막으면 안 됨.
+    # reduce_only(청산)는 예외, 큰 포지션 정리를 막으면 안 됨.
     MAX_ORDER_NOTIONAL_USD = 20_000
 
     def create_market_order(self, symbol: str, side: str, amount: str,
@@ -136,13 +136,13 @@ class PacificaClient:
         """시장가 주문. side는 'bid'(매수) 또는 'ask'(매도).
 
         take_profit_price / stop_loss_price 를 넘기면 거래소에 TP/SL을 함께
-        등록한다 — 봇/PC가 꺼져도 거래소가 해당 가격에서 포지션을 청산한다.
+        등록한다, 봇/PC가 꺼져도 거래소가 해당 가격에서 포지션을 청산한다.
 
         builder_code가 계정에서 미승인 상태라 거부되면, 사용자를 막지 않도록
         코드 없이 1회 재시도한다 (승인된 계정에서만 수수료가 붙는 구조).
 
         하드 가드: 신규 주문의 명목가가 MAX_ORDER_NOTIONAL_USD를 넘으면 거부.
-        (2026-07-24 BTC $355k 폭주 재발 방지 — 원인 불문 최후 차단)
+        (2026-07-24 BTC $355k 폭주 재발 방지, 원인 불문 최후 차단)
         """
         # ── 폭주 방어: 신규 주문 명목가 상한 검사 (청산은 제외) ──
         # fail-closed: 가격을 확인할 수 없으면(조회 실패·미상장 심볼) 통과가 아니라
@@ -204,7 +204,7 @@ class PacificaClient:
 
     def batch_market_orders(self, orders: list[dict],
                             builder_code: str = "") -> dict:
-        """여러 시장가 주문을 원자적 배치(Atomics)로 전송 — 한 번에, 순서대로,
+        """여러 시장가 주문을 원자적 배치(Atomics)로 전송, 한 번에, 순서대로,
         남의 주문에 끼이지 않고 실행. OI 헤지 양다리나 바스켓 진입에 최적.
 
         orders: [{"symbol","side","amount","slippage_percent"?,"reduce_only"?}, ...]
@@ -214,9 +214,9 @@ class PacificaClient:
             raise PacificaError("API 키가 없어 주문을 보낼 수 없습니다")
         if not 1 <= len(orders) <= 10:
             raise PacificaError("배치는 1~10개 주문만 가능합니다")
-        # 하드 가드 — 배치 내 각 신규 주문도 명목가 상한 검사 (청산 제외).
+        # 하드 가드, 배치 내 각 신규 주문도 명목가 상한 검사 (청산 제외).
         # fail-closed: 가격을 확인할 수 없으면 통과가 아니라 거부한다. 단건
-        # create_market_order 와 동일한 정책 — 가드를 검증 못 하는 주문을
+        # create_market_order 와 동일한 정책, 가드를 검증 못 하는 주문을
         # 통과시키는 것이 폭주 우회로가 된다(2026-08-10 감사에서 fail-open 발견).
         try:
             px_map = {p.get("symbol"): float(p.get("mark") or p.get("mid") or 0)
@@ -259,10 +259,10 @@ class PacificaClient:
             r = self.session.post(f"{self.base}/orders/batch",
                                   json={"actions": actions}, timeout=20)
             if r.status_code == 429 and attempt == 1:
-                _t.sleep(10)      # 레이트리밋 — 한 번만 쉬고 재서명·재시도
+                _t.sleep(10)      # 레이트리밋, 한 번만 쉬고 재서명·재시도
                 continue
             body = self._parse_json(r, "POST /orders/batch")
-            # success 없으면 실패로 간주(안전) — 배치도 돈이 걸린 경로.
+            # success 없으면 실패로 간주(안전), 배치도 돈이 걸린 경로.
             if r.status_code != 200 or not body.get("success", False):
                 # 빌더 코드 미승인이면 코드 없이 재시도
                 if builder_code and "builder" in r.text.lower():
@@ -297,7 +297,7 @@ class PacificaClient:
                                     "client_order_id": str(uuid.uuid4())}
         return self._signed_post("positions/tpsl", "set_position_tpsl", payload)
 
-    # ---------- Print (⚠️ 비공개 API — 웹앱과 동일 경로, 예고 없이 바뀔 수 있음) ----------
+    # ---------- Print (⚠️ 비공개 API, 웹앱과 동일 경로, 예고 없이 바뀔 수 있음) ----------
     # Print의 내부 이름은 'game'. 목표가(strike)에 걸어두고 기다리는 동안
     # 프리미엄(이자)을 받는 옵션형 상품. 24시간 체크포인트에 체결 판정.
 
@@ -327,7 +327,7 @@ class PacificaClient:
 
     def print_sim(self, game: str, deposit_usd: str, direction: int,
                   strike_price: str, leverage: str) -> dict:
-        """Print 주문 시뮬레이션 — 프리미엄(수익), 내재변동성, 청산가 견적.
+        """Print 주문 시뮬레이션, 프리미엄(수익), 내재변동성, 청산가 견적.
         direction: 0=롱(아래 목표가에 매수 대기), 1=숏(위 목표가에 매도 대기)."""
         return self._get("game/sim", {
             "game": game, "deposit_amount": str(deposit_usd),
@@ -351,7 +351,7 @@ class PacificaClient:
 
         서버가 요구하는 필드는 마켓 이름(game)이 아니라 예치 계정 주소
         (game_account)다. 예전 코드는 {"game": ...}를 보내 항상 400으로
-        실패했다 — 즉 조기 종료가 한 번도 동작한 적이 없다.
+        실패했다, 즉 조기 종료가 한 번도 동작한 적이 없다.
         주소는 print_positions()의 game_accounts[].address 값이다."""
         return self._signed_post("game/end", "end_game",
                                  {"game_account": game_account})

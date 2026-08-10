@@ -12,7 +12,7 @@ licensed financial advisors and do not know your circumstances.
 ## It places real orders with real money
 
 Given an API key with trading permission, this software submits live orders and
-can open leveraged positions without asking first — that is what the autonomous
+can open leveraged positions without asking first, that is what the autonomous
 mode is for. Losses are real and can exceed what you expected. You are
 responsible for every order placed under your key, including orders you did not
 personally review.
@@ -53,7 +53,7 @@ trade your account.
 ## No warranty
 
 This software is provided "as is" under the MIT License, without warranty of any
-kind. The authors are not liable for any loss arising from its use — including
+kind. The authors are not liable for any loss arising from its use, including
 losses caused by bugs, incorrect calculations, exchange outages, network
 failures, or misconfiguration.
 

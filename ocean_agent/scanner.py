@@ -16,7 +16,7 @@ from .api_client import PacificaClient
 @dataclass
 class Candidate:
     symbol: str            # perp 심볼 (예: SOL)
-    spot_symbol: str       # 스팟 심볼 (예: SOL-USDC) — directional 모드에선 ""
+    spot_symbol: str       # 스팟 심볼 (예: SOL-USDC), directional 모드에선 ""
     funding_hourly: float  # 시간당 펀딩비 (부호 있음)
     next_funding: float
     apr: float             # 연환산 펀딩 (부호 있음)
@@ -88,7 +88,7 @@ def funding_apr_for(client: PacificaClient, symbol: str,
 
 def price_and_funding(client: PacificaClient, symbol: str,
                       periods_per_year: int = 8760) -> tuple[float, float]:
-    """(중간가, 펀딩 연환산 APR) — 손절 판단과 청산 판단에 함께 쓴다."""
+    """(중간가, 펀딩 연환산 APR), 손절 판단과 청산 판단에 함께 쓴다."""
     for p in client.get_prices():
         if p["symbol"] == symbol:
             mid = float(p.get("mid") or p.get("mark") or 0)

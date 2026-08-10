@@ -1,4 +1,4 @@
-"""풀 백테스트 하네스 — 봇의 실제 매매 파이프라인을 과거 OHLC 위에 재생한다.
+"""풀 백테스트 하네스, 봇의 실제 매매 파이프라인을 과거 OHLC 위에 재생한다.
 
 무엇을 재는가:
   신호 → 지표분석 → 승률/EV 관문 → 확신도 → 진입 → TP/SL·본전스탑·트레일링·
@@ -10,7 +10,7 @@
   신호×시간봉의 평균 EV를 잰다. 둘 다 "그래서 계좌가 어떻게 되나"는 답하지
   못한다. 손절·트레일링·동시보유·예산이 결과를 크게 바꾸기 때문이다.
 
-재사용 원칙 — 새 판단 로직을 만들지 않는다:
+재사용 원칙, 새 판단 로직을 만들지 않는다:
   신호/지표  signal_scanner._series, ._signals
   관문       signal_scanner 의 MIN_N / MIN_EDGE / FEE_RT / 스윙·변동성 상수
   확신도     brain.conviction
@@ -40,13 +40,13 @@ from datetime import datetime, timezone
 from . import signal_scanner as ss
 from .indicators import INTERVAL_MS
 
-MIN_SAMPLES = ss.MIN_N     # 스윕용 — 기본은 스캐너와 동일
-SIZE_SCALE = 1.0           # 스윕용 — 목표·손절 크기 보정 배수
+MIN_SAMPLES = ss.MIN_N     # 스윕용, 기본은 스캐너와 동일
+SIZE_SCALE = 1.0           # 스윕용, 목표·손절 크기 보정 배수
 # 증거금 하한: 0이면 실거래와 동일(signal_scanner.MIN_MARGIN_USD=25 관문 적용),
-# 양수면 그 값으로 스윕, 음수면 관문 없음 (2026-08-07 실거래 일치화 — 이전엔
+# 양수면 그 값으로 스윕, 음수면 관문 없음 (2026-08-07 실거래 일치화, 이전엔
 # 선언만 있고 미사용이라 하네스가 실거래보다 관대했다)
 MIN_MARGIN = 0.0
-# 스윕용 — 사이징 기준 자본을 고정한다(복리 끔). 백테스트는 8년간 자본이
+# 스윕용, 사이징 기준 자본을 고정한다(복리 끔). 백테스트는 8년간 자본이
 # 수천 달러로 불어나므로, '지금 $333 계좌에서 어떤가'를 물으면 뒤쪽 구간이
 # 답을 지배해버린다. 이 값을 켜면 항상 그 자본으로 크기를 잡는다.
 FIXED_CAPITAL = 0.0
@@ -81,7 +81,7 @@ _FNG: dict | None = None
 
 def _fng_map(log=_log) -> dict:
     """일자(UTC) → 공포탐욕지수. 실거래 국면 필터의 과거 재생용.
-    alternative.me 전체 히스토리(2018-02~)를 7일 캐시. 실패하면 빈 dict —
+    alternative.me 전체 히스토리(2018-02~)를 7일 캐시. 실패하면 빈 dict ,
     그 구간은 필터 없이 재생된다(지수가 없던 2018 이전과 동일 취급)."""
     global _FNG
     if _FNG is not None:
@@ -105,7 +105,7 @@ def _fng_map(log=_log) -> dict:
             with open(cache, "w", encoding="utf-8") as f:
                 json.dump(data, f)
         except Exception as e:
-            log(f"공포탐욕 히스토리 로드 실패 — 해당 구간 필터 없이 재생: {e}")
+            log(f"공포탐욕 히스토리 로드 실패, 해당 구간 필터 없이 재생: {e}")
             data = []
     m = {}
     for row in data or []:
@@ -142,7 +142,7 @@ def precompute(bars: list[dict]):
     n = len(closes)
     out = {}
     for name, (side, cond) in sigs.items():
-        fires = []          # (발생봉, 지평결과) — 지평결과는 채점용
+        fires = []          # (발생봉, 지평결과), 지평결과는 채점용
         live = []           # 그 봉에 켜졌는지 (진입 판정용)
         for i in range(n):
             try:
@@ -157,7 +157,7 @@ def precompute(bars: list[dict]):
             out[name] = {"side": side, "fires": fires, "live": live, "ptr": 0,
                          "closes": closes,
                          "n": 0, "wins": [], "losses": [],
-                         # 경로 EV 누적 — 발생분 하나를 딱 한 번만 평가한다
+                         # 경로 EV 누적, 발생분 하나를 딱 한 번만 평가한다
                          "path_ptr": 0, "path_sum": 0.0, "path_n": 0}
     return out
 
@@ -181,7 +181,7 @@ _BASE_CACHE = {}
 
 
 def _baseline_up(closes: list, i: int) -> float:
-    """직전 3000봉에서 '그냥 롱'의 승률. 500봉 단위로만 다시 센다 —
+    """직전 3000봉에서 '그냥 롱'의 승률. 500봉 단위로만 다시 센다 ,
     이 값은 천천히 변하는데 봉마다 계산하면 그 자체가 O(n²)이다."""
     key = (id(closes), i // 500)
     hit = _BASE_CACHE.get(key)
@@ -218,7 +218,7 @@ def evaluate(st: dict, name: str, tf: str, bars: list[dict], i: int,
     if pwin - base < ss.MIN_EDGE:
         return None
 
-    # 증거 수축 — 표본이 적으면 기준선 쪽으로 끌어당긴다
+    # 증거 수축, 표본이 적으면 기준선 쪽으로 끌어당긴다
     pwin = base + (pwin - base) * (st["n"] / (st["n"] + ss.EVIDENCE_PRIOR))
 
     avg_win = sum(wins) / len(wins) if wins else 0.0
@@ -233,11 +233,11 @@ def evaluate(st: dict, name: str, tf: str, bars: list[dict], i: int,
     # widens the stop everywhere it matters - path EV, sizing, leverage
     sl *= float(os.environ.get("HARNESS_SL_MULT", "1") or 1)
 
-    # 기대값은 경로로 — 익절·손절 중 먼저 닿는 쪽이 결과다.
+    # 기대값은 경로로, 익절·손절 중 먼저 닿는 쪽이 결과다.
     # 새로 채점이 끝난 발생분만 평가해 누적한다. 매번 과거 전체를 다시 훑으면
     # O(n²)이 되어 1시간봉 66,507봉에서는 끝나지 않는다(실측: 첫 시도 중단).
     # 오래된 발생분은 '그때의 sl/tp'로 평가된 채 남는데, 그게 오히려 실전에
-    # 가깝다 — 그 시점의 판단 기준으로 채점한 것이기 때문이다.
+    # 가깝다, 그 시점의 판단 기준으로 채점한 것이기 때문이다.
     while st["path_ptr"] < st["ptr"]:
         fi = st["fires"][st["path_ptr"]][0]
         st["path_ptr"] += 1
@@ -328,7 +328,7 @@ class Backtest:
         long = pos["side"] == "long"
         entry = pos["entry"]
 
-        # 시간만료 — 지평 × 배수, 또는 절대 상한(max_hold_hours) 중 먼저
+        # 시간만료, 지평 × 배수, 또는 절대 상한(max_hold_hours) 중 먼저
         mult = float(p.get("expire_after_horizons", 0) or 0)
         cap_h = float(p.get("max_hold_hours", 0) or 0)
         limits = []
@@ -349,7 +349,7 @@ class Backtest:
 
         # ★ 손절 우선: 한 봉 안에서 둘 다 닿으면 손절로 본다(과대평가 방지)
         # 손절선은 트레일링·본전스탑으로 이익 쪽까지 올라갈 수 있다(sl_dist<0).
-        # 그때 청산되면 손실이 아니라 '이익 확정'이므로 사유를 갈라 적는다 —
+        # 그때 청산되면 손실이 아니라 '이익 확정'이므로 사유를 갈라 적는다 ,
         # 안 그러면 리포트에 '손절인데 +2.50' 같은 줄이 생겨 원인분석이 꼬인다.
         sl_dist = pos["sl_dist"]
         if adverse >= sl_dist:
@@ -374,7 +374,7 @@ class Backtest:
             pos["notional"] -= cut
             pos["partial_done"] = True
 
-        # 손절선 이동 — 트레일링 우선, 유리한 쪽으로만
+        # 손절선 이동, 트레일링 우선, 유리한 쪽으로만
         be_at = float(p.get("breakeven_at_pct", 0) or 0)
         tr_at = float(p.get("trail_at_pct", 0) or 0)
         tr_gap = float(p.get("trail_gap_pct", 0) or 0)
@@ -465,7 +465,7 @@ class Backtest:
         p = self.p
         if sym in self.open:
             return False
-        # 증거금이 실제로 있는가 — 거래소는 없는 돈으로 포지션을 열어주지 않는다.
+        # 증거금이 실제로 있는가, 거래소는 없는 돈으로 포지션을 열어주지 않는다.
         # 2026-08-06까지 이 확인이 없어서, 포지션 상한을 올리면 자본을 넘는
         # 증거금이 필요한 조합도 통과했다(자본 $333에 상한 $600 → 6개면 $720).
         # 그 설정이 백테스트에서 +$24,380 으로 나왔는데 실제로는 열 수조차 없다.
@@ -490,7 +490,7 @@ class Backtest:
 
     def open_position(self, sym: str, s: dict, bar: dict, ts: int):
         p = self.p
-        # 국면(공포탐욕) 필터 — 실거래 regime_allows 와 동일: 극단(≤25/≥75)에서
+        # 국면(공포탐욕) 필터, 실거래 regime_allows 와 동일: 극단(≤25/≥75)에서
         # 신규 롱 차단, 숏은 안 막음. use_regime_filter: false 로 끌 수 있다.
         if bool(p.get("use_regime_filter", True)) and s["side"] == "long":
             day = datetime.fromtimestamp(
@@ -499,8 +499,8 @@ class Backtest:
             if v is not None and (v <= 25 or v >= 75):
                 return False
         conv_mult = 0.7 + s["conviction"] * 0.6
-        # EV 비례 배율 — 실거래(autonomous)와 같은 식. 단 실거래는 현재 매트릭스
-        # EV를 쓰지만 재생에서는 그 시점까지의 경로 EV(raw_ev)를 쓴다 —
+        # EV 비례 배율, 실거래(autonomous)와 같은 식. 단 실거래는 현재 매트릭스
+        # EV를 쓰지만 재생에서는 그 시점까지의 경로 EV(raw_ev)를 쓴다 ,
         # 오늘의 매트릭스를 과거에 주입하면 미래참조가 되기 때문.
         lo = float(p.get("ev_size_floor_pct", 0.0) or 0.0)
         hi = float(p.get("ev_size_cap_pct", 0.05) or 0.05)
@@ -534,7 +534,7 @@ def run(coins, intervals, start_year, capital, adaptive, log=_log,
     client = make_client(policy)
     max_lev = int(policy.get("max_leverage", 5) or 5)
 
-    log(f"백테스트 시작 — 종목 {','.join(coins)} · 시간봉 {','.join(intervals)} · "
+    log(f"백테스트 시작, 종목 {','.join(coins)} · 시간봉 {','.join(intervals)} · "
         f"{start_year}년~ · 자본 ${capital:,.0f} · 적응루프 {'ON' if adaptive else 'OFF'}")
 
     data = {}
@@ -542,7 +542,7 @@ def run(coins, intervals, start_year, capital, adaptive, log=_log,
         for tf in intervals:
             bars = load_bars(client, sym, tf, start_year, log=log)
             if len(bars) < 400:
-                log(f"  {sym} {tf}: 봉 {len(bars)}개 — 건너뜀")
+                log(f"  {sym} {tf}: 봉 {len(bars)}개, 건너뜀")
                 continue
             data[(sym, tf)] = {"bars": bars, "sig": precompute(bars)}
             log(f"  {sym} {tf}: {len(bars)}봉 · 신호 {len(data[(sym,tf)]['sig'])}종")
@@ -550,7 +550,7 @@ def run(coins, intervals, start_year, capital, adaptive, log=_log,
         log("데이터가 없어 중단")
         return None
 
-    # 전 종목·전 시간봉을 시각순으로 병합 — 포트폴리오 한도가 제대로 걸리려면
+    # 전 종목·전 시간봉을 시각순으로 병합, 포트폴리오 한도가 제대로 걸리려면
     # 심볼별로 따로 돌리면 안 되고 하나의 시간축에서 처리해야 한다.
     events = []
     for key, d in data.items():
@@ -595,7 +595,7 @@ def run(coins, intervals, start_year, capital, adaptive, log=_log,
                 bt._close(sym, d["bars"][-1]["c"], "end_of_test",
                           d["bars"][-1]["t"])
                 break
-    log(f"완료 — 트레이드 {len(bt.trades)}건 · 최종 자본 ${bt.equity:,.2f}")
+    log(f"완료, 트레이드 {len(bt.trades)}건 · 최종 자본 ${bt.equity:,.2f}")
     return bt
 
 
@@ -646,7 +646,7 @@ def report(bt: Backtest, log=_log):
     L.append(f"  승률          {len(wins)/len(T)*100:.1f}%  ({len(wins)}승 {len(losses)}패)")
     L.append(f"  평균 이익     ${aw:+.3f}")
     L.append(f"  평균 손실     ${-al:+.3f}")
-    L.append(f"  손익비        {aw/al:.2f}" if al else "  손익비        —")
+    L.append(f"  손익비        {aw/al:.2f}" if al else "  손익비        ,")
     L.append(f"  기대값        ${total/len(T):+.4f} / 트레이드")
     L.append(f"  총손익        ${total:+,.2f}")
     L.append(f"  자본          ${bt.start_capital:,.0f} → ${bt.equity:,.2f} "
@@ -680,8 +680,8 @@ def report(bt: Backtest, log=_log):
     ag = group(lambda t: t["attribution"] or "(미분류)", losses)
     adverse = ag.get("역행패배", {"n": 0})["n"]
     headwind = ag.get("시장역풍", {"n": 0})["n"]
-    LL.append(f"  역행패배 {adverse}건 — 유리한 국면인데 짐 = 신호 자체가 나쁘다")
-    LL.append(f"  시장역풍 {headwind}건 — 시장이 반대로 간 것 = 신호 탓 아님")
+    LL.append(f"  역행패배 {adverse}건, 유리한 국면인데 짐 = 신호 자체가 나쁘다")
+    LL.append(f"  시장역풍 {headwind}건, 시장이 반대로 간 것 = 신호 탓 아님")
     LL.append("")
     LL.append("  ※ 역행패배가 많은 신호부터 손봐야 한다. 시장역풍은 국면 필터의 몫.")
     LL.append("")
@@ -742,7 +742,7 @@ def main():
     p.add_argument("--adaptive", action="store_true",
                    help="자가정지·사이즈배율 적응 루프까지 재생 (기본 off)")
     p.add_argument("--smoke", action="store_true",
-                   help="스모크런 — BTC 1d 만 빠르게")
+                   help="스모크런, BTC 1d 만 빠르게")
     p.add_argument("--background", action="store_true", help="백그라운드 실행")
     p.add_argument("--no-regime", action="store_true",
                    help="국면(공포탐욕) 필터 끄고 재생 (A/B 대조용)")

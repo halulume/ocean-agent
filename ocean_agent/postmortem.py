@@ -1,4 +1,4 @@
-"""사후 원인분석 (Post-Mortem) — 자가진화 루프의 심장.
+"""사후 원인분석 (Post-Mortem), 자가진화 루프의 심장.
 
 원칙 (사용자 지시 2026-07-22):
   결과가 실제 데이터다. 수익이 나면 '왜 났는지', 손실이 나면 '왜 났는지'를
@@ -6,11 +6,11 @@
   계좌 금액을 계속 늘려가는 방향으로 진화시킨다.
 
 무엇을 분석하나 (포지션이 청산될 때마다):
-  1. 실제 손익 (얼마 벌었나/잃었나) — 이론이 아니라 체결된 결과
-  2. 진입 근거였던 신호의 그 시점 매트릭스 EV — 근거가 맞았나
-  3. 국면(공포/탐욕) — 이 국면에서 이 신호가 통하는가
-  4. 시장 방향 기여도 — 순수 신호 실력인가 그냥 시장 덕/탓인가
-  5. 청산 사유 (익절/손절/시간만료/수동) — 어떻게 끝났나
+  1. 실제 손익 (얼마 벌었나/잃었나), 이론이 아니라 체결된 결과
+  2. 진입 근거였던 신호의 그 시점 매트릭스 EV, 근거가 맞았나
+  3. 국면(공포/탐욕), 이 국면에서 이 신호가 통하는가
+  4. 시장 방향 기여도, 순수 신호 실력인가 그냥 시장 덕/탓인가
+  5. 청산 사유 (익절/손절/시간만료/수동), 어떻게 끝났나
 
 결과는 ~/.ocean_agent_<net>_postmortem.jsonl 에 append (net=testnet/mainnet 분리).
 집계는 win_reasons()/loss_reasons() 로 조회 → 리포트·적응이 참조.
@@ -64,7 +64,7 @@ def analyze_close(rec: dict, exit_price: float, pnl_usd: float,
     signal_move = move if side == "long" else -move   # +면 신호방향으로 맞음
     won = pnl_usd > 0
 
-    # 진입 근거였던 매트릭스 EV를 지금 다시 조회 — 근거가 유효했나
+    # 진입 근거였던 매트릭스 EV를 지금 다시 조회, 근거가 유효했나
     matrix_ev = None
     try:
         from .rematrix import signal_ev, baseline_ev
@@ -127,7 +127,7 @@ def _held_hours(at_iso) -> float:
 
 
 def summarize(days: int = 30) -> dict:
-    """최근 N일 원인분석 집계 — 리포트·적응이 참조하는 요약."""
+    """최근 N일 원인분석 집계, 리포트·적응이 참조하는 요약."""
     cutoff = time.time() * 1000 - days * 86_400_000
     rows = [r for r in _load() if r.get("ts", 0) >= cutoff]
     if not rows:
@@ -162,7 +162,7 @@ def summarize(days: int = 30) -> dict:
 
 
 def signal_verdict(signal: str, interval: str = "") -> dict | None:
-    """특정 신호의 실전 성적표 — 몇 번 이기고 졌나, 순수 실력이었나."""
+    """특정 신호의 실전 성적표, 몇 번 이기고 졌나, 순수 실력이었나."""
     rows = [r for r in _load()
             if r.get("signal") == signal
             and (not interval or r.get("interval") == interval)]

@@ -32,7 +32,7 @@ def data_file(name: str) -> str:
 
 # Mainnet-only brand name. Testnet keeps the original generic label so the
 # testnet experience is byte-for-byte unchanged. This is DISPLAY ONLY (Telegram
-# alerts, logs, MCP handshake) — it never touches data-file names, state keys,
+# alerts, logs, MCP handshake), it never touches data-file names, state keys,
 # the PyPI package id, or the .mcp.json tool namespace, so it can't collide with
 # the storage/logic layer.
 _BRAND_MAINNET = "Ocean Agent"
@@ -60,7 +60,7 @@ def migrate_brand_rename() -> list:
     관측·손익 기록을 통째로 잃고 빈 상태로 다시 시작하게 된다.
 
     안전 규칙 두 가지:
-      · 새 이름이 이미 있으면 건드리지 않는다 (멱등 — 여러 번 불러도 안전)
+      · 새 이름이 이미 있으면 건드리지 않는다 (멱등, 여러 번 불러도 안전)
       · 복사가 아니라 이름 변경이라 디스크를 두 배로 쓰지 않는다
         (bincache 는 378MB 라 복사하면 느리고, 어차피 재다운로드 가능하다)
     """

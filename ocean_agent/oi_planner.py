@@ -5,7 +5,7 @@
 
 이 모듈은 Pacifica의 거래소 집계 펀딩비 API를 분석해서
 "이 코인은 Pacifica에서 [롱/숏]을 잡고, [어느 거래소]에서 반대 포지션을 잡아라
- — 그러면 순 펀딩 캐리가 연 X%다"를 코인별로 랭킹한다.
+, 그러면 순 펀딩 캐리가 연 X%다"를 코인별로 랭킹한다.
 
 원리: 펀딩이 높은 쪽에서 숏(수취), 낮은 쪽에서 롱(지급 최소/수취).
       두 다리는 반대 방향이라 가격 손익은 상쇄되고 펀딩 차이만 남는다.
@@ -79,7 +79,7 @@ def plan_hedges(client: PacificaClient) -> list[HedgePlan]:
 
 def format_plans(plans, top: int = 15, min_carry: float = 0.0) -> str:
     lines = [
-        "Pacifica OI 파밍 헤지 플랜 — 순 캐리 높은 순",
+        "Pacifica OI 파밍 헤지 플랜, 순 캐리 높은 순",
         "(Pacifica 다리가 OI를 쌓고, 헤지 다리가 가격 위험을 상쇄)",
         "",
         f"{'심볼':<10}{'Pacifica':>9}{'펀딩APR':>9} | {'헤지 거래소':<12}{'방향':>6}"

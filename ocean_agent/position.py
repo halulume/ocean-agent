@@ -57,7 +57,7 @@ def open_delta_neutral(client: PacificaClient, candidate: Candidate,
     hedge_amount = _round_down_to_lot(amount * (1 - taker_fee),
                                       candidate.perp_lot_size)
     if hedge_amount <= 0:
-        raise PacificaError("수수료 보정 후 헤지 수량이 0 — 주문 크기를 키우세요")
+        raise PacificaError("수수료 보정 후 헤지 수량이 0, 주문 크기를 키우세요")
     client.create_market_order(candidate.spot_symbol, "bid", str(amount),
                                slippage, builder_code=builder_code)
     try:
@@ -96,7 +96,7 @@ def close_directional(client: PacificaClient, symbol: str, farm_side: str,
 
 def close_delta_neutral(client: PacificaClient, symbol: str, spot_symbol: str,
                         amount: float, slippage: str, builder_code: str) -> dict:
-    """델타뉴트럴 청산 — perp 숏 청산 후 스팟 매도.
+    """델타뉴트럴 청산, perp 숏 청산 후 스팟 매도.
 
     ⚠️ 비대칭 위험: perp 청산은 성공했는데 스팟 매도가 실패하면 스팟 롱만
     남아 '네이키드 롱 노출'이 생긴다. 조용히 raise하면 그 노출을 아무도
@@ -112,7 +112,7 @@ def close_delta_neutral(client: PacificaClient, symbol: str, spot_symbol: str,
     client.create_market_order(symbol, "bid", amt, slippage,
                                reduce_only=True, builder_code=builder_code)
     time.sleep(1)
-    # 2) 스팟 매도 — 실패하면 재시도, 그래도 실패면 네이키드 노출 보고
+    # 2) 스팟 매도, 실패하면 재시도, 그래도 실패면 네이키드 노출 보고
     try:
         client.create_market_order(spot_symbol, "ask", amt,
                                    slippage, builder_code=builder_code)

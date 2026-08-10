@@ -30,13 +30,13 @@ LOCK_FILE = MATRIX_FILE + ".running"
 # Measured universe. The first 12 have a Binance spot mapping, so with
 # use_extended their backtest reaches back to 2017 (bull, bear and chop) instead
 # of the ~62 days Pacifica can serve. HYPE and PUMP have no mapping and stay
-# Pacifica-only — kept because they are actively traded, but their rows carry
+# Pacifica-only, kept because they are actively traded, but their rows carry
 # far thinner evidence.
 # Was 6 coins, of which only 4 could use the deep history at all; the bot trades
 # 47 markets, so most entries were being judged on one market mood.
 COINS = ["BTC", "ETH", "SOL", "XRP", "DOGE", "BNB",
          "AVAX", "LINK", "LTC", "ADA", "SUI", "AAVE",
-         # 2026-08-06 추가 — 바이낸스 매핑이 생겨 2017년까지 표본이 늘어난다.
+         # 2026-08-06 추가, 바이낸스 매핑이 생겨 2017년까지 표본이 늘어난다.
          "PAXG", "PUMP", "ZEC", "UNI", "JUP", "ENA",
          "HYPE"]
 TFS = ["5m", "15m", "30m", "1h", "2h", "4h", "8h", "12h", "1d"]
@@ -51,7 +51,7 @@ def _fetch(client, symbol, interval, max_bars=3000, use_extended=False,
            log=print):
     """파시피카 kline 종가를 과거→현재로 반환.
 
-    use_extended=False(기본): 아래 파시피카 전용 경로만 실행 — 기존과 완전 동일.
+    use_extended=False(기본): 아래 파시피카 전용 경로만 실행, 기존과 완전 동일.
     use_extended=True: 파시피카 종가 앞에 바이낸스 과거 종가를 이어붙여 표본을
         두껍게 한다(가격 전용. 펀딩·호가·OI는 절대 안 가져옴). 겹침 괴리가 크거나
         바이낸스에 없는 심볼이면 자동으로 파시피카만 반환(안전 폴백)."""
@@ -81,7 +81,7 @@ def _fetch(client, symbol, interval, max_bars=3000, use_extended=False,
         if last <= cur:
             break
         cur = last + step
-    # 마지막 미완성 캔들 제거 — 백테스트 look-ahead 방지 (진행중 종가는 변함)
+    # 마지막 미완성 캔들 제거, 백테스트 look-ahead 방지 (진행중 종가는 변함)
     now = int(time.time() * 1000)
     while out and int(out[-1]["t"]) + step > now:
         out.pop()
@@ -119,7 +119,7 @@ def _path_result(bars, closes, i, side, sl, tp, fwd):
 
     한 봉에서 양쪽 다 닿으면 손절을 먼저 적용한다.
 
-    실전에는 이런 모호함이 없다 — 익절·손절을 둘 다 거래소에 걸어두므로 먼저
+    실전에는 이런 모호함이 없다, 익절·손절을 둘 다 거래소에 걸어두므로 먼저
     닿는 쪽이 체결되고 나머지는 취소된다. 봉 하나에 고가·저가만 남는 백테스트
     에서만 순서를 알 수 없다.
 
@@ -221,7 +221,7 @@ def _measure_series(closes, fwd, bars=None):
 
 def run_measurement(base_url="https://api.pacifica.fi", fwd=24,
                     log=print, use_extended=False) -> dict:
-    """전 조합 재측정 후 결과 저장. 오래 걸린다(약 20분) — 백그라운드 권장.
+    """전 조합 재측정 후 결과 저장. 오래 걸린다(약 20분), 백그라운드 권장.
 
     use_extended=False(기본): 파시피카 데이터만 (기존과 동일).
     use_extended=True: 바이낸스 과거 종가로 백테스트 표본을 두껍게 한다
@@ -263,7 +263,7 @@ def run_measurement(base_url="https://api.pacifica.fi", fwd=24,
 _MATRIX_CACHE = {"path": None, "mtime": None, "data": None}
 
 # 패키지에 동봉하는 씨앗 매트릭스. 처음 설치한 사용자는 잰 것이 하나도 없는데,
-# _matrix_rejects 가 "모르면 통과"라서 관문이 통째로 열린 채 돈다 — 신호가 다
+# _matrix_rejects 가 "모르면 통과"라서 관문이 통째로 열린 채 돈다, 신호가 다
 # 통과해 아무거나 진입하게 된다. 씨앗이 있으면 첫날부터 제대로 된 관문을 쓰고,
 # 자기 재측정이 끝나면 홈 디렉터리 파일이 이것을 대체한다(씨앗은 안 건드림).
 _SEED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -283,7 +283,7 @@ def load_matrix() -> dict | None:
     스캐너가 신호마다 signal_ev/baseline_ev 를 물어보기 때문에 한 사이클에
     수백 번 호출된다(실측 396회, 5.4초 = 스캔의 17%). 매번 수백 KB JSON을
     다시 파싱하고 있었다. mtime 기준이라 백그라운드 재측정이 파일을 갈아끼우면
-    다음 호출에서 자동으로 새 값을 읽는다 — 봇 재시작 필요 없음."""
+    다음 호출에서 자동으로 새 값을 읽는다, 봇 재시작 필요 없음."""
     path = _matrix_path()
     if path is None:
         return None
@@ -324,7 +324,7 @@ def best_horizons(default: dict | None = None) -> dict:
     예전엔 시간봉별 전 신호의 평균 EV로 골랐다. 그런데 봇은 관문을 통과한
     상위 신호만 거래하므로, 평균이 나빠도 좋은 신호가 몇 개 있는 시간봉을
     통째로 버리게 된다. 2026-08-06 실측(6종목, 앞 절반으로 고르고 뒤 절반으로
-    채점 — 미래참조 없음):
+    채점, 미래참조 없음):
 
         시간봉   평균        상위3
         15m    -0.0965%   -0.0705%
@@ -337,12 +337,12 @@ def best_horizons(default: dict | None = None) -> dict:
         상위3 순위  1d > 12h > 8h > 2h > 15m > 1h > 4h    ← 거의 정반대
 
     일봉은 평균으로 꼴찌인데 상위 기준으론 1위다(-1.33% → +1.00%). 평균으로
-    고르면 마이너스 시간봉만 남는다. 풀 백테스트도 같은 답을 냈다 —
+    고르면 마이너스 시간봉만 남는다. 풀 백테스트도 같은 답을 냈다 ,
     1h 건당 -$0.315 / 4h +$0.805 / 1d +$2.703.
 
     신호 단위로 먼저 묶는 이유: 행이 (종목 × 시간봉 × 신호)라 그냥 상위 3행을
     뽑으면 운 좋은 한 종목이 독차지한다. 종목을 가로질러 신호별로 합친 뒤
-    상위를 고른다 — 그래야 '이 신호가 이 시간봉에서 통한다'를 재는 것이 된다.
+    상위를 고른다, 그래야 '이 신호가 이 시간봉에서 통한다'를 재는 것이 된다.
     """
     default = default or DEFAULT_HORIZONS
     m = load_matrix()
@@ -378,7 +378,7 @@ def best_horizons(default: dict | None = None) -> dict:
 def signal_ev(sig: str, tf: str) -> tuple[float, int] | None:
     """이 신호·시간봉의 측정된 평균 EV와 표본수 (전 코인 합산).
 
-    결과를 메모한다 — 행이 수천 개인데 스캐너가 신호마다 물어봐서, 한 사이클에
+    결과를 메모한다, 행이 수천 개인데 스캐너가 신호마다 물어봐서, 한 사이클에
     전체 행 훑기가 수백 번 반복된다. 메모는 매트릭스가 갈아끼워지면 함께 비워진다."""
     m = load_matrix()
     if not m:
@@ -441,11 +441,11 @@ def divergence_alarm() -> str | None:
         wins += e.get("win", 0)
         total += e.get("total", 0)
     if total < 30:
-        return None                # 표본 부족 — 경보 판단 불가
+        return None                # 표본 부족, 경보 판단 불가
     live_wr = wins / total
     if live_wr < 0.40:             # 좋다던 신호들이 실전 40% 미만으로 무너짐
         return (f"관측 조기경보: 매트릭스 우량신호의 실시간 승률 {live_wr:.0%} "
-                f"({total}건) — 국면 변화 의심")
+                f"({total}건), 국면 변화 의심")
     return None
 
 
@@ -460,7 +460,7 @@ def ensure_fresh(policy: dict, log=print) -> bool:
     elif age_days() < every:
         return False
     # 중복 실행 방지. 측정 시간이 늘었다(심볼 6→14, 바이낸스 과거 구간 추가)
-    # — 락이 1시간이면 측정이 아직 도는 중에 두 번째가 떠서 서로 덮어쓴다.
+    #, 락이 1시간이면 측정이 아직 도는 중에 두 번째가 떠서 서로 덮어쓴다.
     try:
         if os.path.exists(LOCK_FILE) and \
                 time.time() - os.path.getmtime(LOCK_FILE) < 10800:
@@ -478,7 +478,7 @@ def ensure_fresh(policy: dict, log=print) -> bool:
             [sys.executable, "-m", "ocean_agent.rematrix", "--extended"],
             cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        log(f"자가 재측정 시작 (마지막 측정 {age_days():.1f}일 전) — "
+        log(f"자가 재측정 시작 (마지막 측정 {age_days():.1f}일 전), "
             f"백그라운드, 완료되면 다음 사이클부터 반영")
         return True
     except Exception as e:
@@ -489,7 +489,7 @@ def ensure_fresh(policy: dict, log=print) -> bool:
 def summary() -> str:
     m = load_matrix()
     if not m:
-        return "측정 기록 없음 — python -m ocean_agent.rematrix 로 최초 측정"
+        return "측정 기록 없음, python -m ocean_agent.rematrix 로 최초 측정"
     rows = [r for r in m["rows"] if r.get("n", 0) >= MIN_N]
     src = "바이낸스 증강" if m.get("extended") else "파시피카만"
     lines = [f"마지막 측정: {age_days(m):.1f}일 전 · {len(m['rows'])}조합 · 데이터 {src}",
@@ -517,7 +517,7 @@ def main():
     # 기본은 파시피카만 (안전). 이 플래그를 줄 때만 다국면 데이터를 섞는다.
     ext = "--extended" in sys.argv
     if ext:
-        print("전 조합 재측정 시작 — 증강 모드(바이낸스 과거 종가 포함, 가격 전용)...")
+        print("전 조합 재측정 시작, 증강 모드(바이낸스 과거 종가 포함, 가격 전용)...")
     else:
         print("전 코인 × 전 시간봉 × 전 신호 재측정 시작 (약 20분, 파시피카만)...")
     run_measurement(use_extended=ext)
@@ -534,10 +534,10 @@ if __name__ == "__main__":
 
 
 def pooled_shape(sig: str, tf: str):
-    """이 신호·시간봉의 '평균이익 / 평균손실' 비율 — 전 종목 합산.
+    """이 신호·시간봉의 '평균이익 / 평균손실' 비율, 전 종목 합산.
 
     종목 표본이 부족할 때 손절·익절의 '모양'을 물려받기 위한 것이다.
-    크기(절대 %)는 종목마다 변동성이 달라 그대로 못 쓴다 — BTC의 평균손실
+    크기(절대 %)는 종목마다 변동성이 달라 그대로 못 쓴다, BTC의 평균손실
     10.8%를 변동성 큰 알트에 그대로 걸면 엉뚱해진다. 비율만 가져오고
     크기는 호출부에서 그 종목 변동성으로 맞춘다.
 

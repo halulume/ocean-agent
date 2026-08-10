@@ -1,4 +1,4 @@
-"""차트 지표 분석 — 파시피카 캔들 데이터로 주요 기술 지표를 계산한다.
+"""차트 지표 분석, 파시피카 캔들 데이터로 주요 기술 지표를 계산한다.
 
 외부 라이브러리 없이 순수 파이썬으로 구현 (의존성 최소 원칙).
 지표: MA(20/50/200), RSI(14), 스토캐스틱(14,3), 스토캐스틱 RSI(14,14,3,3),
@@ -31,7 +31,7 @@ def fetch_klines(client: PacificaClient, symbol: str, interval: str = "1h",
     if not r.get("success"):
         raise RuntimeError(f"{symbol} 캔들 조회 실패: {r.get('error')}")
     data = r["data"]
-    # 마지막 미완성 캔들 제거 — 진행중 봉의 종가로 지표를 계산하면 값이 계속 변한다
+    # 마지막 미완성 캔들 제거, 진행중 봉의 종가로 지표를 계산하면 값이 계속 변한다
     now = int(time.time() * 1000)
     while data and int(data[-1]["t"]) + step > now:
         data.pop()
@@ -166,7 +166,7 @@ def zone(x: float, low: float, high: float, low_txt: str, high_txt: str) -> str:
 def analyze(client: PacificaClient, symbol: str, interval: str = "1h") -> str:
     kl = fetch_klines(client, symbol, interval)
     if len(kl) < 60:
-        return f"{symbol} 캔들이 부족합니다 ({len(kl)}개) — 상장 초기 코인일 수 있음"
+        return f"{symbol} 캔들이 부족합니다 ({len(kl)}개), 상장 초기 코인일 수 있음"
     closes = [float(c["c"]) for c in kl]
     highs = [float(c["h"]) for c in kl]
     lows = [float(c["l"]) for c in kl]
@@ -232,12 +232,12 @@ def analyze_multi(client: PacificaClient, symbol: str,
     각 시간봉마다:
     - 현재 상태 스냅샷 (추세/RSI/MACD/볼린저)
     - 이 코인·이 시간봉에서 통계 관문(표본30+/엣지+5%p/EV>0)을 통과한
-      신호들의 과거 승률 — 지금 점등 중이면 🔆 표시
+      신호들의 과거 승률, 지금 점등 중이면 🔆 표시
     """
     from .signal_scanner import (FEE_RT, FWD, MIN_EDGE, MIN_N, _series,
                                  _signals, fetch_closes)
 
-    lines = [f"{symbol} 멀티 시간봉 분석 — 실측 적중률 포함", ""]
+    lines = [f"{symbol} 멀티 시간봉 분석, 실측 적중률 포함", ""]
     live_picks = []
 
     for tf in intervals:
@@ -245,7 +245,7 @@ def analyze_multi(client: PacificaClient, symbol: str,
         n = len(closes)
         label = f"[{tf} · {TF_LABEL.get(tf, tf)}]"
         if n < 200 + FWD:
-            lines.append(f"{label} 캔들 부족 ({n}개) — 통계 생략")
+            lines.append(f"{label} 캔들 부족 ({n}개), 통계 생략")
             lines.append("")
             continue
         s = _series(closes)
@@ -349,12 +349,12 @@ def analyze_multi(client: PacificaClient, symbol: str,
         lines.append(f"종합: 지금 점등 중 최강 = {tf} {name} → "
                      f"{'롱' if side=='long' else '숏'} (승률 {pwin:.0%}, n={cnt})")
     else:
-        lines.append("종합: 지금 점등된 통계 우위 신호 없음 — 위 '대기' 신호들이 "
+        lines.append("종합: 지금 점등된 통계 우위 신호 없음, 위 '대기' 신호들이 "
                      "켜질 때가 진입 후보")
     lines.append("주의: 승률은 워크포워드 실측값(전 종목·9년, 과거 시점에서 예측하고 "
                  "결과와 대조)입니다. 이 시장의 현실적 천장은 약 58%이며, 이 코인만의 "
                  "백테스트가 그보다 높게 나와도 실전에서는 50%대로 내려옵니다. "
-                 "미래 보장 아님 — market_context로 국면 확인 병행 권장.")
+                 "미래 보장 아님, market_context로 국면 확인 병행 권장.")
     return "\n".join(lines)
 
 
