@@ -139,8 +139,8 @@ All of these require a terminal (and client) restart to take effect.
 | `https://test-api.pacifica.fi` | **Testnet** | `ADDRESS_TESTNET` / `PACIFICA_API_KEY_TESTNET`, falling back to `ADDRESS` / `PACIFICA_API_KEY` if the testnet ones are empty |
 | `https://api.pacifica.fi` | **Mainnet (real funds)** | `ADDRESS` / `PACIFICA_API_KEY` |
 
-Start on **testnet** (`https://test-api.pacifica.fi`) until the user has verified
-behavior. Switch to mainnet by changing only that one URL. API keys are approved
+**Mainnet is the default.** A testnet endpoint (`https://test-api.pacifica.fi`)
+is available for rehearsal; switch by changing only that one URL. API keys are approved
 per network, so a testnet key will not work on mainnet and vice versa, that is why
 there are separate `*_TESTNET` variables.
 
@@ -210,8 +210,8 @@ env = { PACIFICA_ENV_FILE = "/absolute/path/to/.pacifica.env", PACIFICA_BASE_URL
 - Leave placeholders (`your_mainnet_agent_key`, etc.) unchanged; the user fills them in.
 - Direct the user to **[app.pacifica.fi/apikey](https://app.pacifica.fi/apikey)** to
   generate an API key (trading only, no withdrawal, revocable).
-- Default to **testnet** first; only switch `PACIFICA_BASE_URL` to mainnet when the
-  user explicitly asks and understands they are trading real funds.
+- Mainnet is the default. Make sure the user understands they are trading real
+  funds, and suggest `--dry` or small size for the first runs.
 
 ## Safety
 

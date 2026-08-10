@@ -182,12 +182,21 @@ def operating_capital(policy: dict, eq: float) -> float:
     return min(fx, max(float(eq or 0), 0.0))   # 지갑보다 크게 잡지 않음
 
 
-def close_all(client: PacificaClient, builder: str, reason: str) -> int:
-    """모든 perp 포지션을 시장가 reduce_only로 청산. 청산 건수 반환."""
+def close_all(client: PacificaClient, builder: str, reason: str,
+              dry: bool = False) -> int:
+    """모든 perp 포지션을 시장가 reduce_only로 청산. 청산 건수 반환.
+
+    dry=True 면 주문을 보내지 않고 대상만 센다. --dry 는 '판단만 하고 주문은
+    내지 않는다'는 약속이라, 방어선 발동 같은 비상 경로도 예외가 아니다
+    (2026-08-10 검토 B1)."""
     n = 0
     for p in client.get_positions():
         try:
             opp = "ask" if p.get("side") == "bid" else "bid"
+            if dry:
+                log(f"[DRY] 청산 생략: {p['symbol']} {p.get('amount')}")
+                n += 1
+                continue
             client.create_market_order(p["symbol"], opp, str(p["amount"]),
                                        "0.5", reduce_only=True,
                                        builder_code=builder)
@@ -257,7 +266,8 @@ def _reconcile_balance_change(client: PacificaClient, st: dict, eq: float) -> No
         pass
 
 
-def final_stop_check(client: PacificaClient, policy: dict, st: dict) -> bool:
+def final_stop_check(client: PacificaClient, policy: dict, st: dict,
+                     dry: bool = False) -> bool:
     """최후 방어선만 판정. True면 거래 금지.
     킬스위치(멈춤) 대신 적응(review_and_adapt)이 주 방어이고,
     여기서는 '적응이 실패했다는 증거'인 치명적 손실만 잡는다."""
@@ -333,7 +343,14 @@ def final_stop_check(client: PacificaClient, policy: dict, st: dict) -> bool:
     drawdown_usd = start_eq - eq                    # 양수면 손실
     if allocation > 0 and drawdown_usd >= fatal * allocation:
         dd_pct = drawdown_usd / allocation
-        close_all(client, policy.get("builder_code", ""), "치명적 손실 방어선")
+        close_all(client, policy.get("builder_code", ""), "치명적 손실 방어선",
+                  dry=dry)
+        if dry:
+            # 드라이런은 판단만 남긴다. 알림·정지 래치까지 실행하면 실운영
+            # 상태 파일이 오염된다 (dry/live가 같은 파일을 쓴다).
+            log(f"[DRY] 방어선 발동 판정: 배정액 대비 {-dd_pct:.1%} "
+                f"(실제 청산·정지 없음)")
+            return True
         notify.send(f"🚨 {agent_name()} 완전 정지: 배정액 대비 {-dd_pct:.1%} "
                     f"(손실 ${drawdown_usd:,.0f} / 배정 ${allocation:,.0f}, "
                     f"방어선 -{fatal:.0%}). 전량 청산·정지. "
@@ -449,6 +466,11 @@ def review_and_adapt(client: PacificaClient, policy: dict, st: dict) -> None:
         due_h = rec.get("horizon_hours") or 24
         expired = (now - at).total_seconds() >= due_h * 3600
         closed = sym not in live_syms
+        # 이미 채점된 만기 포지션은 청산될 때까지 장부에만 남긴다 (검토 B2).
+        # 청산되면 아래로 내려가 실제 손익으로 다시 한 번 기록된다.
+        if rec.get("_graded") and not closed:
+            still_open.append(rec)
+            continue
         if not closed and not expired:
             still_open.append(rec)
             continue
@@ -553,6 +575,13 @@ def review_and_adapt(client: PacificaClient, policy: dict, st: dict) -> None:
                 record_prediction(pred, won)
         except Exception:
             pass
+        # 만기지만 거래소에는 아직 열려 있는 포지션은 장부에 남긴다.
+        # 빼버리면 expire_after_horizons(1.5배) 만기청산이 도달 불가가 되고,
+        # 남은 생애 동안 트레일링·본전스탑도 멈춘 채 방치된다 (검토 B2).
+        # 채점은 위에서 이미 끝났으므로 _graded 표식으로 재채점만 막는다.
+        if not closed:
+            rec["_graded"] = True
+            still_open.append(rec)
     st["opened"] = still_open
 
     # --- 2) 지는 조합 정지 (실제 손익 우선) ---
@@ -857,7 +886,7 @@ def run_cycle(client: PacificaClient, policy: dict, st: dict, dry: bool) -> None
     eq = equity(client)
 
     # 최후 방어선(치명적 손실)만 확인, 아니면 계속 가동
-    if final_stop_check(client, policy, st):
+    if final_stop_check(client, policy, st, dry=dry):
         log("최후 방어선 발동 또는 일시 오류, 이번 사이클 신규 거래 없음")
         # 정지 중에도 보유 포지션 사후관리(트레일링·본전 스탑·만기 청산)는
         # 계속한다, 완전정지 때 청산이 일부 실패하면(429 등) 그 포지션이

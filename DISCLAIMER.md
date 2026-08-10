@@ -17,8 +17,11 @@ mode is for. Losses are real and can exceed what you expected. You are
 responsible for every order placed under your key, including orders you did not
 personally review.
 
-Start on testnet (`PACIFICA_BASE_URL=https://test-api.pacifica.fi`). Move to
-mainnet only after you have watched it run and understand what it does.
+Start with `--dry`, which decides but places no orders, and then with size you
+are willing to lose. Watch it run and understand what it does before you let it
+trade unattended. A testnet endpoint
+(`PACIFICA_BASE_URL=https://test-api.pacifica.fi`) is available if you prefer to
+rehearse there, using its own separate keys.
 
 ## Leveraged perpetual futures can lose more than the margin posted
 

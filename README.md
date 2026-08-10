@@ -165,9 +165,10 @@ PACIFICA_API_KEY=your_agent_wallet_key
 PACIFICA_BASE_URL=https://api.pacifica.fi
 ```
 
-As written this trades **live on mainnet with real funds**. Remove the
-`PACIFICA_BASE_URL` line to practice on testnet first (testnet uses separate
-keys: `ADDRESS_TESTNET`, `PACIFICA_API_KEY_TESTNET`).
+As written this trades **live on mainnet with real funds**. Start with `--dry`,
+which decides but places no orders. A testnet endpoint is also available if you
+prefer to rehearse there: remove the `PACIFICA_BASE_URL` line (testnet uses
+separate keys: `ADDRESS_TESTNET`, `PACIFICA_API_KEY_TESTNET`).
 
 4. Point your MCP client at it:
 

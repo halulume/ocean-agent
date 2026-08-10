@@ -901,6 +901,14 @@ def _update_notice() -> str:
 
 _TERMS_STATE = {"asked": False}
 
+# 약관 안내를 붙여도 안전한 도구 (조회 전용). 주문 미리보기·체결 응답에는
+# 절대 붙이지 않는다. 붙이면 사용자가 주문을 승인하려고 "네"라고 한 답을
+# 모델이 서명 도구 호출로 오독할 수 있다 (2026-08-10 검토 B3).
+_TERMS_NOTICE_SAFE_TOOLS = {
+    "scan_funding", "market_context", "learned_winrates", "learned_combos",
+    "analyze_chart", "account_status", "check_position",
+}
+
 
 def _terms_notice() -> str:
     """One-time, per session: have the assistant ask about the Terms of Use.
@@ -926,7 +934,9 @@ def _terms_notice() -> str:
         return ""
 
 
-@mcp.tool()
+@mcp.tool(title="Record Terms Answer",
+          annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True,
+                                      idempotentHint=True, openWorldHint=True))
 def accept_terms(confirm: bool) -> str:
     """Record the user's answer to the Terms of Use question. Call ONLY after
     the user has explicitly answered in chat. confirm=true records acceptance
@@ -953,22 +963,25 @@ def _wrap_tools_with_update_notice() -> None:
         tools = mcp._tool_manager._tools  # mcp is pinned >=1.0,<2 in pyproject
     except Exception:
         return
-    for _tool in tools.values():
+    for _name, _tool in tools.items():
         orig = getattr(_tool, "fn", None)
         if not callable(orig) or getattr(orig, "_update_wrapped", False):
             continue
+        safe = _name in _TERMS_NOTICE_SAFE_TOOLS
         if inspect.iscoroutinefunction(orig):
             @functools.wraps(orig)
-            async def wrapped(*a, __orig=orig, **kw):
+            async def wrapped(*a, __orig=orig, __safe=safe, **kw):
                 res = await __orig(*a, **kw)
-                return (res + _update_notice() + _terms_notice()
-                        if isinstance(res, str) else res)
+                if not isinstance(res, str):
+                    return res
+                return res + _update_notice() + (_terms_notice() if __safe else "")
         else:
             @functools.wraps(orig)
-            def wrapped(*a, __orig=orig, **kw):
+            def wrapped(*a, __orig=orig, __safe=safe, **kw):
                 res = __orig(*a, **kw)
-                return (res + _update_notice() + _terms_notice()
-                        if isinstance(res, str) else res)
+                if not isinstance(res, str):
+                    return res
+                return res + _update_notice() + (_terms_notice() if __safe else "")
         wrapped._update_wrapped = True
         _tool.fn = wrapped
 

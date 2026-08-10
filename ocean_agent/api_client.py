@@ -239,17 +239,22 @@ class PacificaClient:
                     f"🛑 배치 주문 거부(하드 가드): {o['symbol']} "
                     f"${notl:,.0f} > 상한 ${self.MAX_ORDER_NOTIONAL_USD:,.0f}")
         import time as _t
+        # 주문 ID는 재시도 전에 한 번만 발급한다. 루프 안에서 새로 뽑으면
+        # 1차가 체결된 뒤 429가 돌아왔을 때 2차가 다른 ID로 또 체결돼
+        # 델타뉴트럴 양다리가 2배가 된다. 단건 _signed_post 와 같은 규율
+        # (재서명은 하되 ID는 유지 = 멱등). 2026-08-10 검토 B4.
+        order_ids = [str(uuid.uuid4()) for _ in orders]
         for attempt in (1, 2):
-            # 재시도 시 서명·주문ID 새로 (서명에 타임스탬프 포함)
+            # 재시도 시 서명만 새로 (서명에 타임스탬프가 들어가 재사용 불가)
             actions = []
-            for o in orders:
+            for o, oid in zip(orders, order_ids):
                 payload = {
                     "symbol": o["symbol"],
                     "side": o["side"],
                     "amount": str(o["amount"]),
                     "slippage_percent": str(o.get("slippage_percent", "0.5")),
                     "reduce_only": bool(o.get("reduce_only", False)),
-                    "client_order_id": str(uuid.uuid4()),
+                    "client_order_id": oid,
                 }
                 if builder_code:
                     payload["builder_code"] = builder_code
