@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ocean-agent"
+version = "0.3.6"
+description = "Pacifica trading MCP server — measured-edge setups, exchange-native brackets, funding carry, and a policy-governed autonomous trading entity"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+keywords = ["mcp", "pacifica", "trading", "funding-rate", "delta-neutral", "solana"]
+dependencies = [
+    "requests>=2.31.0",
+    "solders>=0.19.0",
+    "base58>=2.1.1",
+    "PyYAML>=6.0",
+    "python-dotenv>=1.0.0",
+    # 상한 필수: MCP 2026-07-28 개정에서 세션·initialize 핸드셰이크가 제거되는
+    # 등 배선이 크게 바뀐다. 상한이 없으면 uvx 설치 시 조용히 깨질 수 있다.
+    "mcp>=1.0,<2",
+]
+
+[project.scripts]
+ocean-agent = "ocean_agent.mcp_server:main"
+
+[tool.setuptools]
+packages = ["ocean_agent"]
+
+[tool.setuptools.package-data]
+# 씨앗 측정 데이터를 함께 배포한다. 없으면 새 사용자는 관문이 "모르면 통과"로
+# 열린 채 돌아 아무 신호나 진입한다 — 코드만 같고 판단은 빈 상태가 된다.
+ocean_agent = ["policy_default.yaml", "matrix_seed.json", "curve_seed.json"]

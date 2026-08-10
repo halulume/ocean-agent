@@ -1,0 +1,56 @@
+{
+  "manifest_version": "0.4",
+  "name": "ocean-agent",
+  "display_name": "Ocean Agent",
+  "version": "0.3.6",
+  "description": "Talk to Claude and trade Pacifica perpetuals — measured-edge setups, exchange-native stop-loss/take-profit, and market analysis from ~9 years of price history.",
+  "long_description": "Ocean Agent turns natural language into correctly risk-sized perpetual-futures actions on Pacifica.\n\nEvery setup it shows is MEASURED, not backtested: win rates come from walk-forward validation over ~9 years of price history, where a prediction is formed using only data available at that moment and then checked against what actually happened. Entries are gated by a re-measured signal matrix (3,735 combinations) that ships with the extension, so it filters from day one.\n\nOrders always preview first — nothing is sent until you approve it. The API key trades only and cannot withdraw funds.",
+  "author": {
+    "name": "Ocean Agent",
+    "url": "https://oceanagent.vercel.app"
+  },
+  "homepage": "https://oceanagent.vercel.app",
+  "documentation": "https://oceanagent.vercel.app/#quickstart",
+  "license": "MIT",
+  "keywords": ["trading", "pacifica", "perpetuals", "solana", "market-analysis"],
+  "server": {
+    "type": "uv",
+    "entry_point": "server/main.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "server/main.py"],
+      "env": {
+        "ADDRESS": "${user_config.address}",
+        "PACIFICA_API_KEY": "${user_config.api_key}",
+        "PACIFICA_BASE_URL": "${user_config.network}",
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  },
+  "user_config": {
+    "address": {
+      "type": "string",
+      "title": "Wallet address",
+      "description": "Your Pacifica account address. This is public information — safe to enter.",
+      "required": true
+    },
+    "api_key": {
+      "type": "string",
+      "title": "API key",
+      "description": "Create one at app.pacifica.fi/apikey. It can TRADE but CANNOT WITHDRAW funds, and you can revoke it at any time. Leave empty to use read-only analysis tools only.",
+      "sensitive": true,
+      "required": false
+    },
+    "network": {
+      "type": "string",
+      "title": "Network",
+      "description": "https://api.pacifica.fi for mainnet (real funds), https://test-api.pacifica.fi for testnet. API keys are approved per network — a mainnet key will not work on testnet.",
+      "default": "https://api.pacifica.fi",
+      "required": true
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=1.0.0",
+    "platforms": ["darwin", "win32", "linux"]
+  }
+}

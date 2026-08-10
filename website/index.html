@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ocean Agent · the trading brain that measures</title>
+<meta name="description" content="Ocean Agent is an AI native trading layer for Pacifica. It measures its own edge, then studies its own results. Built on Pacifica.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f6f8fb;--panel:#ffffff;--panel-2:#f2f6fa;
+    --ink:#101a24;--ink-2:#4a5b6b;--muted:#8695a3;--faint:#aab6c1;
+    --line:#e6ecf1;--line-2:#eff4f8;
+    --accent:#0aa2d9;--accent-2:#5cc6ee;--accent-deep:#067ba8;--accent-wash:#e8f6fc;
+    --btn:#101a24;--btn-2:#22303c;--on-btn:#ffffff;--no:#c4cfd8;--warn:#d98b3c;
+    --shadow:0 30px 62px -34px rgba(30,60,90,.22), 0 8px 22px -14px rgba(30,60,90,.10);
+    --shadow-sm:0 16px 36px -22px rgba(30,60,90,.16);--glow:0 0 22px rgba(10,162,217,.28);--topbar:64px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  ::selection{background:var(--accent-2);color:#04222e}
+  a{color:inherit}
+  body::before{content:'';position:fixed;inset:0;z-index:-3;
+    background:radial-gradient(1200px 760px at 90% -6%, rgba(92,198,238,.32), transparent 62%),
+      linear-gradient(135deg,#FFFFFF 0%,#EEF5FA 45%,#E4F0F8 100%)}
+  body::after{content:'';position:fixed;inset:0;z-index:-2;pointer-events:none;opacity:.6;
+    background-image:linear-gradient(rgba(16,26,36,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(16,26,36,.03) 1px,transparent 1px);
+    background-size:58px 58px;-webkit-mask-image:radial-gradient(circle at 78% 2%, black, transparent 60%);mask-image:radial-gradient(circle at 78% 2%, black, transparent 60%)}
+  .glow{position:fixed;top:-200px;right:-150px;z-index:-1;width:640px;height:640px;border-radius:50%;pointer-events:none;
+    background:radial-gradient(circle at 50% 50%, rgba(10,162,217,.16), rgba(92,198,238,.06) 44%, transparent 66%);animation:pulse 10s ease-in-out infinite}
+  @keyframes pulse{0%,100%{transform:scale(.94);opacity:.6}50%{transform:scale(1.06);opacity:.9}}
+
+  /* ---- top bar + dropdown nav ---- */
+  .topbar{position:sticky;top:0;z-index:60;height:var(--topbar);backdrop-filter:blur(14px);
+    background:linear-gradient(180deg,rgba(248,250,252,.9),rgba(248,250,252,.6));border-bottom:1px solid var(--line)}
+  .topbar .in{max-width:1180px;margin:0 auto;padding:0 30px;height:100%;display:flex;align-items:center;justify-content:space-between;gap:18px}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:600;letter-spacing:-.01em;text-decoration:none;color:var(--ink);flex:none}
+  .brand .dot{width:11px;height:11px;border-radius:50%;flex:none;background:var(--accent);box-shadow:0 0 10px rgba(10,162,217,.6)}
+  .brand b{font-size:15.5px}
+  .brand span{color:var(--faint);font-size:11px;font-family:'JetBrains Mono',monospace;margin-left:3px}
+  .top-nav{display:flex;align-items:stretch;height:100%}
+  .navgroup{position:relative;display:flex;align-items:center}
+  .navtrig{background:none;border:none;color:var(--ink-2);font-family:'Inter',sans-serif;font-size:13.5px;
+    padding:0 15px;height:100%;cursor:pointer;transition:color .2s;display:flex;align-items:center;gap:6px}
+  .navtrig::after{content:'▾';font-size:9px;color:var(--faint);transition:transform .2s}
+  .navgroup:hover .navtrig,.navtrig.active{color:var(--accent-deep)}
+  /* (7) active underline on the open tab */
+  .navgroup:hover .navtrig{box-shadow:inset 0 -2px 0 var(--accent)}
+  .navgroup:hover .navtrig::after{transform:rotate(180deg);color:var(--accent)}
+  .dropdown{position:absolute;top:100%;right:0;min-width:276px;padding:8px;
+    background:#ffffff;
+    border:1px solid var(--line);border-radius:12px;
+    box-shadow:0 4px 10px rgba(25,65,105,0.10), 0 20px 46px rgba(25,65,105,0.22);
+    opacity:0;visibility:hidden;transform:translateY(-6px);pointer-events:none;
+    transition:opacity .18s ease-out, transform .18s ease-out, visibility 0s linear .18s;z-index:70}
+  .navgroup:hover .dropdown{opacity:1;visibility:visible;transform:translateY(0);pointer-events:auto;
+    transition:opacity .18s ease-out, transform .18s ease-out, visibility 0s}
+  .dropdown a{display:block;padding:11px 14px;border-radius:8px;text-decoration:none;transition:background .15s}
+  .dropdown a:hover{background:rgba(214,235,248,0.7)}
+  .dropdown b{display:block;font-size:14px;color:var(--ink);font-weight:600;margin-bottom:2px}
+  .dropdown span{display:block;font-size:12px;color:#6B8299;font-family:'JetBrains Mono',monospace}
+  .dropdown a:hover b{color:var(--accent-deep)}
+  /* keep the menu visible in the top-right at every width; shrink, don't hide */
+  @media(max-width:860px){.brand span{display:none}.navtrig{padding:0 11px;font-size:13px}}
+  @media(max-width:680px){.navtrig{padding:0 8px;font-size:12px;gap:4px}.topbar .in{padding:0 16px;gap:10px}.navtrig::after{display:none}}
+  @media(max-width:520px){.brand b{font-size:14px}.navtrig{padding:0 6px;font-size:11px}}
+
+  /* ---- content ---- */
+  .content{max-width:1000px;margin:0 auto;padding:0 30px}
+  /* page navigation: only one .page shows at a time (home by default) */
+  .page{display:none}
+  .page.active{display:block;animation:fade .3s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  section.page{padding:44px 0 66px}
+  #home.page.active{display:block}
+  header.hero{min-height:calc(72vh - var(--topbar));display:flex;flex-direction:column;justify-content:center;padding:20px 0 6px}
+  .community{padding:16px 0 44px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent-deep);letter-spacing:.2em;
+    text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+  .eyebrow::before{content:'';width:24px;height:1px;background:var(--accent);box-shadow:var(--glow)}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(38px,6vw,70px);line-height:1.03;letter-spacing:-.03em;margin-bottom:24px}
+  h1 em{font-style:normal;color:var(--accent-deep)}
+  h2{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(26px,3.4vw,38px);letter-spacing:-.02em;line-height:1.12;margin-bottom:16px}
+  .lede{font-size:clamp(17px,1.9vw,20px);color:var(--ink-2);max-width:640px;line-height:1.62;margin-bottom:12px}
+  .lede b{color:var(--ink);font-weight:600}
+  .subtle{font-size:14.5px;color:var(--muted);max-width:600px;font-family:'JetBrains Mono',monospace}
+  .sec-lede{color:var(--ink-2);max-width:680px;font-size:16px;margin-bottom:30px}
+  p.body{color:var(--ink-2);font-size:15px;max-width:720px;line-height:1.72;margin-bottom:14px}
+  p.body b{color:var(--ink)}
+  .exp h3{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:18px;margin:26px 0 7px;color:var(--ink)}
+  .exp h3 .tag{font-family:'JetBrains Mono',monospace;font-size:11px;color:#fff;background:var(--accent);border-radius:999px;padding:2px 9px;margin-left:8px;vertical-align:middle}
+  .exp p{color:var(--ink-2);font-size:15px;line-height:1.72;max-width:770px;margin-bottom:6px}
+  .exp p b{color:var(--ink)}
+
+  .hero-cta{display:flex;gap:14px;margin-top:34px;flex-wrap:wrap;align-items:center}
+  .btn{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;padding:14px 26px;border-radius:999px;text-decoration:none;transition:all .2s;display:inline-flex;align-items:center;gap:9px}
+  .btn-primary{background:var(--btn);color:var(--on-btn)}
+  .btn-primary:hover{background:var(--btn-2);transform:translateY(-2px);box-shadow:0 16px 34px -14px rgba(16,26,36,.4)}
+  .btn-ghost{border:1px solid var(--line);color:var(--ink);background:var(--panel)}
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent-deep)}
+  /* hero 2-column layout (55 / 45) */
+  .hero-grid{display:grid;grid-template-columns:55% 45%;gap:44px;align-items:center;width:100%}
+  @media(max-width:820px){.hero-grid{grid-template-columns:1fr;gap:34px}}
+  .hero-right{display:flex;justify-content:center;min-width:0}
+  /* trust strip under the buttons */
+  .trust-strip{font-family:'JetBrains Mono',monospace;font-size:11px;color:#7A8FA3;
+    margin-top:22px;display:flex;flex-wrap:wrap;gap:6px 9px;align-items:center;line-height:1.7}
+  .trust-strip .dot{color:var(--accent-2)}
+  /* terminal card */
+  .term{width:100%;max-width:440px;background:#0D1B26;border-radius:12px;overflow:hidden;
+    border:1px solid rgba(255,255,255,.06);box-shadow:0 30px 60px rgba(13,27,38,0.25)}
+  .term-top{display:flex;align-items:center;gap:10px;padding:11px 15px;border-bottom:1px solid rgba(255,255,255,.07)}
+  .term-top .lights{display:flex;gap:7px}
+  .term-top .lights i{width:11px;height:11px;border-radius:50%;display:block}
+  .term-top .lights i:nth-child(1){background:#ff5f57}
+  .term-top .lights i:nth-child(2){background:#febc2e}
+  .term-top .lights i:nth-child(3){background:#28c840}
+  .term-title{font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(255,255,255,.45);margin-left:2px}
+  .term-body{padding:18px 18px 22px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.95}
+  .term-line{display:flex;align-items:center;gap:9px;color:rgba(233,238,245,.72);
+    opacity:0;transform:translateY(4px);animation:termln .45s ease-out forwards}
+  .term-line.prompt{color:#eaf1f8}
+  .term-line .chev{color:var(--accent-2)}
+  .term-line.ok::before{content:'✓';color:#28c840;font-weight:700}
+  .term-line.res{color:var(--accent-2);font-weight:600}
+  .term-line.res::before{content:'→';color:var(--accent-2)}
+  @keyframes termln{to{opacity:1;transform:none}}
+  .term-line:nth-child(1){animation-delay:.2s}
+  .term-line:nth-child(2){animation-delay:.6s}
+  .term-line:nth-child(3){animation-delay:1s}
+  .term-line:nth-child(4){animation-delay:1.4s}
+  .term-line:nth-child(5){animation-delay:1.8s}
+  .term-line:nth-child(6){animation-delay:2.2s}
+  /* looping demo terminal */
+  .term-body{min-height:142px}
+  .term-step{font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(255,255,255,.34);
+    letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+  .tl{display:flex;align-items:flex-start;gap:8px;color:rgba(233,238,245,.72);
+    opacity:0;transform:translateY(4px);animation:tlin .3s ease-out forwards}
+  .tl.cmd{color:#eaf1f8;margin-bottom:2px}
+  .tl.cmd .p{color:var(--accent-2);font-weight:700}
+  .tl.ok::before{content:'✓';color:#28c840;font-weight:700}
+  @keyframes tlin{to{opacity:1;transform:none}}
+  .comm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:8px}
+  @media(max-width:520px){.comm-grid{grid-template-columns:1fr}}
+  @media(max-width:640px){.comm-card{padding:20px}.comm-card h4{font-size:16px}.comm-card p{font-size:13px}}
+  .comm-card{display:block;background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    padding:26px;box-shadow:var(--shadow-sm);text-decoration:none;color:inherit;transition:all .2s}
+  a.comm-card:hover{transform:translateY(-3px);border-color:var(--accent-2)}
+  .comm-card>svg{width:26px;height:26px;fill:var(--ink);margin-bottom:14px}
+  .comm-card h4{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:600;margin-bottom:8px;color:var(--ink)}
+  .comm-card p{font-size:14px;color:var(--ink-2);line-height:1.7}
+  .comm-card p b{color:var(--accent-deep);font-weight:500;font-family:'JetBrains Mono',monospace;font-size:12.5px}
+  .foot{border-top:1px solid var(--line);margin-top:10px}
+  .foot-logos{display:flex;justify-content:center;gap:22px;padding:34px 0 16px}
+  .foot-logos a{color:var(--muted);transition:color .2s,transform .2s}
+  .foot-logos a:hover{color:var(--accent-deep);transform:translateY(-2px)}
+  .foot-logos svg{width:22px;height:22px;fill:currentColor}
+  .foot-copy{text-align:center;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--faint);padding-bottom:34px}
+
+  .strip{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 24px;margin-top:34px;box-shadow:var(--shadow-sm)}
+  .flow{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--ink-2)}
+  .flow .step{color:var(--ink);white-space:nowrap}
+  .flow .arw{color:var(--accent)}
+  .flow .rev{color:var(--accent-deep);background:var(--accent-wash);border-radius:999px;padding:3px 10px;font-size:11px;border:1px solid rgba(10,162,217,.25)}
+
+  .tbl-wrap{overflow-x:auto;margin:14px 0 6px}
+  .dtable{width:100%;border-collapse:collapse;font-size:14px;min-width:520px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel);box-shadow:var(--shadow-sm)}
+  .dtable th,.dtable td{padding:13px 16px;border-bottom:1px solid var(--line-2);text-align:left;vertical-align:top}
+  .dtable thead th{background:var(--panel-2);font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent-deep);letter-spacing:.06em;text-transform:uppercase;font-weight:500}
+  .dtable tbody th{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--ink);width:230px;font-weight:500}
+  .dtable td{color:var(--ink-2)}
+  .dtable tr:last-child th,.dtable tr:last-child td{border-bottom:none}
+  .dtable code{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-deep);background:var(--accent-wash);padding:1px 6px;border-radius:5px}
+
+  .feat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:8px}
+  @media(max-width:640px){.feat-grid{grid-template-columns:1fr}}
+  .feat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;transition:all .2s;box-shadow:var(--shadow-sm)}
+  .feat:hover{transform:translateY(-2px);border-color:var(--accent-2)}
+  .feat .n{font-family:'JetBrains Mono',monospace;font-size:11px;color:#fff;background:linear-gradient(140deg,var(--accent),var(--accent-deep));width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;margin-bottom:11px}
+  .feat h4{font-family:'Space Grotesk',sans-serif;font-size:15.5px;font-weight:600;margin-bottom:5px;letter-spacing:-.01em}
+  .feat p{font-size:13px;color:var(--muted);line-height:1.5}
+  .feat.wide{grid-column:1/-1}
+
+  .cards2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:8px}
+  @media(max-width:640px){.cards2{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px;box-shadow:var(--shadow-sm)}
+  .card.us{border-color:var(--accent-2)}
+  .card h3{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:18px;color:var(--muted)}
+  .card.us h3{color:var(--accent-deep)}
+  .card ul{list-style:none}
+  .card li{padding:11px 0 11px 26px;position:relative;font-size:14px;color:var(--ink-2);border-bottom:1px solid var(--line-2)}
+  .card li:last-child{border-bottom:none}
+  .card li::before{content:'·';position:absolute;left:5px;color:var(--faint);font-weight:700}
+  .card.us li::before{content:'✓';left:0;color:var(--accent-deep)}
+  .card li b{color:var(--ink)}
+
+  .flagship{background:radial-gradient(600px 260px at 18% 0%, var(--accent-wash), transparent 70%),var(--panel);
+    border:1px solid var(--accent-2);border-radius:20px;padding:36px;box-shadow:var(--shadow);margin-top:10px}
+  .buckets{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:640px){.buckets{grid-template-columns:1fr}}
+  .bucket{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:20px}
+  .bucket .lbl{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent-deep);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+  .bucket p{font-size:13px;color:var(--ink-2);line-height:1.5}
+
+  .tbl-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-sm);background:var(--panel);margin-top:8px}
+  table.cmp{border-collapse:collapse;width:100%;min-width:760px;font-size:13.5px}
+  table.cmp thead th{background:var(--panel-2);padding:15px 13px;text-align:center;font-weight:600;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);position:sticky;top:0}
+  table.cmp thead th.us{color:var(--accent-deep);background:var(--accent-wash);border-left:1px solid var(--accent-2);border-right:1px solid var(--accent-2)}
+  table.cmp th .sub{display:block;font-size:10px;color:var(--faint);font-weight:400;margin-top:3px}
+  table.cmp thead th.us .sub{color:var(--accent)}
+  table.cmp td{padding:12px 13px;text-align:center;border-bottom:1px solid var(--line-2);color:var(--ink-2)}
+  table.cmp td.row-h{text-align:left;color:var(--ink);font-weight:500;white-space:nowrap}
+  table.cmp td.us{background:var(--accent-wash);border-left:1px solid var(--accent-2);border-right:1px solid var(--accent-2);color:var(--ink);font-weight:500}
+  .grp td{padding:9px 13px;text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent-deep);letter-spacing:.12em;text-transform:uppercase;background:var(--panel-2)}
+  .yes{color:var(--accent-deep);font-weight:700}.no{color:var(--no)}
+  .uniq{color:#fff;background:linear-gradient(140deg,var(--accent),var(--accent-deep));font-family:'JetBrains Mono',monospace;font-size:11px;border-radius:999px;padding:3px 9px}
+
+  .phase{display:grid;grid-template-columns:auto 1fr;gap:0 22px;margin-top:8px}
+  .phase .p-h{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-deep);padding:16px 0;border-top:1px solid var(--line-2);white-space:nowrap}
+  .phase .p-b{padding:16px 0;border-top:1px solid var(--line-2)}
+  .phase .p-b b{font-family:'Space Grotesk',sans-serif;font-size:16px;display:block;margin-bottom:4px}
+  .phase .p-b .st{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)}
+  .done{color:var(--accent-deep)!important}.lock{color:var(--faint)!important}
+
+  .faq{border-top:1px solid var(--line-2);padding:20px 0}
+  .faq b{font-family:'Space Grotesk',sans-serif;font-size:16px;color:var(--ink);display:block;margin-bottom:6px}
+  .faq p{color:var(--ink-2);font-size:14.5px;max-width:720px}
+
+  .callout{border-left:2px solid var(--accent);padding:22px 28px;margin-top:30px;
+    background:linear-gradient(90deg,var(--accent-wash),transparent);border-radius:0 14px 14px 0;
+    font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:clamp(18px,2.2vw,24px);line-height:1.35;color:var(--ink)}
+
+  .signoff{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--muted);margin-top:56px;padding-top:26px;border-top:1px solid var(--line);display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .signoff a{color:var(--accent-deep);text-decoration:none}
+  @media(prefers-reduced-motion:reduce){.glow{animation:none}}
+
+  /* Updates, list of links; each entry is its own page */
+  .upd-total{display:flex;align-items:baseline;gap:12px;padding:13px 22px;background:var(--panel-2);
+    border-bottom:1px solid var(--line-2);font-family:'JetBrains Mono',monospace;font-size:11px;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--accent-deep)}
+  .upd-list{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}
+  .upd-row{display:flex;align-items:center;gap:16px;padding:18px 22px;text-decoration:none;
+    color:var(--ink);border-bottom:1px solid var(--line-2);transition:background .15s}
+  .upd-row:last-child{border-bottom:0}
+  .upd-row:hover{background:var(--panel-2)}
+  .upd-row .d{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);flex:0 0 62px;letter-spacing:.06em}
+  .upd-row .t{font-weight:600;letter-spacing:-.01em;flex:1}
+  .upd-row .chev{color:var(--faint);flex:0 0 auto;font-size:17px;transition:transform .15s}
+  .upd-row:hover .chev{transform:translateX(3px);color:var(--accent)}
+  .tg{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:5px;padding:3px 8px}
+  .tg.fix{background:#fdeceb;color:#a63d2f}
+  .tg.new{background:var(--accent-wash);color:var(--accent-deep)}
+  .tg.changed{background:#eef3f7;color:var(--ink-2)}
+  .upd-pager{display:flex;justify-content:center;align-items:center;gap:6px;margin:26px 0 4px;flex-wrap:wrap}
+  .upd-pager button{min-width:34px;height:34px;padding:0 10px;border:1px solid var(--line);
+    background:var(--panel);color:var(--ink-2);border-radius:9px;font:inherit;font-size:13px;cursor:pointer;transition:all .15s}
+  .upd-pager button:hover:not(:disabled){border-color:var(--accent-2);color:var(--accent-deep)}
+  .upd-pager button.on{background:var(--btn);border-color:var(--btn);color:var(--on-btn);font-weight:600}
+  .upd-pager button:disabled{opacity:.38;cursor:default}
+  .upd-count{text-align:center;font-size:12px;color:var(--muted);margin-top:10px}
+  /* single update page */
+  .upd-back{display:inline-block;font-size:12px;color:var(--muted);text-decoration:none;margin-bottom:14px}
+  .upd-back:hover{color:var(--accent-deep)}
+  .upd-meta{display:flex;align-items:center;gap:10px;margin:6px 0 26px}
+  .upd-article h4{margin:26px 0 8px;font-size:15px;letter-spacing:-.01em}
+  .upd-article h4:first-of-type{margin-top:20px}
+  .upd-article p{color:var(--ink-2);font-size:15px;margin:0 0 12px;max-width:74ch}
+  .upd-article .lede{color:var(--ink-2);font-size:17px;max-width:70ch;margin-bottom:20px}
+  .upd-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(142px,1fr));gap:10px;margin:18px 0 20px}
+  .upd-stats div{background:var(--panel-2);border:1px solid var(--line-2);border-radius:11px;padding:12px 14px}
+  .upd-stats b{display:block;font-size:20px;letter-spacing:-.02em;line-height:1.25}
+  .upd-stats span{font-size:12px;color:var(--muted)}
+  .upd-article blockquote{margin:18px 0;padding:12px 16px;background:var(--accent-wash);
+    border-left:3px solid var(--accent);border-radius:0 10px 10px 0;font-weight:500;font-size:15px}
+  .upd-nav{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid var(--line)}
+  .upd-nav a{font-size:13px;color:var(--ink-2);text-decoration:none}
+  .upd-nav a:hover{color:var(--accent-deep)}
+  @media (max-width:640px){
+    .upd-row{padding:15px 16px;gap:11px}
+    .upd-row .d{flex:0 0 48px;font-size:10px}
+    .upd-row .tg{display:none}
+  }
+
+  /* Updates tab has no submenu, it navigates straight to the section */
+  .navtrig.solo::after{content:none}
+  /* 10-day groups */
+  .upd-grp{margin:0 0 26px}
+  .upd-grp > .gh{display:flex;align-items:baseline;gap:12px;margin:0 0 10px;padding:0 2px}
+  .upd-grp > .gh b{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--accent-deep)}
+  .upd-grp > .gh span{font-size:12px;color:var(--muted)}
+  .upd-grp > .gh i{flex:1;height:1px;background:var(--line);font-style:normal}
+  /* pager */
+  .upd-pager{display:flex;justify-content:center;align-items:center;gap:6px;margin:26px 0 4px;flex-wrap:wrap}
+  .upd-pager button{min-width:34px;height:34px;padding:0 10px;border:1px solid var(--line);
+    background:var(--panel);color:var(--ink-2);border-radius:9px;font:inherit;font-size:13px;cursor:pointer;
+    transition:all .15s}
+  .upd-pager button:hover:not(:disabled){border-color:var(--accent-2);color:var(--accent-deep)}
+  .upd-pager button.on{background:var(--btn);border-color:var(--btn);color:var(--on-btn);font-weight:600}
+  .upd-pager button:disabled{opacity:.38;cursor:default}
+  .upd-count{text-align:center;font-size:12px;color:var(--muted);margin-top:10px}
+</style>
+</head>
+<body>
+
+<div class="glow" aria-hidden="true"></div>
+
+<div class="topbar">
+  <div class="in">
+    <a class="brand" href="#home"><span class="dot" aria-hidden="true"></span><b>Ocean&nbsp;Agent</b><span>on Pacifica</span></a>
+    <nav class="top-nav">
+      <div class="navgroup">
+        <button class="navtrig">Overview</button>
+        <div class="dropdown">
+          <a href="#overview"><b>Overview</b><span>what it is · at a glance</span></a>
+          <a href="#landscape"><b>AI agent comparison</b><span>vs 6 others, explained</span></a>
+          <a href="#quickstart"><b>Quickstart</b><span>API key · configure · run</span></a>
+        </div>
+      </div>
+      <div class="navgroup">
+        <button class="navtrig solo" data-goto="installation">Install</button>
+      </div>
+      <div class="navgroup">
+        <button class="navtrig solo" data-goto="updates">Updates</button>
+      </div>
+      <div class="navgroup">
+        <button class="navtrig">How it works</button>
+        <div class="dropdown">
+          <a href="#how-it-decides"><b>How it decides</b><span>measured edge · the brain</span></a>
+          <a href="#self-learning"><b>Self learning</b><span>re measure · meta · post mortem</span></a>
+          <a href="#autonomous"><b>Autonomous entity</b><span>24/7 bot · policy</span></a>
+        </div>
+      </div>
+      <div class="navgroup">
+        <button class="navtrig">Capabilities</button>
+        <div class="dropdown">
+          <a href="#mcp-tools"><b>MCP tools</b><span>13 tools</span></a>
+          <a href="#strategies"><b>Strategies</b><span>carry · bracket · regime</span></a>
+          <a href="#configuration"><b>Configuration</b><span>policy.yaml</span></a>
+        </div>
+      </div>
+      <div class="navgroup">
+        <button class="navtrig">Trust</button>
+        <div class="dropdown">
+          <a href="#safety"><b>Safety &amp; risk</b><span>confirm · stops · keys</span></a>
+          <a href="#roadmap"><b>Roadmap</b><span>4 phases</span></a>
+          <a href="#honest"><b>Where we stand</b><span>the honest section</span></a>
+        </div>
+      </div>
+      <div class="navgroup">
+        <button class="navtrig">More</button>
+        <div class="dropdown">
+          <a href="#faq"><b>FAQ</b><span>common questions</span></a>
+          <a href="#terms"><b>Terms of use</b><span>read before connecting funds</span></a>
+        </div>
+      </div>
+    </nav>
+  </div>
+</div>
+
+<main class="content">
+
+  <div class="page active" id="home">
+  <header class="hero">
+    <div class="hero-grid">
+      <div class="hero-left">
+        <div class="eyebrow">AI trading agents</div>
+        <h1>Everyone built hands, eyes, and ears.<br>We built the <em>brain</em>.</h1>
+        <p class="lede">Ocean Agent is an AI native trading layer for Pacifica. Tell it what to trade; it fixes the tick, lot, and min order, then executes correctly.</p>
+        <p class="subtle">It doesn't debate. It doesn't guess. It measures, then studies its own results.</p>
+        <div class="hero-cta">
+          <a href="#overview" class="btn btn-primary">Get started</a>
+          <a href="#landscape" class="btn btn-ghost">See the comparison</a>
+        </div>
+        <div class="trust-strip">Ed25519 API key<span class="dot">·</span>633 measured configurations<span class="dot">·</span>Live on PyPI<span class="dot">·</span>Built on Pacifica</div>
+      </div>
+      <div class="hero-right">
+        <div class="term">
+          <div class="term-top">
+            <span class="lights"><i></i><i></i><i></i></span>
+            <span class="term-title">ocean-agent</span>
+          </div>
+          <div class="term-body" id="termBody"></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="community">
+    <div class="eyebrow">Get involved</div>
+    <h2>Community &amp; Support</h2>
+    <div class="comm-grid">
+      <a class="comm-card" href="https://discord.gg/pacifica" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.211.375-.445.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.6 12.6 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.058a.082.082 0 0 0 .031.056 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.009c.12.099.246.198.373.292a.077.077 0 0 1-.006.128 12.3 12.3 0 0 1-1.873.891.077.077 0 0 0-.041.107c.36.698.772 1.363 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.055c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.029zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.211 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+        <h4>Discord</h4>
+        <p>Join the community. Get help, share progress, and build on Pacifica.</p>
+      </a>
+      <a class="comm-card" href="https://x.com/pacifica_fi" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.66l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        <h4>Twitter / X</h4>
+        <p>Follow @pacifica_fi on X for the latest news and updates.</p>
+      </a>
+      <div class="comm-card">
+        <svg viewBox="0 0 24 24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:1.7"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4" stroke-linecap="round"/></svg>
+        <h4>Office Hours</h4>
+        <p><b>KST</b> 09:00 to 18:00<br><b>UTC</b> 00:00 to 09:00<br><b>US Eastern (ET)</b> 20:00 to 05:00</p>
+      </div>
+    </div>
+  </section>
+  </div><!-- /home -->
+
+  <!-- ============ GETTING STARTED ============ -->
+  <section class="page" id="overview">
+    <div class="eyebrow">Overview · At a glance</div>
+    <h2>What Ocean Agent is</h2>
+    <p class="sec-lede">An AI native trading layer for Pacifica. It comes in two parts: an MCP server your AI client calls on demand, and a 24/7 autonomous entity that trades on its own inside a policy you set.</p>
+    <p class="body">The official Pacifica MCP passes the API through as is: your AI has to compute exact prices and sizes, and a wrong tick or lot gets rejected. Ocean Agent adds the layer above that: <b>tick, lot, and min order correction, risk based sizing, a confirm gate, measured statistics, and self learning.</b></p>
+    <div class="tbl-wrap">
+      <table class="dtable">
+        <thead><tr><th>At a glance</th><th></th></tr></thead>
+        <tbody>
+          <tr><th>Exchange</th><td>Pacifica (Solana perpetual futures)</td></tr>
+          <tr><th>Interface</th><td>MCP server + standalone 24/7 autonomous process</td></tr>
+          <tr><th>Signing</th><td>Ed25519 API key, trading only, cannot withdraw funds</td></tr>
+          <tr><th>Markets</th><td>Every Pacifica market: crypto, stocks, commodities, FX</td></tr>
+          <tr><th>Decision basis</th><td>Measured edge (backtest matrix + live win rates), not a model's guess</td></tr>
+          <tr><th>Status</th><td>Live on mainnet with small size since July 2026, building the public track record</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page" id="quickstart">
+    <div class="eyebrow">Overview · Quickstart</div>
+    <h2>From zero to running</h2>
+    <p class="sec-lede">Live on PyPI. Nothing to preinstall, one command sets everything up. The autonomous bot is optional.</p>
+    <div class="tbl-wrap">
+      <table class="dtable">
+        <thead><tr><th>Step</th><th>What you do</th></tr></thead>
+        <tbody>
+          <tr><th>1 · API key</th><td>Create a Pacifica agent key at <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a>. It can trade but <b>cannot withdraw</b>, and you can revoke it any time.</td></tr>
+          <tr><th>2 · One command</th><td>Paste the installer command, answer two questions. It sets up everything, including Python and Claude's config.</td></tr>
+          <tr><th>3 · Chat</th><td>Restart Claude and the trading tools appear, analyze charts, check positions, trade by talking. <b>No bot required</b>.</td></tr>
+          <tr><th>4 · Run the bot <span style="font-weight:400">(optional)</span></th><td>Only if you want autonomous trading: start the entity and it reads the market, enters only setups that clear every gate, and manages stops around the clock.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="body">Start in <b>dry mode</b> until you understand exactly what it does.</p>
+  </section>
+
+  <section class="page" id="installation">
+    <div class="eyebrow">Install</div>
+    <h2>Install</h2>
+    <p class="sec-lede">One command. Paste it into a terminal, answer two questions (wallet public address, API key), it installs everything and connects Claude automatically.</p>
+    <style>
+      .istep{margin:0 0 20px}
+      .istep .ihead{font-weight:600;margin-bottom:8px;font-size:14.5px}
+      .istep .iwrap{position:relative}
+      .istep pre{font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.75;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:14px 16px;overflow-x:auto;margin:0}
+      .istep .cbtn{position:absolute;top:8px;right:8px;font-family:'Inter',sans-serif;font-size:11px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink-2);cursor:pointer}
+      .istep .cbtn:hover{color:var(--accent-deep);border-color:var(--accent-2)}
+      .gated pre{filter:blur(5px);user-select:none;pointer-events:none}
+      .gated .cbtn{pointer-events:none;opacity:.4}
+      #tgate{border:1px solid var(--line);border-radius:12px;background:var(--panel-2);padding:14px 16px;margin:0 0 20px;font-size:14px}
+      #tgate button{font-family:'Inter',sans-serif;font-size:13px;font-weight:600;padding:8px 16px;border:1px solid var(--accent-2);border-radius:9px;background:var(--panel);color:var(--accent-deep);cursor:pointer;margin-top:10px}
+      #tmodal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:60;align-items:center;justify-content:center;padding:20px}
+      #tmodal .tbox{max-width:520px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 26px;max-height:80vh;overflow-y:auto}
+      #tmodal h3{margin:0 0 12px;font-size:17px}
+      #tmodal .tlede{font-size:13px;color:var(--ink-2);margin:0 0 12px;line-height:1.6}
+      #tmodal .ttop{margin-bottom:16px;border-bottom:1px solid var(--line);padding-bottom:16px}
+      #tmodal .tsec h3{font-size:14px;margin:18px 0 6px}
+      #tmodal .tsec h4{margin:14px 0 4px;font-size:13.5px}
+      #tmodal .tsec p{margin:0 0 8px;font-size:12.8px;line-height:1.65;color:var(--ink-2)}
+      #tmodal .tbtns{display:flex;gap:10px;margin-top:16px}
+      #tmodal .tbtns button{flex:1;font-family:'Inter',sans-serif;font-size:13.5px;font-weight:600;padding:10px 0;border-radius:10px;cursor:pointer}
+      #tmodal .tyes{border:1px solid var(--accent-2);background:var(--accent-deep);color:#fff}
+      #tmodal .tno{border:1px solid var(--line);background:var(--panel);color:var(--ink-2)}
+    </style>
+    <div id="tgate">
+      <b>One step before installing.</b> Please review the terms of use. Agreeing unlocks the install commands, and you can copy yours right from the window.
+      <br><button onclick="openTerms()">Review terms &amp; install</button>
+    </div>
+    <div class="istep">
+      <div class="ihead">Windows: paste into PowerShell</div>
+      <div class="iwrap gated"><pre><code>powershell -ExecutionPolicy ByPass -c "irm https://oceanagent.vercel.app/install.ps1 | iex"</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+    </div>
+    <div class="istep">
+      <div class="ihead">macOS / Linux: paste into Terminal</div>
+      <div class="iwrap gated"><pre><code>sh -c "$(curl -LsSf https://oceanagent.vercel.app/install.sh)"</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+      <p class="body" style="margin-top:8px">It asks for your wallet public address and an agent key from <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a> (trade-only, cannot withdraw, revocable any time). When it finishes, restart Claude, the trading tools appear in chat. <b>No bot required.</b></p>
+      <p class="body" style="margin-top:8px"><b>Works in your language.</b> You chat with your AI in any language: Korean, Japanese, Spanish, anything. It drives the tools and explains every result in your language, and new-version notices arrive in it too.</p>
+    </div>
+    <div class="istep">
+      <div class="ihead">Optional: run the autonomous bot</div>
+      <div class="iwrap gated"><pre><code>uv run --with ocean-agent python -m ocean_agent.autonomous --dry</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+      <p class="body" style="margin-top:8px">Only for hands-off trading. <code>--dry</code> decides but places no orders; drop it when you trust it.</p>
+    </div>
+    <details style="margin-top:6px">
+      <summary style="cursor:pointer;color:var(--ink-2);font-size:13.5px">Manual setup (any MCP client)</summary>
+      <div class="istep" style="margin-top:14px">
+        <div class="ihead">Create a <code>.env</code> file with your keys</div>
+        <div class="iwrap"><pre><code>ADDRESS=your_wallet_address
+PACIFICA_API_KEY=your_agent_key
+PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+      </div>
+      <div class="istep">
+        <div class="ihead">Add to your client's MCP config (needs <a href="https://docs.astral.sh/uv/">uv</a>)</div>
+        <div class="iwrap"><pre><code>{ "mcpServers": { "ocean-agent": {
+    "command": "uvx", "args": ["ocean-agent@latest"],
+    "env": { "PACIFICA_ENV_FILE": "/absolute/path/to/.env" } } } }</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+        <p class="body" style="margin-top:8px"><code>@latest</code> means every client restart checks PyPI and picks up new releases automatically. Your local data and keys are never touched by updates.</p>
+      </div>
+      <div class="istep">
+        <div class="ihead">Check everything is wired</div>
+        <div class="iwrap"><pre><code>uv run --with ocean-agent python -m ocean_agent.doctor</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+      </div>
+    </details>
+  </section>
+
+  <section class="page" id="landscape">
+    <div class="eyebrow">Overview · AI agent comparison</div>
+    <h2>How Ocean Agent compares</h2>
+    <p class="sec-lede">Seven AI trading agents in one table. Every other one either lets a model guess or debate, or piles on rules. Here is what actually separates them, unpacked.</p>
+
+    <div class="exp">
+      <h3>How it decides <span class="tag">the one that makes money</span></h3>
+      <p>Most agents let a language model read the chart and form an opinion, or run several personas that debate. Ocean Agent trades on a <b>measured edge</b>: for each coin, timeframe, and signal it holds an expected value net of fees, from a matrix of past measurements. If that number is not positive, it does not trade. A guess can be confident and wrong; a measured edge is just a number that either clears the bar or does not.</p>
+
+      <h3>Self learning <span class="tag">unique here</span></h3>
+      <p>Backtests go stale as the market changes character. On a schedule, Ocean Agent <b>re measures the full matrix</b> of coins, timeframes, and signals, and updates which ones it trusts. In one measurement an 8 hour band showed no edge at all; weeks later it was the best. No competitor re measures its own edge, so their parameters quietly rot.</p>
+
+      <h3>Meta learning <span class="tag">unique here</span></h3>
+      <p>It tracks how often its own predicted win rate actually held. When it was too optimistic, it <b>corrects the next estimate down</b>. In other words it learns how wrong it tends to be and fixes it. Nothing else in this set does this.</p>
+
+      <h3>Win / loss attribution <span class="tag">unique here</span></h3>
+      <p>Every closed trade is graded: did the <b>signal</b> work, or did the market just drift your way? A lucky win is not counted as a good signal, and a good signal that lost to a broad move is not thrown away. This is how it avoids learning the wrong lesson from noise.</p>
+
+      <h3>Market &amp; custody</h3>
+      <p>Leverage perpetuals on <b>crypto, stocks, commodities, and FX</b>, all on Pacifica. It is non custodial: a trading only API key that cannot withdraw your funds. Several competitors are spot only, stocks only, or custodial.</p>
+
+      <h3>Autonomy &amp; control</h3>
+      <p>It runs <b>24/7 as its own process</b>, so it holds positions and manages stops even with the AI offline. Take profit and stop loss are exchange native and trail automatically. Alerts go to Telegram, with two way control on the roadmap.</p>
+
+      <h3>Where we are honestly behind</h3>
+      <p>Setup is a config file and a key, not a single click. There is no regulation or insurance wrapper. The live mainnet track record is still young, it trades small until the numbers justify more. And it is a solo open source project, not a funded company. The table below shows those gaps in the same view as the wins.</p>
+    </div>
+
+    <div class="tbl-scroll">
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th class="row-h" style="text-align:left">&nbsp;</th>
+            <th class="us">Ocean Agent<span class="sub">Pacifica</span></th>
+            <th>Coinbase<span class="sub">for Agents</span></th>
+            <th>Robinhood<span class="sub">Agents</span></th>
+            <th>Minara<span class="sub">multi chain</span></th>
+            <th>Trading<span class="sub">Agents</span></th>
+            <th>EVA<span class="sub">Protocol</span></th>
+            <th>Virtuals<span class="sub">on chain</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="grp"><td colspan="8">Decision quality</td></tr>
+          <tr><td class="row-h">How it decides</td><td class="us">Measured stats</td><td>Model guess</td><td>Model guess</td><td>User rules</td><td>Model debate</td><td>Model debate</td><td>Templates</td></tr>
+          <tr><td class="row-h">Self learning</td><td class="us"><span class="uniq">re measures</span></td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td>reflection</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td class="row-h">Meta learning</td><td class="us"><span class="uniq">unique</span></td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td class="row-h">Win/loss attribution</td><td class="us"><span class="uniq">unique</span></td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr class="grp"><td colspan="8">Market and custody</td></tr>
+          <tr><td class="row-h">Instrument</td><td class="us">Leverage perps</td><td>Spot</td><td>Spot stocks</td><td>Perps and spot</td><td>Stocks</td><td>Multi</td><td>Perps</td></tr>
+          <tr><td class="row-h">Stocks and commodities</td><td class="us"><span class="yes">yes</span></td><td>soon</td><td>stocks only</td><td class="no">✕</td><td>stocks only</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td class="row-h">Non custodial</td><td class="us"><span class="yes">yes</span></td><td class="no">✕</td><td class="no">✕</td><td class="yes">yes</td><td>optional</td><td class="yes">yes</td><td class="yes">yes</td></tr>
+          <tr class="grp"><td colspan="8">Autonomy and control</td></tr>
+          <tr><td class="row-h">Runs 24/7 with AI offline</td><td class="us"><span class="yes">own process</span></td><td class="no">✕</td><td class="no">✕</td><td>rules</td><td class="yes">yes</td><td class="no">✕</td><td class="yes">yes</td></tr>
+          <tr><td class="row-h">Native TP/SL and trailing</td><td class="us"><span class="yes">auto</span></td><td>manual</td><td>manual</td><td>manual</td><td class="no">✕</td><td class="no">✕</td><td class="yes">yes</td></tr>
+          <tr><td class="row-h">Telegram two way control</td><td class="us">alerts now</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="yes">yes</td></tr>
+          <tr class="grp"><td colspan="8">Where we are behind</td></tr>
+          <tr><td class="row-h">Ease of setup</td><td class="us">config + key</td><td class="yes">1 login</td><td class="yes">1 command</td><td class="yes">simple</td><td>docker</td><td>self host</td><td>self host</td></tr>
+          <tr><td class="row-h">Regulation and insurance</td><td class="us">none</td><td class="yes">KYC</td><td class="yes">SIPC</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td class="row-h">Live track record</td><td class="us">live · small</td><td class="yes">live</td><td class="yes">live</td><td class="yes">live</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td class="row-h">Brand and capital</td><td class="us">solo OSS</td><td>public co</td><td>public co</td><td>funded</td><td>OSS</td><td>token</td><td>token</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ HOW IT WORKS ============ -->
+  <section class="page" id="how-it-decides">
+    <div class="eyebrow">How it works · How it decides</div>
+    <h2>Measured edge, not opinion</h2>
+    <p class="sec-lede">A signal only trades if it beats the market's own drift, on that specific coin and timeframe, net of fees. Everything a decision touches is a measured number.</p>
+    <div class="tbl-wrap">
+      <table class="dtable">
+        <thead><tr><th>Input</th><th>What it contributes</th></tr></thead>
+        <tbody>
+          <tr><th>Baseline subtracted edge</th><td>The signal must beat unconditional market drift, not just win often.</td></tr>
+          <tr><th>Look ahead prevention</th><td>The unclosed candle is dropped, so no signal reads a bar still forming.</td></tr>
+          <tr><th>Backtest matrix</th><td>Expected value per coin, timeframe, and signal, net of fees.</td></tr>
+          <tr><th>Live win rate</th><td>Observed win rate from the agent's own trades, weighted higher as it grows.</td></tr>
+          <tr><th>Regime read</th><td>Fear and Greed context; flags signals whose edge flips in the current regime.</td></tr>
+          <tr><th>Conviction</th><td>One score that fuses the above and sets entry order and size.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page" id="self-learning">
+    <div class="eyebrow">How it works · Self learning</div>
+    <h2>It studies its own results</h2>
+    <p class="sec-lede">The loop that makes it better over time. It learns only from its own signal trades, so nothing else pollutes the measured edge.</p>
+    <div class="tbl-wrap">
+      <table class="dtable">
+        <thead><tr><th>Layer</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><th>Re measurement</th><td>On a schedule it re measures the full matrix of coins, timeframes, and signals, and updates which it trusts. Regimes change, so fixed parameters go stale.</td></tr>
+          <tr><th>Meta learning</th><td>Tracks how often its predicted win rate actually held, and corrects its own overconfidence once enough samples exist.</td></tr>
+          <tr><th>Post mortem</th><td>Grades each closed trade as skill or luck, so a lucky win is not mistaken for a good signal.</td></tr>
+          <tr><th>Adaptation</th><td>Bans signals that lose in live grading, trims size in drawdown, restores it on recovery, always within policy bounds.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page" id="autonomous">
+    <div class="eyebrow">How it works · Autonomous entity</div>
+    <h2>Runs while you sleep, never runs blind</h2>
+    <p class="sec-lede">A separate always on process governed by a policy file, a delegation contract it cannot act outside of.</p>
+    <div class="flagship">
+      <div class="buckets">
+        <div class="bucket"><span class="lbl">Portfolio buckets</span><p>Capital split across trading, carry, and a cash reserve, rebalanced each cycle.</p></div>
+        <div class="bucket"><span class="lbl">Measured edge only</span><p>Enters only setups that pass its win rate gates. Every position gets native TP and SL.</p></div>
+        <div class="bucket"><span class="lbl">All market learner</span><p>Rotates through every Pacifica market, building a win rate database at zero risk.</p></div>
+        <div class="bucket"><span class="lbl">Position aftercare</span><p>Moves the stop to breakeven when ahead, trails it as profit grows, takes partial profit at target.</p></div>
+        <div class="bucket"><span class="lbl">Two tier stop</span><p>Pauses new entries on a bad day, and flattens fully on a deep drawdown.</p></div>
+        <div class="bucket"><span class="lbl">You stay in control</span><p>It acts only inside the policy file. Nothing outside those bounds.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CAPABILITIES ============ -->
+  <section class="page" id="mcp-tools">
+    <div class="eyebrow">Capabilities · MCP tools</div>
+    <h2>Thirteen things the passthrough doesn't have</h2>
+    <p class="sec-lede">Each one answers a question a trader actually asks, with data instead of an opinion.</p>
+    <div class="feat-grid">
+      <div class="feat"><div class="n">01</div><h4>Funding scan</h4><p>Ranks every market by funding APR.</p></div>
+      <div class="feat"><div class="n">02</div><h4>One command carry</h4><p>Spot buy and perp short in one atomic batch.</p></div>
+      <div class="feat"><div class="n">03</div><h4>Carry unwind</h4><p>Closes both legs together. No half open exposure.</p></div>
+      <div class="feat"><div class="n">04</div><h4>OI hedge design</h4><p>Sizes a cross exchange hedge with fees and funding included.</p></div>
+      <div class="feat"><div class="n">05</div><h4>Bracket entry</h4><p>Entry plus exchange native TP and SL in one call.</p></div>
+      <div class="feat"><div class="n">06</div><h4>Protect position</h4><p>Adds native TP and SL to any open position.</p></div>
+      <div class="feat"><div class="n">07</div><h4>Chart analysis</h4><p>Four timeframes with a measured hit rate per signal.</p></div>
+      <div class="feat"><div class="n">08</div><h4>Top setups</h4><p>Live ranking by expected value, win rate, and sample size.</p></div>
+      <div class="feat"><div class="n">09</div><h4>Market regime</h4><p>Reads Fear and Greed, blocks bad trades for the regime.</p></div>
+      <div class="feat"><div class="n">10</div><h4>Print verdict</h4><p>Tells you whether a Print offer is worth taking.</p></div>
+      <div class="feat"><div class="n">11</div><h4>Learned win rates</h4><p>A win rate database grown from live observation.</p></div>
+      <div class="feat"><div class="n">12</div><h4>Prediction grading</h4><p>Past calls against what actually happened.</p></div>
+      <div class="feat wide"><div class="n">13</div><h4>Safety layer</h4><p>Confirm gate, automatic price correction, separate testnet and mainnet keys, and trading only keys that cannot withdraw.</p></div>
+    </div>
+  </section>
+
+  <section class="page" id="strategies">
+    <div class="eyebrow">Capabilities · Strategies</div>
+    <h2>The plays it can run</h2>
+    <p class="sec-lede">Every strategy is measured and gated. If it can't beat the existing logic, it doesn't ship.</p>
+    <div class="tbl-wrap">
+      <table class="dtable">
+        <thead><tr><th>Strategy</th><th>What it does · when it fits</th></tr></thead>
+        <tbody>
+          <tr><th>Statistical setup</th><td>The main engine. Enters signals that clear a measured win rate and expected value gate for the current regime.</td></tr>
+          <tr><th>Bracket entry</th><td>Entry plus exchange native take profit and stop loss in one call. The stops live on the exchange and fire even with your machine off.</td></tr>
+          <tr><th>Funding carry</th><td>Delta neutral: spot buy plus perp short, filled atomically. Best on larger capital; small accounts skip it.</td></tr>
+          <tr><th>Regime filter</th><td>Flags setups whose historical edge flips sign in the current market regime.</td></tr>
+          <tr><th>OI hedge</th><td>Sizes an open interest position with its cross exchange hedge, fees and funding included.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page" id="configuration">
+    <div class="eyebrow">Capabilities · Configuration</div>
+    <h2>One policy file governs everything</h2>
+    <p class="sec-lede">The autonomous entity acts only inside these bounds. Widen them carefully.</p>
+    <div class="tbl-wrap">
+      <table class="dtable">
+        <thead><tr><th>Setting</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><th>Capital</th><td>Fixed amount, or <code>live</code> to size to your actual wallet balance.</td></tr>
+          <tr><th>Risk per trade</th><td>How much of capital a single stop may cost.</td></tr>
+          <tr><th>Max leverage</th><td>A ceiling the policy enforces over the market maximum.</td></tr>
+          <tr><th>Max concurrent</th><td>How many positions may be open at once.</td></tr>
+          <tr><th>Soft / final stop</th><td>Pause new entries on a bad day; full flatten on a deep drawdown.</td></tr>
+          <tr><th>Allocations</th><td>Split between trading, carry, and cash reserve.</td></tr>
+          <tr><th>Mode</th><td>Aggressive (harvest data) or careful (proven setups only). A one line switch.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ TRUST ============ -->
+  <section class="page" id="safety">
+    <div class="eyebrow">Trust · Safety &amp; risk</div>
+    <h2>Built so mistakes are structurally hard</h2>
+    <p class="sec-lede">The safety layer sits under every money moving action.</p>
+    <div class="tbl-wrap">
+      <table class="dtable">
+        <thead><tr><th>Guard</th><th>What it prevents</th></tr></thead>
+        <tbody>
+          <tr><th>Two step confirm</th><td>Every money moving tool previews first and executes only on explicit confirmation.</td></tr>
+          <tr><th>Trading only keys</th><td>API keys can trade but cannot move funds out. Revocable any time.</td></tr>
+          <tr><th>Key separation</th><td>Testnet and mainnet keys and data are kept apart.</td></tr>
+          <tr><th>Hard sizing guard</th><td>Any order above a notional ceiling is rejected at the API layer, whatever the source.</td></tr>
+          <tr><th>Liquidity gate</th><td>Skips markets where your own order would be a large share of daily volume.</td></tr>
+          <tr><th>Native stops</th><td>Exchange native TP and SL on every entry, so they fire with your machine off.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="body"><b>Risk.</b> This is trading software. Leveraged perpetuals can lose more than the margin you post. Measured win rates come from historical data and are regime dependent. Nothing here is financial advice. Only risk what you can afford to lose.</p>
+  </section>
+
+  <section class="page" id="roadmap">
+    <div class="eyebrow">Trust · Roadmap</div>
+    <h2>Capability grows only as live evidence earns it</h2>
+    <p class="sec-lede">Correctness and risk first. Each phase unlocks only when a live data gate is met.</p>
+    <div class="phase">
+      <div class="p-h done">Phase 0</div>
+      <div class="p-b"><b>Correctness &amp; risk hardening <span class="st done">· complete</span></b><div class="st">Baseline edge, look ahead prevention, liquidity gate, hard sizing guard, two tier stop, signal only learning.</div></div>
+      <div class="p-h lock">Phase 1</div>
+      <div class="p-b"><b>Regime awareness + live accumulation <span class="st lock">· gate: mainnet</span></b><div class="st">A regime layer as an additive flag, plus a real live track record. Exit: 100+ closed live trades.</div></div>
+      <div class="p-h lock">Phase 2</div>
+      <div class="p-b"><b>Self improvement, validated on live data <span class="st lock">· gate: 100+ live trades</span></b><div class="st">Meta learning and conviction fusion, proven to beat the raw layer on live data. Human stays in the loop.</div></div>
+      <div class="p-h lock">Phase 3</div>
+      <div class="p-b"><b>Institutional grade validation <span class="st lock">· gate: 6 to 12 months live</span></b><div class="st">Monte Carlo stress test, portfolio level hedging, independent recomputation of every reported metric.</div></div>
+    </div>
+  </section>
+
+  <section class="page" id="honest">
+    <div class="eyebrow">Trust · Where we stand</div>
+    <h2>Where we win, and where we honestly don't</h2>
+    <div class="cards2">
+      <div class="card us">
+        <h3>Where we win</h3>
+        <ul>
+          <li>A statistics brain that <b>measures its edge</b></li>
+          <li>Grades its own trades: <b>skill or luck</b></li>
+          <li>Corrects its own overconfidence</li>
+          <li>Live leverage perps on stocks and commodities</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Where we are behind</h3>
+        <ul>
+          <li>Setup is config and a key, not one click</li>
+          <li>No regulation or insurance</li>
+          <li>Live track record is still young (mainnet since July 2026)</li>
+          <li>A solo open source project</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout">The edge isn't proven until the live track record says so. That's the one number we won't fake.</div>
+  </section>
+
+  <!-- ============ MORE ============ -->
+  <section class="page" id="faq">
+    <div class="eyebrow">More · FAQ</div>
+    <h2>Common questions</h2>
+    <div class="faq"><b>Can it withdraw my funds?</b><p>No. It uses a trading only API key with no withdrawal rights, and you can revoke it any time.</p></div>
+    <div class="faq"><b>Is it live yet?</b><p>Yes: live on mainnet with small size since July 2026. Sizes stay small until the live track record justifies more.</p></div>
+    <div class="faq"><b>Does it work in my language?</b><p>Yes. You chat with your AI in any language; it drives the tools and explains the results in that language. Raw tool reports and this site are in English, but your AI translates as it goes.</p></div>
+    <div class="faq"><b>Do I need to keep my PC on?</b><p>The autonomous entity needs its own process running, but stops are exchange native and fire even if your machine goes offline.</p></div>
+    <div class="faq"><b>What does it trade?</b><p>Every Pacifica market: crypto, stocks, commodities, and FX, as leverage perpetuals.</p></div>
+    <div class="faq"><b>Does it show real performance numbers?</b><p>Not until the live track record is real. That is the one number it will never fake.</p></div>
+  </section>
+
+  <section class="page" id="updates">
+    <div class="eyebrow">Updates</div>
+    <h2>What changed, and what we measured</h2>
+    <p class="sec-lede">Every entry states the change and the measurement behind it. When a
+      measurement said the current setting was already better, we kept it and wrote that down
+      too. Backtest figures assume perfect fills and exclude funding. They describe past
+      regimes, not forecasts.</p>
+
+    <div class="upd-list">
+        <a class="upd-row" href="#u-security-hardening-audit" data-date="2026-08-10">
+          <span class="d">AUG 10</span>
+          <span class="t">Routine security review</span>
+          <span class="tg fix">fix</span>
+          <span class="chev">&#8250;</span>
+        </a>
+        <a class="upd-row" href="#u-wider-stops-and-consent-fee" data-date="2026-08-09">
+          <span class="d">AUG 9</span>
+          <span class="t">Wider stops, measured; and a consent-based developer fee</span>
+          <span class="tg new">new</span>
+          <span class="chev">&#8250;</span>
+        </a>
+        <a class="upd-row" href="#u-ocean-agent-is-live-on-py" data-date="2026-08-08">
+          <span class="d">AUG 8</span>
+          <span class="t">Ocean Agent is live on PyPI</span>
+          <span class="tg new">new</span>
+          <span class="chev">&#8250;</span>
+        </a>
+        <a class="upd-row" href="#u-full-backtest-harness-and" data-date="2026-08-06">
+          <span class="d">AUG 6</span>
+          <span class="t">Full backtest harness, and seven bugs it found</span>
+          <span class="tg fix">fix</span>
+          <span class="chev">&#8250;</span>
+        </a>
+        <a class="upd-row" href="#u-mcp-server-audit-and-print" data-date="2026-08-05">
+          <span class="d">AUG 5</span>
+          <span class="t">MCP server audit, and Print closed out</span>
+          <span class="tg fix">fix</span>
+          <span class="chev">&#8250;</span>
+        </a>
+        <a class="upd-row" href="#u-separating-what-it-knows-f" data-date="2026-08-04">
+          <span class="d">AUG 4</span>
+          <span class="t">Separating what it knows from what it hopes</span>
+          <span class="tg fix">fix</span>
+          <span class="chev">&#8250;</span>
+        </a>
+    </div>
+    <div class="upd-pager" id="updPager"></div>
+    <div class="upd-count" id="updCount"></div>
+  </section>
+
+  <section class="page" id="u-security-hardening-audit">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 10</div>
+    <h2>Routine security review</h2>
+    <div class="upd-meta"><span class="tg fix">fix</span><span class="st">2026-08-10</span></div>
+    <div class="upd-article">
+          <p class="lede">Version 0.3.6. We ran a full security review against the current
+            landscape of crypto and supply-chain attacks, and tightened a few things as a
+            result. No issue was ever exploited.</p>
+
+          <p>The design principles that keep funds safe were confirmed intact: the trading key
+            is trade-only and can never withdraw, every order that moves money passes an
+            explicit confirmation and a hard size ceiling, and the agent only ever signs
+            requests it built itself. Your keys stay on your machine and are never transmitted
+            to us.</p>
+
+          <p>We review security on an ongoing basis and fold any hardening into the next
+            release. The best thing you can do is stay current: existing installs pick up the
+            latest version automatically on the next client restart.</p>
+    </div>
+  </section>
+
+  <section class="page" id="u-wider-stops-and-consent-fee">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 9</div>
+    <h2>Wider stops, measured; and a consent-based developer fee</h2>
+    <div class="upd-meta"><span class="tg new">new</span><span class="st">2026-08-09</span></div>
+    <div class="upd-article">
+          <p class="lede">Version 0.3.4. The stops were sitting inside the noise band and cutting
+            winning trades, so they are now twice as wide. Installs also ask, once, about a small
+            developer fee. Nothing is approved silently.</p>
+
+          <div class="upd-stats">
+            <div><b>+20.6%</b><span>7-year final equity, wider stops</span></div>
+            <div><b>5.9% &rarr; 5.2%</b><span>max drawdown, lower too</span></div>
+            <div><b>~3%</b><span>average adverse swing before a pick moves</span></div>
+            <div><b>0.01%</b><span>optional builder fee (1 bps)</span></div>
+          </div>
+
+          <h4>What changed</h4>
+          <div class="tbl-wrap"><table class="dtable">
+            <thead><tr><th>Change</th><th>Measured basis</th></tr></thead><tbody>
+            <tr><th>Stop width doubled</th><td>24h-horizon picks swing about 3% against entry before going the right way, and the old stops sat inside that noise. Sweeping multipliers on a 7-year replay: 1.0x $8,048, 1.5x $9,134, <b>2.0x $9,709</b>, 2.5x $8,894, 3.0x $8,606. A single peak at 2.0, not a runaway curve. Position size auto-halves because sizing is stop-based, so risk per trade is unchanged, and max drawdown fell from 5.9% to 5.2%.</td></tr>
+            <tr><th>Harness parity bug fixed</th><td>The backtest harness still carried a fixed swing stop block that the live bot withdrew on Aug 5. It was removed before the sweep above, so measurements now replay exactly what the bot runs. The default harness reproduces the live config to the cent.</td></tr>
+            <tr><th>Terms acceptance at install</th><td>The installer asks once, in your OS language, whether you have agreed to the Terms of Use. Accepting continues the install and signs the builder-fee approval the Terms describe (0.01%, 1 bps, section 11); declining cancels the installation, the standard EULA behavior. AI-client-only users get the same one-time question in chat, in the conversation language. Nothing is ever approved without your explicit answer, and an approval can be revoked anytime in your Pacifica account.</td></tr>
+            <tr><th>Install page terms gate</th><td>The install commands unlock after the full scrollable Terms of Use (18+, unregulated software, total-loss risk, fees). Agreeing also offers the commands to copy right in the window.</td></tr>
+            </tbody></table></div>
+
+          <h4>Tried and rejected, on the numbers</h4>
+          <p>Four plausible ideas were measured this round and kept out. Fixed take-profit exits
+            cut the 30-day pick total from +16.6% to +5.4% by amputating the big winners.
+            Break-even floors after a partial move did worse than holding. Dropping in-progress
+            bars changed accuracy by 0.1 points, noise. And the popular idea that the 4-hour
+            bar should veto smaller ones inverted on our data: picks that fought the 4h bar hit
+            55.2% against 49.4% for picks that agreed with it. Each rejection is recorded so we
+            do not walk into the same temptation twice.</p>
+
+          <p>Existing installs pick this up on the next client restart. The bot applies the new
+            stops from its next start.</p>
+    </div>
+  </section>
+
+  <section class="page" id="u-ocean-agent-is-live-on-py">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 8</div>
+    <h2>Ocean Agent is live on PyPI</h2>
+    <div class="upd-meta"><span class="tg new">new</span><span class="st">2026-08-08</span></div>
+    <div class="upd-article">
+          <p class="lede">The agent is now a public package. One command installs it, registers
+            it with Claude, and keeps it updated.</p>
+
+          <p>Until now the only way to run it was to clone the repository. It now ships on PyPI
+            as <b>ocean-agent</b>, currently at version 0.3.3. Install with the one-line
+            installer on this site, which sets up uv, Python, your keys and Claude&#39;s MCP
+            config in a single paste, or with <b>pip install ocean-agent</b> if you already have
+            a Python environment.</p>
+
+          <div class="upd-stats">
+            <div><b>0.3.3</b><span>current version</span></div>
+            <div><b>3,700+</b><span>measured combinations bundled</span></div>
+            <div><b>9 years</b><span>of walk-forward data shipped</span></div>
+            <div><b>100</b><span>markets scanned</span></div>
+          </div>
+
+          <h4>What is in this release</h4>
+          <div class="tbl-wrap"><table class="dtable">
+            <thead><tr><th>Change</th><th>Measured basis</th></tr></thead><tbody>
+            <tr><th>Renamed: mustache-mcp is now ocean-agent</th><td>Existing user data migrates automatically on first run.</td></tr>
+            <tr><th>Win-rate gate 52% &rarr; 45%</th><td>Nine years of walk-forward measurement put the composite-vote ceiling at 54.3%, so the 52% per-signal gate was starving entries: two days, zero trades. A 7-year replay showed +21% account improvement at 45%. The pure-edge +2%p gate stays, so the floor holds.</td></tr>
+            <tr><th>Volume and liquidity filters removed, scan widened to all 100 markets</th><td>Measurement showed the filters were not what was blocking entries.</td></tr>
+            <tr><th>Regime filter off by default</th><td>30-day A/B: +$6,052 with it off against +$2,612 with it on, and lower drawdown.</td></tr>
+            <tr><th>Margin checked before every entry</th><td>Fail-closed: if the check cannot run, the entry does not go out.</td></tr>
+            <tr><th>Defense line ratchets with equity peaks</th><td>The stop-trading floor now follows new highs instead of sitting at its starting value.</td></tr>
+            <tr><th>Seed data bundled</th><td>The 9-year matrix and the calibration curve ship inside the package, so a new install starts with measured gates rather than empty ones.</td></tr>
+            </tbody></table></div>
+
+          <h4>Reliability and plumbing</h4>
+          <p>Seven fund-moving tools are now marked destructive in the MCP layer, so your client
+            asks before they run. Errors are standardized, rate limits back off on 429, and
+            remeasured timeframes hot-reload into a running session instead of waiting for a
+            restart. A timezone bug in prediction grading is fixed, expired predictions stop
+            retrying after a cap, orphan positions raise an alert, and a project-wide lint sweep
+            removed 13 dead-code findings.</p>
+
+          <h4>Updates arrive on their own</h4>
+          <p>Installs register the server as <b>ocean-agent@latest</b>, so every client restart
+            picks up the newest release. A session that is already running shows a one-time
+            in-chat notice when a newer version appears on PyPI.</p>
+
+          <p><a href="https://pypi.org/project/ocean-agent/" target="_blank" rel="noopener">pypi.org/project/ocean-agent</a></p>
+    </div>
+    <div class="upd-nav"><span></span><a href="#u-full-backtest-harness-and">Older &middot; AUG 6 &#8250;</a></div>
+  </section>
+
+  <section class="page" id="u-full-backtest-harness-and">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 6</div>
+    <h2>Full backtest harness, and seven bugs it found</h2>
+    <div class="upd-meta"><span class="tg fix">fix</span><span class="st">2026-08-06</span></div>
+    <div class="upd-article">
+          <p class="lede">We replayed the entire trading pipeline over eight years of price
+            history and let the agent grade itself.</p>
+
+          <p>Until now the agent could measure whether a signal predicted direction, and what a
+            signal&#39;s average edge was. Neither answered the question that matters:
+            <b>what happens to the account.</b> Stops, trailing, concurrency and budget change
+            the answer completely.</p>
+
+          <div class="upd-stats">
+            <div><b>+$1.87</b><span>per trade (was +$0.91)</span></div>
+            <div><b>1.92</b><span>payoff ratio (was 1.22)</span></div>
+            <div><b>4,267</b><span>trades (was 7,791)</span></div>
+            <div><b>16</b><span>settings tested</span></div>
+          </div>
+          <p>Roughly half the trades, more total profit. Fewer fees, better entries.</p>
+
+          <h4>Bugs found and fixed</h4>
+          <div class="tbl-wrap"><table class="dtable">
+            <thead><tr><th>What was wrong</th><th>Why it mattered</th></tr></thead><tbody>
+            <tr><th>Stops judged on closing price only</th><td>A bar that pierced the stop and recovered was scored a win. Stop-out rate read 55% when it was really 68%.</td></tr>
+            <tr><th>Timeframes ranked by average edge</th><td>The agent only trades its best signals, so ranking by the average picked nearly the reverse order.</td></tr>
+            <tr><th>Gate used a different stop than the trade</th><td>Setups cleared the expected-value gate on one stop distance, then traded with a wider one.</td></tr>
+            <tr><th>Swing stop applied to every timeframe</th><td>A 1.5% stop tuned on hourly bars was applied to daily bars, where a day moves 3&ndash;5%.</td></tr>
+            <tr><th>Risk setting never reached sizing</th><td>The policy file could be edited freely and nothing changed.</td></tr>
+            <tr><th>Scan universe hardcoded to 12</th><td>29 markets passed the liquidity floor; 17 were never looked at.</td></tr>
+            <tr><th>Re-measurement never reached the agent</th><td>Timeframe selection was computed once at startup and never refreshed.</td></tr>
+            </tbody></table></div>
+
+          <h4>Settings changed</h4>
+          <div class="tbl-wrap"><table class="dtable">
+            <thead><tr><th>Setting</th><th>Before &rarr; after</th><th>Measured basis</th></tr></thead><tbody>
+            <tr><th>Path judgment</th><td>close &rarr; high / low</td><td>Stop-out rate 55% &rarr; 68% once intrabar wicks count</td></tr>
+            <tr><th>Timeframe selection</th><td>average &rarr; top 3</td><td>Daily ranked last by average, first by top-3</td></tr>
+            <tr><th>Timeframes traded</th><td>5m/15m/1h &rarr; 8h/12h/1d</td><td>Hourly lost money per trade</td></tr>
+            <tr><th>Partial take-profit</th><td>on &rarr; off</td><td>More profit and less drawdown (5.8% &rarr; 4.5%)</td></tr>
+            <tr><th>Binance history</th><td>12 &rarr; 18 markets</td><td>Sample counts grew 4&ndash;9&times;</td></tr>
+            <tr><th>Position cap</th><td>$150 &rarr; $250</td><td>+40% total profit</td></tr>
+            <tr><th>Minimum margin</th><td>none &rarr; $25</td><td>Skips positions too small to be worth the round trip</td></tr>
+            <tr><th>Scan universe</th><td>12 &rarr; 40 markets</td><td>The liquidity floor already filters</td></tr>
+            </tbody></table></div>
+
+          <h4>Tested and deliberately not changed</h4>
+          <p>Nine ideas measured worse than what was already there. Recording them matters as
+            much as the changes &mdash; it stops us re-litigating settled questions.</p>
+          <div class="tbl-wrap"><table class="dtable">
+            <thead><tr><th>Idea</th><th>Result</th></tr></thead><tbody>
+            <tr><th>Fixed 1.5% stop / 5% target</th><td>Negative even under the most generous fill assumption</td></tr>
+            <tr><th>Volume-spike entry filter</th><td>Entering on volume spikes was worse by 1.8pp</td></tr>
+            <tr><th>Lower the sample requirement</th><td>30 samples beat 20, 15, 10 and 5</td></tr>
+            <tr><th>Cap holding time</th><td>A 6-hour cap erased 85% of profit</td></tr>
+            <tr><th>Size as a % of equity</th><td>Compounding blow-up &mdash; impressive on paper, impossible in practice</td></tr>
+            <tr><th>Tighten the entry gates</th><td>Worse at three consecutive thresholds</td></tr>
+            <tr><th>Shrink targets to correct bias</th><td>Narrower targets removed the room trailing stops need</td></tr>
+            </tbody></table></div>
+
+          <h4>What actually produces the returns</h4>
+          <div class="tbl-wrap"><table class="dtable">
+            <thead><tr><th>Prediction</th><th>Accuracy</th><th>Role</th></tr></thead><tbody>
+            <tr><th>Direction &mdash; up or down</th><td>50.2%</td><td>Essentially none. Gone entirely one week out.</td></tr>
+            <tr><th>Magnitude &mdash; how far</th><td>0.265 rank corr.</td><td>This is the edge. It places the target and the stop.</td></tr>
+            </tbody></table></div>
+          <p>Direction is close to a coin flip. Knowing <em>how far</em> price tends to travel is
+            what lets the agent place an asymmetric target and stop &mdash; and the trailing stop
+            converts that asymmetry into profit. Disable trailing and 92% of the returns
+            disappear, while drawdown triples.</p>
+          <blockquote>It is not a forecaster. It is a trend follower with a measured sense of scale.</blockquote>
+    </div>
+    <div class="upd-nav"><a href="#u-ocean-agent-is-live-on-py">&#8249; Newer &middot; AUG 8</a><a href="#u-mcp-server-audit-and-print">Older &middot; AUG 5 &#8250;</a></div>
+  </section>
+
+  <section class="page" id="u-mcp-server-audit-and-print">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 5</div>
+    <h2>MCP server audit, and Print closed out</h2>
+    <div class="upd-meta"><span class="tg fix">fix</span><span class="st">2026-08-05</span></div>
+    <div class="upd-article">
+          <p class="lede">The MCP server had been pointed at testnet. Print was measured across
+            every structure and set aside.</p>
+
+          <h4>The MCP server was pointed at testnet</h4>
+          <p>Tools reported a play-money balance while the agent traded real funds, and logged
+            predictions into the wrong network&#39;s files. One line in the config; the
+            consequences were not small.</p>
+
+          <h4>MCP tools now share the agent&#39;s policy</h4>
+          <p>The setup scanner was sizing with the exchange&#39;s maximum leverage instead of the
+            policy&#39;s, so its margin figures were an order of magnitude away from what the
+            agent would actually do.</p>
+
+          <h4>Print evaluated and set aside</h4>
+          <p>Pacifica&#39;s Print product pays a premium while a target order waits. We measured
+            every structure we could think of &mdash; single side, both sides, perp-hedged,
+            distance sweeps, leverage sweeps, BTC+ETH mixes, signal timing. All negative.</p>
+          <p>The reason is one line: implied volatility (26&ndash;38%) sits below realised
+            volatility (40&ndash;53%). Selling that is a losing trade regardless of structure.
+            One condition flips it &mdash; when trailing 7-day volatility drops below 24.2%,
+            ETH shorts at 2% distance measured +17%/yr. That window is open about 3% of the
+            time, so the agent watches for it instead of trading it.</p>
+    </div>
+    <div class="upd-nav"><a href="#u-full-backtest-harness-and">&#8249; Newer &middot; AUG 6</a><a href="#u-separating-what-it-knows-f">Older &middot; AUG 4 &#8250;</a></div>
+  </section>
+
+  <section class="page" id="u-separating-what-it-knows-f">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 4</div>
+    <h2>Separating what it knows from what it hopes</h2>
+    <div class="upd-meta"><span class="tg fix">fix</span><span class="st">2026-08-04</span></div>
+    <div class="upd-article">
+          <p class="lede">Trade results were attributed to the wrong trade, and risk sizing was
+            running 12&times; smaller than intended.</p>
+
+          <h4>Profit and loss attributed to the wrong trade</h4>
+          <p>A symbol&#39;s lifetime P&amp;L was being read as the result of the most recent
+            trade. One winning BTC position was recorded as a $7.30 loss. Re-grading the history
+            turned 1 win / 7 trades into 4 wins / 7 trades &mdash; which finally matched the
+            account.</p>
+
+          <h4>Risk sizing was 12&times; off</h4>
+          <p>The scanner computed margin using the exchange&#39;s leverage cap while the executor
+            placed orders at the policy cap. Intended risk of 2% per trade was operating
+            at 0.17%.</p>
+
+          <h4>Auto-bans are no longer permanent</h4>
+          <p>Five samples and a 45% floor was killing genuinely-52% signals 46% of the time,
+            with no way back. Bans now expire.</p>
+    </div>
+    <div class="upd-nav"><a href="#u-mcp-server-audit-and-print">&#8249; Newer &middot; AUG 5</a></div>
+  </section>
+
+  <section class="page" id="terms">
+    <div class="eyebrow">More · Terms</div>
+    <h2>Terms of use</h2>
+    <style>
+      #terms .tlede{color:var(--muted);font-size:13px;margin:0 0 26px}
+      #terms h3{font-size:16px;margin:28px 0 8px}
+      #terms h4{font-size:14px;margin:16px 0 6px;color:var(--ink)}
+      #terms p{color:var(--ink-2);font-size:14.5px;line-height:1.75;margin:0 0 10px;max-width:74ch}
+      #terms ul{color:var(--ink-2);font-size:14.5px;line-height:1.75;margin:0 0 12px 22px;max-width:72ch}
+      #terms li{margin-bottom:5px}
+      #terms .tfinal{font-weight:600;color:var(--ink);border:1px solid var(--line);border-radius:12px;background:var(--panel-2);padding:14px 18px;margin-top:28px;max-width:74ch}
+    </style>
+    <p class="tlede">Last updated: August 7, 2026 · Effective immediately for all users. Please read these terms carefully before downloading, installing, or using the Ocean Agent software or this site. By doing any of those things you agree to be bound by these terms. If you do not agree, do not use the software.</p>
+
+    <h3>1 · Introduction and definitions</h3>
+    <p>These Terms of Use ("<b>Terms</b>") govern your use of the Ocean Agent software and of this website. In these Terms:</p>
+    <ul>
+      <li>"<b>Software</b>" means the ocean-agent package published on PyPI, including its MCP server, its autonomous trading process, its command-line utilities, its bundled measurement data, and this website's install scripts;</li>
+      <li>"<b>Authors</b>" means the developers and contributors of the Software;</li>
+      <li>"<b>Exchange</b>" means Pacifica, the third-party trading venue the Software connects to;</li>
+      <li>"<b>Agent Key</b>" means the trade-only API key you create at the Exchange and supply to the Software;</li>
+      <li>"<b>AI Client</b>" means any MCP-compatible application (such as Claude) that you connect to the Software;</li>
+      <li>"<b>Autonomous Mode</b>" means the optional always-on process that scans markets and places orders without per-order confirmation;</li>
+      <li>"<b>You</b>" means the person installing or using the Software.</li>
+    </ul>
+    <p>The Software is open-source software released under the MIT License. It is a tool that runs entirely on your own computer. The Authors do not operate a service, do not run servers that touch your funds or orders, and have no ongoing relationship with you beyond publishing the code. The Software is not affiliated with, endorsed by, or operated by the Exchange.</p>
+
+    <h3>2 · Unregulated software: no protections</h3>
+    <p>No financial regulator in any jurisdiction has licensed, reviewed, or approved the Software or the Authors. The Authors are not a bank, exchange, broker-dealer, investment adviser, fund manager, money transmitter, or wallet provider. Using the Software gives you none of the protections that apply to regulated financial services: no deposit insurance, no investor compensation scheme, no segregation of client assets, and no financial ombudsman or complaints tribunal you can escalate to. If something goes wrong, the realistic remedies are limited to those in Section 15.</p>
+
+    <h3>3 · Eligibility</h3>
+    <p>You may use the Software only if all of the following are true:</p>
+    <ul>
+      <li>you are at least 18 years old and legally able to enter into binding contracts;</li>
+      <li>you are not located in, and do not access the Exchange from, a jurisdiction where trading leveraged cryptocurrency derivatives is restricted or prohibited, including any jurisdiction the Exchange itself blocks or restricts (the Exchange's own list, which may change at any time, controls);</li>
+      <li>you are not a resident or citizen of, and are not accessing from, any country subject to comprehensive sanctions, and you are not on any sanctions or restricted-party list (including OFAC, UN, and EU lists);</li>
+      <li>you will not use VPNs or other means to disguise your location in order to access the Exchange from a restricted jurisdiction;</li>
+      <li>your use of the Software and of the Exchange is lawful where you live.</li>
+    </ul>
+    <p>Determining all of the above is solely your responsibility. The Software performs no identity verification and cannot check any of it for you.</p>
+
+    <h3>4 · No accounts, no registration, no data collection</h3>
+    <p>The Software has no sign-up, no login, and no user database. The Authors do not collect, store, or transmit your personal data, your keys, your balances, or your trading history, everything the Software records lives in files on your own computer. This site is a static page and sets no tracking of its own. The only parties that see your activity are the Exchange (which you have a direct relationship with under its own terms) and, if you use an AI Client, that client's provider.</p>
+
+    <h3>5 · Non-custodial design: wallets and keys</h3>
+    <p>The Software never holds your funds and never sees your wallet's private key or seed phrase. It signs orders locally with an Agent Key that is trade-only by design: it cannot withdraw funds, and you can revoke it at the Exchange at any time. Signed requests go directly from your computer to the Exchange, there is no intermediate server.</p>
+    <p>Because of this design, the Authors cannot: access your account, freeze or unfreeze anything, recover keys you lose, cancel or reverse orders, or return funds. There is no support desk that can undo a trade. Anyone who obtains your Agent Key can trade your account until you revoke it; keeping it secret, and keeping the computer it lives on secure, is entirely your responsibility.</p>
+
+    <h3>6 · The MCP server and AI clients</h3>
+    <p>The Software's MCP server exposes trading and analysis tools to the AI Client you connect. You acknowledge that:</p>
+    <ul>
+      <li>AI language models can misunderstand instructions, make mistakes, and state wrong things confidently. Review what your AI Client is about to do before confirming orders;</li>
+      <li>tools that move money require an explicit confirmation parameter, but your AI Client controls how that confirmation is presented to you;</li>
+      <li>the quality of decisions made through an AI Client depends on that client and its model, neither is under the Authors' control;</li>
+      <li>analysis tools output measurements of past data. They are not predictions and not advice (Section 14).</li>
+    </ul>
+
+    <h3>7 · Autonomous Mode</h3>
+    <p>If you start Autonomous Mode with a trading key, the Software will place real, leveraged orders by itself, around the clock, without asking you first, that is its purpose. It operates inside a policy file you control (capital, risk per trade, leverage cap, stop rules), but within those bounds its decisions are its own. You are responsible for every order placed under your key, including orders you never personally reviewed. Run it in dry mode (decisions logged, no orders) until you understand exactly what it does, keep the policy file conservative, and check on it regularly. The Software adapts parameters within policy bounds; it never rewrites its own code.</p>
+
+    <h3>8 · Experimental features and undocumented endpoints</h3>
+    <p>Some features, notably Print, rely on Exchange endpoints that are not officially documented. They may change or stop working at any time without notice, and their behavior in edge cases is not guaranteed by anyone. Features marked experimental are provided for evaluation only; using them with real funds is at your own heightened risk.</p>
+
+    <h3>9 · Orders are irreversible: no refunds</h3>
+    <p>Orders executed on the Exchange are final. Cryptocurrency transactions cannot be recalled, and leveraged positions can be liquidated before you have a chance to react. Because the Software never holds funds, the Authors have nothing to refund from and cannot issue refunds, reimbursements, or compensation under any circumstances, including losses caused by bugs, misconfiguration, compromised keys, or fraud by third parties.</p>
+
+    <h3>10 · Access is controlled by the Exchange, not the Authors</h3>
+    <p>The Authors have no power to suspend or terminate your trading, and equally no power to restore it. The Exchange may restrict, suspend, or close your account under its own terms at any time, may delist markets, change fees, or halt trading. None of that is within the Authors' control, and the Software may stop working, in whole or in part, whenever the Exchange changes its API.</p>
+
+    <h3>11 · Fees</h3>
+    <p>The Software itself is free to install and use. All trading fees, funding payments, and spreads are set and collected by the Exchange under its own schedule, which can change. The Software's expected-value calculations account for fees as measured at the time; actual fees may differ.</p>
+    <p><b>Developer fee (builder code).</b> During installation you are asked whether to approve a builder fee of <b>0.01% (1 bps)</b> of each filled order's notional value, paid to the Authors through the Exchange's builder-code program. Approval is optional and takes effect only with your own cryptographic signature; the Software never approves it silently. Declining does not change any functionality. You can revoke an approval at any time in your Exchange account settings, and the Exchange rejects any order whose builder fee would exceed the cap you signed.</p>
+
+    <h3>12 · Taxes</h3>
+    <p>Trading profits and losses may create tax obligations where you live. Determining, reporting, and paying any such taxes is solely your responsibility. The Software's records are kept for its own learning loop and are not tax documents; do not rely on them as complete or authoritative for tax purposes.</p>
+
+    <h3>13 · Privacy</h3>
+    <p>Everything the Software learns (trade history, win-rate databases, measurement matrices, logs) is stored locally on your machine and never transmitted to the Authors. There is no telemetry, no analytics, and no phone-home. Your network traffic goes to the Exchange (to trade) and to public package registries (to install). If you optionally configure notifications, those go to the provider you configure.</p>
+
+    <h3>14 · Disclaimers and risk statement</h3>
+    <h4>No advice</h4>
+    <p>Nothing the Software or this site outputs is investment advice, a recommendation, an offer, or a solicitation to trade. Win rates, expected values, backtests, forecasts, and "recommended settings" are measurements of past price data produced by code, not predictions, and not tailored to you. The Authors are not licensed financial advisors and know nothing about your circumstances. If you need advice, consult a licensed professional.</p>
+    <h4>Market risk</h4>
+    <p>Cryptocurrency prices are extremely volatile and trade around the clock. Leveraged perpetual futures amplify both gains and losses: positions can lose more than the margin posted and can be liquidated entirely. Stop-loss orders are not guarantees, in a fast market or a price gap the fill can be far worse than the stop price, or the stop may not fill at all. Thin order books add slippage that can exceed the edge being traded.</p>
+    <h4>Strategy risk</h4>
+    <p>The Software's measured edges are small, measurement puts the realistic directional ceiling in this market near 54~58%, and backtested figures above that did not survive out-of-sample testing. Edges that small are fragile: they can vanish when the market regime changes and are easily erased by fees and slippage. Past measurement does not guarantee future results. A period of profits is not proof the system works; a period of losses is possible at any time.</p>
+    <h4>Technical risk</h4>
+    <p>Software has bugs. The Software may miscalculate, crash, lose connectivity, or behave unexpectedly after an Exchange API change. Your own machine may fail, sleep, lose power, or be compromised. The Exchange may go down while you hold positions. Exchange-native stops remain on the Exchange's servers if your machine goes offline, but everything else the Software manages stops with it.</p>
+    <h4>As is</h4>
+    <p>The Software and this site are provided "as is" and "as available", without warranty of any kind, express or implied, including merchantability, fitness for a particular purpose, accuracy, non-infringement, or uninterrupted operation.</p>
+
+    <h3>15 · Limitation of liability</h3>
+    <p>To the maximum extent permitted by applicable law, the Authors and contributors shall not be liable for any loss or damage of any kind arising out of or in connection with the Software or this site, including, without limitation, trading losses, lost profits, liquidations, losses caused by software defects, incorrect calculations, stale data, Exchange outages or API changes, network failures, misconfiguration, compromised credentials, actions taken by an AI Client, or security incidents on your machine, whether in contract, tort, or otherwise, even if advised of the possibility of such damage. Where liability cannot be excluded by law, it is limited to the amount you paid for the Software, which is zero. Nothing in these Terms excludes liability that cannot lawfully be excluded, such as liability for fraud.</p>
+
+    <h3>16 · Your representations and warranties</h3>
+    <p>By using the Software you represent and warrant that:</p>
+    <ul>
+      <li>you meet the eligibility conditions in Section 3;</li>
+      <li>the funds you trade were acquired lawfully;</li>
+      <li>you have the technical ability to install, configure, and supervise the Software, or accept the consequences of not supervising it;</li>
+      <li>you understand leveraged derivatives and the risks in Section 14;</li>
+      <li>you are acting for yourself, not on behalf of another person or entity;</li>
+      <li>you will not use the Software for market manipulation, money laundering, sanctions evasion, or any unlawful purpose.</li>
+    </ul>
+
+    <h3>17 · Term and stopping use</h3>
+    <p>These Terms apply from your first use of the Software until you stop using it. You can stop at any time: close positions, revoke your Agent Key at the Exchange, and uninstall. Revoking the key immediately removes the Software's ability to trade your account. Sections that by their nature should survive (disclaimers, limitation of liability, and governing terms) survive termination.</p>
+
+    <h3>18 · Security obligations</h3>
+    <p>You are responsible for: keeping your Agent Key and <code>.env</code> file secret and out of version control and chat messages; securing the computer the Software runs on; reviewing the policy file before running Autonomous Mode with real funds; revoking keys promptly if you suspect compromise; and monitoring positions the Software opens. If your key leaks, revoke it at the Exchange immediately, that invalidates it at once.</p>
+
+    <h3>19 · Force majeure</h3>
+    <p>The Authors are not responsible for any failure or delay caused by events beyond reasonable control, including natural disasters, war, civil unrest, labor disputes, power or internet outages, actions of governments or regulators, Exchange failures, blockchain congestion or forks, or failures of third-party infrastructure.</p>
+
+    <h3>20 · Changes to these Terms and to the Software</h3>
+    <p>These Terms may be updated as the Software evolves, to reflect new features, removed features, legal requirements, or clarity improvements. The current version always lives on this page with the date above; material changes will be reflected in the project changelog. Continuing to use the Software after a change means you accept the updated Terms. The Software itself may change at any time: features can be added, altered, or removed, and published measurement data can be revised as new measurements replace old ones.</p>
+
+    <h3>21 · Open-source license and intellectual property</h3>
+    <p>The Software's source code is licensed under the MIT License, which governs your rights to use, copy, modify, and redistribute the code. These Terms do not restrict rights the MIT License grants you; they govern your <i>use of the Software against a live exchange account</i> and your use of this site. Trademarks, names, and logos of the Exchange and of AI Client providers belong to their respective owners. You are encouraged to read the source before connecting real funds, it is public precisely so you can verify what it does.</p>
+
+    <h3>22 · General</h3>
+    <p><b>Entire agreement.</b> These Terms and the MIT License are the entire agreement between you and the Authors concerning the Software, replacing any prior statements. <b>Severability.</b> If any part of these Terms is found unenforceable, the rest remains in effect. <b>No waiver.</b> Not enforcing a provision is not a waiver of it. <b>Assignment.</b> You may not assign these Terms; the MIT License travels with the code. <b>No relationship.</b> Nothing here creates a partnership, agency, fiduciary, or advisory relationship between you and the Authors. <b>Disputes.</b> Before pursuing any formal claim, contact the project through its public repository or package page and allow 30 days for an informal resolution. Any dispute shall be resolved on an individual basis; to the extent permitted by law, you waive participation in class or representative actions against the Authors. <b>Language.</b> These Terms are written in English; translations are provided for convenience and the English text prevails.</p>
+
+    <p class="tfinal">One sentence version: this is free, unregulated, open-source software that trades real money with real leverage under your own key. If you are not prepared to lose the funds in the connected account, do not connect it.</p>
+
+    <div class="signoff">
+      <div class="tags"><span>Ocean Agent · built on Pacifica</span></div>
+      <div class="tags"><a href="https://x.com/pacifica_fi">Built on @pacifica_fi</a></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-logos">
+    <a href="https://discord.gg/pacifica" target="_blank" rel="noopener" aria-label="Discord" title="Pacifica Discord">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.211.375-.445.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.6 12.6 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.058a.082.082 0 0 0 .031.056 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.009c.12.099.246.198.373.292a.077.077 0 0 1-.006.128 12.3 12.3 0 0 1-1.873.891.077.077 0 0 0-.041.107c.36.698.772 1.363 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.055c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.029zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.211 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+    </a>
+    <a href="https://x.com/pacifica_fi" target="_blank" rel="noopener" aria-label="X" title="Pacifica on X">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.66l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+    </a>
+    <a href="https://github.com/pacifica-fi/mcp-server" target="_blank" rel="noopener" aria-label="GitHub" title="Pacifica MCP on GitHub">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.5 11.5 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.014 2.898-.014 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    </a>
+  </div>
+  <div class="foot-copy">© 2026 Ocean Agent · Built on Pacifica</div>
+</footer>
+
+<div id="tmodal">
+  <div class="tbox">
+    <h3>Terms of Use</h3>
+    <p class="tlede">Please review the terms below. You can agree to everything right away with the button, or read first. By agreeing you confirm that you are 18 or older and accept all of the terms.</p>
+    <div class="tbtns ttop">
+      <button class="tyes" onclick="agreeTerms()">Agree to all (18+)</button>
+      <button class="tno" onclick="declineTerms()">Not now</button>
+    </div>
+    <div id="ttext" class="tsec"></div>
+    <div class="tbtns tbot">
+      <button class="tyes" onclick="agreeTerms()">Agree to all (18+)</button>
+      <button class="tno" onclick="declineTerms()">Not now</button>
+    </div>
+    <div id="tdone" style="display:none">
+      <p style="font-size:13.5px;margin:0 0 14px">You're set. Copy the command for your system and paste it into a terminal:</p>
+      <div class="ihead" style="font-weight:600;font-size:13.5px;margin-bottom:6px">Windows (PowerShell)</div>
+      <div class="iwrap" style="position:relative;margin-bottom:14px"><pre style="font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;margin:0"><code>powershell -ExecutionPolicy ByPass -c "irm https://oceanagent.vercel.app/install.ps1 | iex"</code></pre><button class="cbtn" style="position:absolute;top:6px;right:6px;font-family:'Inter',sans-serif;font-size:11px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink-2);cursor:pointer" onclick="copyCode(this)">Copy</button></div>
+      <div class="ihead" style="font-weight:600;font-size:13.5px;margin-bottom:6px">macOS / Linux (Terminal)</div>
+      <div class="iwrap" style="position:relative"><pre style="font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;margin:0"><code>sh -c "$(curl -LsSf https://oceanagent.vercel.app/install.sh)"</code></pre><button class="cbtn" style="position:absolute;top:6px;right:6px;font-family:'Inter',sans-serif;font-size:11px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink-2);cursor:pointer" onclick="copyCode(this)">Copy</button></div>
+      <div class="tbtns"><button class="tno" onclick="declineTerms()">Close</button></div>
+    </div>
+  </div>
+</div>
+<script>
+  // terms gate: install commands stay blurred until the user agrees once.
+  function openTerms(){
+    var t = document.getElementById('ttext');
+    if (t && !t.childNodes.length) {
+      var full = document.getElementById('terms');
+      if (full) {
+        var clone = full.cloneNode(true);
+        clone.removeAttribute('id');
+        clone.querySelectorAll('[id]').forEach(function(e){ e.removeAttribute('id'); });
+        clone.querySelectorAll('.upd-back, .eyebrow, h2').forEach(function(e){ e.remove(); });
+        clone.classList.remove('page');
+        clone.style.display = 'block';
+        t.appendChild(clone);
+      }
+    }
+    document.getElementById('tmodal').style.display = 'flex';
+    var box = document.querySelector('#tmodal .tbox');
+    if (box) box.scrollTop = 0;
+  }
+  function declineTerms(){ document.getElementById('tmodal').style.display = 'none'; }
+  function unlockInstall(){
+    document.querySelectorAll('.gated').forEach(function(e){ e.classList.remove('gated'); });
+    var g = document.getElementById('tgate'); if (g) g.style.display = 'none';
+  }
+  function agreeTerms(){
+    try { localStorage.setItem('oa_terms', '1'); } catch (e) {}
+    unlockInstall();
+    // swap the modal to the copy-your-command view instead of closing
+    var box = document.querySelector('#tmodal .tbox');
+    box.querySelectorAll('.tsec, .tbtns, .tlede').forEach(function(e){
+      if (!e.closest('#tdone')) e.style.display = 'none';
+    });
+    document.getElementById('tdone').style.display = 'block';
+    box.scrollTop = 0;
+  }
+  (function(){
+    try { if (localStorage.getItem('oa_terms') === '1') unlockInstall(); } catch (e) {}
+  })();
+  // page navigation: clicking a menu item shows that page and hides the rest.
+  // Copy button for install steps
+  function copyCode(btn){
+    var code = btn.parentElement.querySelector('code');
+    navigator.clipboard.writeText(code.innerText).then(function(){
+      var old = btn.textContent; btn.textContent = 'Copied!';
+      setTimeout(function(){ btn.textContent = old; }, 1500);
+    });
+  }
+  // Home shows first; the top-right menu stays visible the whole time.
+  (function(){
+    var pages = Array.prototype.slice.call(document.querySelectorAll('.page'));
+    var trigs = {};
+    document.querySelectorAll('.navgroup').forEach(function(g){
+      var t = g.querySelector('.navtrig');
+      g.querySelectorAll('.dropdown a[href^="#"]').forEach(function(a){ trigs[a.getAttribute('href').slice(1)] = t; });
+    });
+    function show(id){
+      var found = false;
+      pages.forEach(function(p){ var on = (p.id === id); p.classList.toggle('active', on); if(on) found = true; });
+      if(!found){ document.getElementById('home').classList.add('active'); id = 'home'; }
+      Object.keys(trigs).forEach(function(k){ trigs[k].classList.remove('active'); });
+      if(trigs[id]) trigs[id].classList.add('active');
+      window.scrollTo(0, 0);
+    }
+    function fromHash(){ show((location.hash || '#home').slice(1)); }
+    window.addEventListener('hashchange', fromHash);
+    fromHash();
+  })();
+
+  // looping demo terminal (auto-plays all 10 feature steps, repeats forever)
+  (function(){
+    var body=document.getElementById('termBody'); if(!body) return;
+    var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var steps=[
+      {name:'funding scan',       cmd:'scan --funding',    out:['ranking Pacifica markets by APR','delta neutral candidates flagged']},
+      {name:'chart analysis',     cmd:'analyze BTC 4h',    out:['RSI · MACD · Bollinger · fractals','measured hit rate per signal']},
+      {name:'top setups',         cmd:'setups --top',      out:['ranked by EV, win rate, samples','entry · stop · target · leverage']},
+      {name:'market regime',      cmd:'regime',            out:['Fear and Greed read','known bad trades blocked']},
+      {name:'bracket entry',      cmd:'open BTC --bracket',out:['entry placed','native TP and SL attached']},
+      {name:'funding carry',      cmd:'carry --open',      out:['spot buy plus perp short','filled in one atomic batch']},
+      {name:'OI hedge',           cmd:'hedge --oi',        out:['cross exchange hedge sized','fees and funding included']},
+      {name:'learned win rates',  cmd:'winrates',          out:['self built win rate database','grown from live observation']},
+      {name:'prediction grading', cmd:'review',            out:['past calls vs what happened','skill or luck attributed']},
+      {name:'autonomous entity',  cmd:'run --policy',      out:['24/7, measured edge only','re measures and adapts']}
+    ];
+    function add(cls, html){ var d=document.createElement('div'); d.className=cls; d.innerHTML=html; body.appendChild(d); }
+    function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+    var i=0, timers=[];
+    function play(){
+      timers.forEach(clearTimeout); timers=[];
+      body.innerHTML='';
+      var s=steps[i];
+      add('term-step', ('0'+(i+1)).slice(-2)+' / '+steps.length+'  '+esc(s.name));
+      add('tl cmd', '<span class="p">›</span> ocean-agent '+esc(s.cmd));
+      s.out.forEach(function(o,k){ timers.push(setTimeout(function(){ add('tl ok', esc(o)); }, 550 + k*600)); });
+      var hold = 550 + s.out.length*600 + 1700;
+      i=(i+1)%steps.length;
+      timers.push(setTimeout(play, hold));
+    }
+    if(reduce){
+      var s=steps[2];
+      add('term-step', '03 / '+steps.length+'  '+s.name);
+      add('tl cmd','<span class="p">›</span> ocean-agent '+s.cmd);
+      s.out.forEach(function(o){ add('tl ok', o); });
+    } else { play(); }
+  })();
+
+  // Updates tab navigates directly (no submenu).
+  document.querySelectorAll('.navtrig[data-goto]').forEach(function(b){
+    b.addEventListener('click', function(){ location.hash = '#' + b.dataset.goto; });
+  });
+
+  // Updates, group the list into 10-day windows, newest first, one window per page.
+  (function(){
+    var list = document.querySelector('#updates .upd-list');
+    if(!list) return;
+    var pager = document.getElementById('updPager');
+    var count = document.getElementById('updCount');
+    var rows = Array.prototype.slice.call(list.querySelectorAll('.upd-row'));
+    if(!rows.length) return;
+    rows.sort(function(a,b){ return a.dataset.date < b.dataset.date ? 1 : -1; });
+
+    var DAY = 864e5, WINDOW = 10;
+    var newest = new Date(rows[0].dataset.date);
+    var groups = [];
+    rows.forEach(function(r){
+      var i = Math.floor(Math.floor((newest - new Date(r.dataset.date)) / DAY) / WINDOW);
+      if(!groups[i]){
+        var to = new Date(newest - i * WINDOW * DAY);
+        groups[i] = { from:new Date(to - (WINDOW-1)*DAY), to:to, rows:[] };
+      }
+      groups[i].rows.push(r);
+    });
+    groups = groups.filter(Boolean);
+
+    function render(page){
+      list.innerHTML = '';
+      var g = groups[page];
+      var bar = document.createElement('div');
+      bar.className = 'upd-total';
+      bar.textContent = rows.length + (rows.length === 1 ? ' update' : ' updates');
+      list.appendChild(bar);
+      g.rows.forEach(function(r){ list.appendChild(r); });
+
+      pager.innerHTML = '';
+      if(groups.length > 1){
+        function mk(label, target, cls){
+          var b = document.createElement('button');
+          b.innerHTML = label;
+          if(cls) b.className = cls;
+          if(target === null) b.disabled = true;
+          else b.onclick = function(){ render(target); };
+          return b;
+        }
+        pager.appendChild(mk('&#8249;', page > 0 ? page - 1 : null));
+        groups.forEach(function(_, i){ pager.appendChild(mk(i + 1, i, i === page ? 'on' : '')); });
+        pager.appendChild(mk('&#8250;', page < groups.length - 1 ? page + 1 : null));
+      }
+      count.textContent = 'Page ' + (page + 1) + ' of ' + groups.length +
+                          ' \u00b7 ' + rows.length + ' updates total';
+    }
+    render(0);
+  })();
+</script>
+
+</body>
+</html>

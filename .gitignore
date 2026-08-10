@@ -1,0 +1,50 @@
+# ── 비밀 (절대 커밋 금지) ───────────────────────────────
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# ── 실계좌·실운영 데이터 (사생활/전략 노출) ──────────────
+outputs/
+predictions.json
+state.json
+bot.log
+*.log
+.mcp.json
+.pacifica_changelog_last.txt
+.pacifica_mcp_version.txt
+known_mcp_tools.json
+
+# ── 사용자 로컬 운영 설정 (개인별 값) ────────────────────
+config.yaml
+policy.yaml
+
+# ── 내부 문서 (공개 부적합: 보안 상세·의사결정 로그) ─────
+보안점검.md
+코드검토.md
+ROADMAP_STATUS.md
+주간보고_*.md
+폴더안내.md
+
+# ── 내부 연구·측정 스크립트 (엣지 세부 비공개) ──────────
+research/
+testnet/
+archive/
+
+# ── 로컬 자동화 스크립트 (개인 워크플로) ────────────────
+*.bat
+*.vbs
+
+# ── 빌드 산출물 ─────────────────────────────────────────
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+
+# ── 에이전트/에디터 설정 ────────────────────────────────
+.claude/
+.vercel/
+.DS_Store
