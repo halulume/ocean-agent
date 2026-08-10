@@ -80,7 +80,7 @@ def walk_series(closes, symbol, tf, fwd=FWD, step=STEP_BARS):
 
     Yields (signal, pred, n_train, won) one at a time instead of returning a
     list. A 5m series alone produces over a million of these per symbol; holding
-    them costs gigabytes, and nothing downstream needs an individual record ,
+    them costs gigabytes, and nothing downstream needs an individual record,
     only the counts. Streaming keeps memory flat regardless of history length."""
     n = len(closes)
     for name, (side, hits) in _firings(closes, fwd).items():
@@ -241,7 +241,7 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
     tfs = tfs or TFS
     # 항상 메인넷 가격으로 잰다(테스트넷 설정으로 돌려도 마찬가지). 이 표는
     # 시장이 실제로 어떻게 움직였는지를 담아야 하고, 테스트넷 가격은 실제 시장이
-    # 아니다. 결과 파일도 매트릭스처럼 네트워크 구분 없이 하나를 공유한다 ,
+    # 아니다. 결과 파일도 매트릭스처럼 네트워크 구분 없이 하나를 공유한다,
     # 계좌 기록(상태·관측·손익)만 data_file()로 분리하는 것이 이 프로젝트의 규칙.
     client = PacificaClient("https://api.pacifica.fi")
     agg = Agg()
@@ -269,7 +269,7 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
 
 
 # 파일명 주의: 두뇌(brain)의 메타학습도 "calibration"이라는 말을 쓰고
-# ~/.ocean_agent_{net}_calibration.json 에 저장한다. 둘은 완전히 다른 것이다 ,
+# ~/.ocean_agent_{net}_calibration.json 에 저장한다. 둘은 완전히 다른 것이다,
 # 이쪽은 9년 가격사에서 잰 보정표(신호별 실측 승률), 저쪽은 이 봇이 낸 예측이
 # 실제로 맞았는지의 기록. 이름이 비슷하면 나중에 반드시 헷갈리므로 구분한다.
 CURVE_FILE = os.path.join(os.path.expanduser("~"),
@@ -371,7 +371,7 @@ def measured_winrate(sig: str, tf: str):
     """This signal's measured win rate on this timeframe, pooled over symbols.
 
     Returns (win_rate, n) or None when the signal has not been measured with
-    enough samples. This is the number that actually ranks well out of sample ,
+    enough samples. This is the number that actually ranks well out of sample,
     see the holdout figures in build_curve."""
     try:
         c = _load_curve()

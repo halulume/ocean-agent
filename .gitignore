@@ -1,4 +1,12 @@
 # ── 비밀 (절대 커밋 금지) ───────────────────────────────
+# ── 사용자가 저장한 비밀 메모 (2026-08-10 push 차단 사고 방지) ──
+pypi.txt
+*recovery-code*
+*recovery-codes*
+*token*.txt
+*비밀*
+*백업코드*
+
 .env
 .env.*
 !.env.example

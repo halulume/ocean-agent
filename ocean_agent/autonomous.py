@@ -312,7 +312,7 @@ def final_stop_check(client: PacificaClient, policy: dict, st: dict) -> bool:
     # 올린다, 방어선이 '시작 대비 -20%'가 아니라 '고점 대비 -20%'가 되어
     # 번 수익도 보호한다. 앵커는 올라가기만 하고 내려가지 않는다 (입출금은
     # 위의 원장 재앵커가 별도 처리).
-    # 글리치 방어: 한 번에 +10% 넘는 점프는 1초 뒤 재읽기해 낮은 쪽을 쓴다 ,
+    # 글리치 방어: 한 번에 +10% 넘는 점프는 1초 뒤 재읽기해 낮은 쪽을 쓴다,
     # 일시적 과대 응답으로 앵커가 튀면 이후 정상 자본이 낙폭으로 오인된다.
     if eq > start_eq > 0:
         new_anchor = eq
@@ -456,9 +456,9 @@ def review_and_adapt(client: PacificaClient, policy: dict, st: dict) -> None:
                     or pr.get(sym, {}).get("mid") or 0)
         entry = float(rec.get("entry_price") or 0)
         if entry <= 0 or cur <= 0:
-            # 가격을 못 구했다고 만기 기록을 조용히 버리지 않는다(M7) ,
+            # 가격을 못 구했다고 만기 기록을 조용히 버리지 않는다(M7),
             # 만기 후 실패만 세서 재시도 3회를 보장하고, 4번째 만기 실패에
-            # 사유를 남기고 정리한다 (만기 전 실패는 카운트하지 않는다 ,
+            # 사유를 남기고 정리한다 (만기 전 실패는 카운트하지 않는다,
             # 검토자 지적: 만기 전 누적이 만기 후 재시도 몫을 깎지 않게).
             tries = int(rec.get("_grade_retries", 0)) + (1 if expired else 0)
             if not expired or tries <= 3:
@@ -1478,7 +1478,7 @@ def main():
         while True:
             # policy.yaml 를 고쳤으면 재시작 없이 반영한다. 측정 결과(매트릭스·
             # 보정표·승률DB)는 이미 파일 수정시각 기준으로 자동 반영되는데 설정만
-            # 재시작을 요구하면, 임계값 하나 바꾸려고 봇을 껐다 켜야 한다 ,
+            # 재시작을 요구하면, 임계값 하나 바꾸려고 봇을 껐다 켜야 한다,
             # 껐다 켜는 동안 포지션이 방치되고, 실수로 두 개를 띄우는 사고도 났다.
             # 실패하면 옛 설정을 그대로 쓴다(편집 중 잘린 파일에 당하지 않게).
             mt = _policy_mtime()

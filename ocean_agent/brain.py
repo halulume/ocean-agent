@@ -1,11 +1,11 @@
 """중앙 신경계 (Brain), 모든 학습원을 하나로 잇는 허브.
 
 지금까지 학습 조각들이 따로 존재했다:
-  · 매트릭스(rematrix)  , 과거 13개월 기대값
-  · 관측DB(observer)    , 실시간 신호 승률
+  · 매트릭스(rematrix), 과거 13개월 기대값
+  · 관측DB(observer), 실시간 신호 승률
   · 원인분석(postmortem), 청산별 '왜 이겼나/졌나' 귀인
-  · 적응(graded)        , 신호@시간봉 실전 손익
-  · 메타학습(이 모듈)    , '내 예측이 얼마나 정확한가'
+  · 적응(graded), 신호@시간봉 실전 손익
+  · 메타학습(이 모듈), '내 예측이 얼마나 정확한가'
 
 Brain은 이것들을 한 셋업에 대해 종합해 '최종 확신도(conviction)'를 낸다.
 그 하나의 숫자가 진입 여부·사이즈·Print 회피까지 관통한다.
@@ -117,7 +117,7 @@ def conviction(symbol: str, signal: str, interval: str, side: str,
 
     입력:
       base_win_rate, scanner가 이미 매트릭스+관측을 섞어 낸 승률
-      graded       , 이 봇의 실전 채점 {signal@tf: {win,total,pnl}}
+      graded, 이 봇의 실전 채점 {signal@tf: {win,total,pnl}}
     출력:
       {conviction: 0~1, meta_factor, real_pnl, notes}
     이 conviction 하나가 진입·사이즈·Print판단을 관통한다.

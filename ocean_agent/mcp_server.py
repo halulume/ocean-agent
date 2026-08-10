@@ -73,7 +73,7 @@ def _confirm_gate(confirm: bool, action_desc: str) -> str | None:
 # MCP 서버는 어느 폴더에서 실행될지 모르므로 상태 파일은 홈 디렉터리에 둔다.
 # 라이브 파일은 네트워크별로 분리(테스트넷/메인넷), data_file()이 접두어를 붙인다.
 # (PACIFICA_BASE_URL 환경변수를 .mcp.json이 이미 설정하므로 import 시점에 확정된다)
-# NOTE: 여기서 migrate_legacy_data()(네트워크 태그 이전)는 호출하지 않는다 ,
+# NOTE: 여기서 migrate_legacy_data()(네트워크 태그 이전)는 호출하지 않는다,
 #       MCP 서버는 언제든 재시작될 수 있어, 동시에 돌고 있는 자율봇이 쓰는 파일을
 #       이름변경하면 봇이 상태를 잃는다. 그 이전은 자율봇 main()에서만 한다.
 #
@@ -449,7 +449,7 @@ def print_order(game: str = "BTC_24H", usd: float = 100, side: str = "long",
             mark * (0.99 if side == "long" else 1.01), 2)
         direction = 0 if side == "long" else 1
         # 매매 두뇌와 연결: 매트릭스 국면 판단이 이 방향 Print을 경고하는가.
-        # Print 롱(아래 매수대기)은 하락 국면에서 체결되며 물리는 구조다 ,
+        # Print 롱(아래 매수대기)은 하락 국면에서 체결되며 물리는 구조다,
         # 매트릭스가 숏 우위(=하락 국면)로 판단 중이면 경고를 미리보기에 포함.
         brain_warn = ""
         try:
@@ -656,7 +656,7 @@ def open_with_bracket(symbol: str, side: str, usd: float,
                       stop_loss_pct: float = 0, take_profit_pct: float = 0,
                       confirm: bool = False) -> str:
     """Open a perp position with EXCHANGE-NATIVE take-profit / stop-loss attached,
-    so the position is protected even if this bot or the user's computer is off ,
+    so the position is protected even if this bot or the user's computer is off,
     Pacifica closes it at the trigger price. side: 'long'/'short'. usd: notional
     size. stop_loss_pct / take_profit_pct: distance from entry as a percent
     (e.g. 3 = 3%); 0 disables that leg. Triggers use mark price. IMPORTANT:
@@ -718,7 +718,7 @@ def protect_position(symbol: str, stop_loss_pct: float = 3,
     ALREADY OPEN (opened anywhere, this bot, the website, or another tool).
     Percentages are distances from the current mark price (e.g. 3 = 3%);
     0 disables that leg. Once set, Pacifica enforces the triggers even if this
-    bot or the user's PC is offline. IMPORTANT: modifies live protection ,
+    bot or the user's PC is offline. IMPORTANT: modifies live protection,
     call with confirm=false first to preview, confirm=true after the user
     approves."""
     client = _client()

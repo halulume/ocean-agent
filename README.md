@@ -5,7 +5,7 @@
 🌊 **Website:** [oceanagent.vercel.app](https://oceanagent.vercel.app) · **PyPI:** [ocean-agent](https://pypi.org/project/ocean-agent/)
 
 **Tell your AI to trade.** An MCP server for [Pacifica](https://app.pacifica.fi)
-that turns natural language into correct, risk-sized perpetual futures orders ,
+that turns natural language into correct, risk-sized perpetual futures orders,
 plus a 24/7 autonomous trading entity governed by a policy file you control.
 
 ```bash
@@ -191,7 +191,7 @@ Restart your AI client, the first launch downloads everything automatically.
 uv run --with ocean-agent python -m ocean_agent.doctor
 ```
 
-Any `python -m ocean_agent...` command in this README runs the same way ,
+Any `python -m ocean_agent...` command in this README runs the same way,
 prepend `uv run --with ocean-agent`.
 
 ---

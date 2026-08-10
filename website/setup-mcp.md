@@ -60,7 +60,7 @@ TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 ```
 
-The wallet **address** is public and safe to share; the **API key** is a secret ,
+The wallet **address** is public and safe to share; the **API key** is a secret,
 only the user ever types it, only into their own `.env`.
 
 ### Environment variables (actual names from the code)
@@ -148,7 +148,7 @@ there are separate `*_TESTNET` variables.
 
 ## Step 4, Verify
 
-1. `.mcp.json` (and the other clients' config) is **read only at startup** ,
+1. `.mcp.json` (and the other clients' config) is **read only at startup**,
    fully **restart the client** after editing.
 2. Confirm the tools appear (the server registers under the name `ocean-agent`).
 3. Test with a **read-only, no-key** tool first, e.g. ask the agent to run
@@ -205,7 +205,7 @@ env = { PACIFICA_ENV_FILE = "/absolute/path/to/.pacifica.env", PACIFICA_BASE_URL
 ## API-key handling protocol (for the agent)
 
 - **Never** prompt the user to paste an API key or wallet key into the chat.
-- **Never** write a key value into `.mcp.json`, `config.toml`, or any tracked file ,
+- **Never** write a key value into `.mcp.json`, `config.toml`, or any tracked file,
   only a path (`PACIFICA_ENV_FILE`) or an `${ENV_VAR}` reference.
 - Leave placeholders (`your_mainnet_agent_key`, etc.) unchanged; the user fills them in.
 - Direct the user to **[app.pacifica.fi/apikey](https://app.pacifica.fi/apikey)** to

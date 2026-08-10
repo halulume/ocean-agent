@@ -181,7 +181,7 @@ _BASE_CACHE = {}
 
 
 def _baseline_up(closes: list, i: int) -> float:
-    """직전 3000봉에서 '그냥 롱'의 승률. 500봉 단위로만 다시 센다 ,
+    """직전 3000봉에서 '그냥 롱'의 승률. 500봉 단위로만 다시 센다,
     이 값은 천천히 변하는데 봉마다 계산하면 그 자체가 O(n²)이다."""
     key = (id(closes), i // 500)
     hit = _BASE_CACHE.get(key)
@@ -349,7 +349,7 @@ class Backtest:
 
         # ★ 손절 우선: 한 봉 안에서 둘 다 닿으면 손절로 본다(과대평가 방지)
         # 손절선은 트레일링·본전스탑으로 이익 쪽까지 올라갈 수 있다(sl_dist<0).
-        # 그때 청산되면 손실이 아니라 '이익 확정'이므로 사유를 갈라 적는다 ,
+        # 그때 청산되면 손실이 아니라 '이익 확정'이므로 사유를 갈라 적는다,
         # 안 그러면 리포트에 '손절인데 +2.50' 같은 줄이 생겨 원인분석이 꼬인다.
         sl_dist = pos["sl_dist"]
         if adverse >= sl_dist:
@@ -500,7 +500,7 @@ class Backtest:
                 return False
         conv_mult = 0.7 + s["conviction"] * 0.6
         # EV 비례 배율, 실거래(autonomous)와 같은 식. 단 실거래는 현재 매트릭스
-        # EV를 쓰지만 재생에서는 그 시점까지의 경로 EV(raw_ev)를 쓴다 ,
+        # EV를 쓰지만 재생에서는 그 시점까지의 경로 EV(raw_ev)를 쓴다,
         # 오늘의 매트릭스를 과거에 주입하면 미래참조가 되기 때문.
         lo = float(p.get("ev_size_floor_pct", 0.0) or 0.0)
         hi = float(p.get("ev_size_cap_pct", 0.05) or 0.05)

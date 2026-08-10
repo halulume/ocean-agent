@@ -76,7 +76,7 @@ def _regime_tag(client: PacificaClient) -> str:
 def _rot_file() -> str:  # 네트워크별 분리
     return data_file("observe_rotation.txt")
 
-# 빠른 국면 감지용 시간봉. 매매하지 않는 1h도 관측만 한다 ,
+# 빠른 국면 감지용 시간봉. 매매하지 않는 1h도 관측만 한다,
 # 채점까지 24시간이면 끝나므로, 며칠~2주 걸리는 매매 시간봉보다 훨씬 빨리
 # "백테스트가 틀리기 시작했는지"를 알려주는 조기 경보가 된다.
 FAST_TF = "1h"

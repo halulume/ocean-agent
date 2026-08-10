@@ -128,7 +128,7 @@ def _binance_klines(bsym: str, binterval: str, start_ms: int,
                 d = json.loads(r.read())
         except Exception as e:
             # 실패해도 cur가 안 움직이므로 같은 페이지를 계속 다시 친다. 예전엔
-            # 이 재시도가 guard(페이지 예산)를 소진해 구간이 잘린 채 끝났다 ,
+            # 이 재시도가 guard(페이지 예산)를 소진해 구간이 잘린 채 끝났다,
             # 조용히 반쪽짜리 시계열이 나오는 경로다. 연속 실패는 끊는다.
             fails += 1
             if fails >= 5:
