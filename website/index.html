@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ocean Agent · the trading brain that measures</title>
 <meta name="description" content="Ocean Agent is an AI native trading layer for Pacifica. It measures its own edge, then studies its own results. Built on Pacifica.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='none' stroke='%230aa2d9' stroke-width='9'/%3E%3Ccircle cx='50' cy='50' r='24' fill='none' stroke='%230aa2d9' stroke-width='9'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -38,7 +39,7 @@
     background:linear-gradient(180deg,rgba(248,250,252,.9),rgba(248,250,252,.6));border-bottom:1px solid var(--line)}
   .topbar .in{max-width:1180px;margin:0 auto;padding:0 30px;height:100%;display:flex;align-items:center;justify-content:space-between;gap:18px}
   .brand{display:flex;align-items:center;gap:11px;font-weight:600;letter-spacing:-.01em;text-decoration:none;color:var(--ink);flex:none}
-  .brand .dot{width:11px;height:11px;border-radius:50%;flex:none;background:var(--accent);box-shadow:0 0 10px rgba(10,162,217,.6)}
+  .brand .mark{width:23px;height:23px;flex:none;color:var(--accent)}
   .brand b{font-size:15.5px}
   .brand span{color:var(--faint);font-size:11px;font-family:'JetBrains Mono',monospace;margin-left:3px}
   .top-nav{display:flex;align-items:stretch;height:100%}
@@ -83,6 +84,17 @@
   .eyebrow::before{content:'';width:24px;height:1px;background:var(--accent);box-shadow:var(--glow)}
   h1{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(38px,6vw,70px);line-height:1.03;letter-spacing:-.03em;margin-bottom:24px}
   h1 em{font-style:normal;color:var(--accent-deep)}
+  /* Hero types itself in. Height is reserved up front so the copy below it
+     never jumps while the line is still being written. */
+  #heroLine{min-height:2.06em}
+  #heroLine .accent{color:var(--accent-deep)}
+  .caret{display:inline-block;width:.06em;height:.82em;margin-left:.04em;
+    background:var(--accent);vertical-align:-.06em;animation:caret 1s steps(1) infinite}
+  @keyframes caret{50%{opacity:0}}
+  .caret.done{animation:none;opacity:0}
+  .sr-full{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);
+    white-space:nowrap}
+  @media (prefers-reduced-motion:reduce){.caret{display:none}}
   h2{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(26px,3.4vw,38px);letter-spacing:-.02em;line-height:1.12;margin-bottom:16px}
   .lede{font-size:clamp(17px,1.9vw,20px);color:var(--ink-2);max-width:640px;line-height:1.62;margin-bottom:12px}
   .lede b{color:var(--ink);font-weight:600}
@@ -332,15 +344,38 @@
   .upd-pager button.on{background:var(--btn);border-color:var(--btn);color:var(--on-btn);font-weight:600}
   .upd-pager button:disabled{opacity:.38;cursor:default}
   .upd-count{text-align:center;font-size:12px;color:var(--muted);margin-top:10px}
+
+  /* ---- opening screen: logo and wordmark are wiped away, then the page ---- */
+  #splash{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;gap:15px;
+    background:var(--bg);animation:splash-lift .45s ease-out 1.55s forwards}
+  #splash .mark{width:46px;height:46px;color:var(--accent);flex:none;
+    animation:splash-in .6s cubic-bezier(.16,1,.3,1) both,
+              splash-wipe-mark .42s cubic-bezier(.65,0,.35,1) 1.28s forwards}
+  #splash .word{font-size:26px;font-weight:600;letter-spacing:-.025em;color:var(--ink);white-space:nowrap;
+    animation:splash-in .6s cubic-bezier(.16,1,.3,1) .1s both,
+              splash-wipe .5s cubic-bezier(.65,0,.35,1) .95s forwards}
+  @keyframes splash-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @keyframes splash-wipe{from{clip-path:inset(0 0 0 0)}to{clip-path:inset(0 101% 0 0)}}
+  @keyframes splash-wipe-mark{from{clip-path:inset(0 0 0 0)}to{clip-path:inset(0 101% 0 0)}}
+  @keyframes splash-lift{to{opacity:0;visibility:hidden;pointer-events:none}}
+  @media(prefers-reduced-motion:reduce){
+    #splash{animation:splash-lift .01s linear forwards}
+    #splash .mark,#splash .word{animation:none}
+  }
 </style>
 </head>
 <body>
+
+<div id="splash" aria-hidden="true">
+  <svg class="mark" viewBox="0 0 100 100"><circle cx="50" cy="50" r="43" fill="none" stroke="currentColor" stroke-width="7"/><circle cx="50" cy="50" r="27" fill="none" stroke="currentColor" stroke-width="7"/></svg>
+  <div class="word">Ocean Agent</div>
+</div>
 
 <div class="glow" aria-hidden="true"></div>
 
 <div class="topbar">
   <div class="in">
-    <a class="brand" href="#home"><span class="dot" aria-hidden="true"></span><b>Ocean&nbsp;Agent</b><span>on Pacifica</span></a>
+    <a class="brand" href="#home"><svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="43" fill="none" stroke="currentColor" stroke-width="7"/><circle cx="50" cy="50" r="27" fill="none" stroke="currentColor" stroke-width="7"/></svg><b>Ocean&nbsp;Agent</b><span>on Pacifica</span></a>
     <nav class="top-nav">
       <div class="navgroup">
         <button class="navtrig">Overview</button>
@@ -398,7 +433,7 @@
     <div class="hero-grid">
       <div class="hero-left">
         <div class="eyebrow">AI trading agents</div>
-        <h1>Everyone built hands, eyes, and ears.<br>We built the <em>brain</em>.</h1>
+        <h1 id="heroLine"><span class="typed"></span><span class="caret" aria-hidden="true"></span><span class="sr-full">Everyone built hands, eyes, and ears. We built the brain</span></h1>
         <p class="lede">Ocean Agent is an AI native trading layer for Pacifica. Tell it what to trade; it fixes the tick, lot, and min order, then executes correctly.</p>
         <p class="subtle">It doesn't debate. It doesn't guess. It measures, then studies its own results.</p>
         <div class="rotline">Ask it to <span class="rotwrap"><span class="rotword" id="rotWord">analyze</span></span> a trade.</div>
@@ -1283,6 +1318,17 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
   </div>
 </div>
 <script>
+  // opening screen: CSS drives it, this only guarantees it can never strand the page
+  (function(){
+    var s = document.getElementById('splash');
+    if(!s) return;
+    var gone = false;
+    function drop(){ if(gone) return; gone = true; s.remove(); }
+    setTimeout(drop, 2600);
+    addEventListener('click', drop, {once:true});
+    addEventListener('keydown', drop, {once:true});
+  })();
+
   // hero: rotate the verb
   (function(){
     var el = document.getElementById('rotWord');
@@ -1323,6 +1369,44 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
     }
     items.forEach(function(it){ track.appendChild(card(it)); });
     items.forEach(function(it){ track.appendChild(card(it)); });   // second copy
+  })();
+
+  // hero headline types itself in, one character at a time
+  (function(){
+    var host = document.querySelector('#heroLine .typed');
+    var caret = document.querySelector('#heroLine .caret');
+    if(!host) return;
+    var parts = [
+      {text:'Everyone built hands, eyes, and ears.', accent:false},
+      {br:true},
+      {text:'We built the ', accent:false},
+      {text:'brain', accent:true}
+    ];
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(reduce){
+      parts.forEach(function(p){
+        if(p.br){ host.appendChild(document.createElement('br')); return; }
+        var s=document.createElement('span');
+        if(p.accent) s.className='accent';
+        s.textContent=p.text; host.appendChild(s);
+      });
+      if(caret) caret.classList.add('done');
+      return;
+    }
+    var pi=0, ci=0, node=null;
+    function tick(){
+      var p = parts[pi];
+      if(!p){ if(caret) caret.classList.add('done'); return; }
+      if(p.br){ host.appendChild(document.createElement('br')); pi++; node=null;
+        return setTimeout(tick, 320); }
+      if(!node){ node=document.createElement('span');
+        if(p.accent) node.className='accent'; host.appendChild(node); }
+      node.textContent = p.text.slice(0, ++ci);
+      if(ci >= p.text.length){ pi++; ci=0; node=null;
+        return setTimeout(tick, 240); }
+      setTimeout(tick, 62);
+    }
+    setTimeout(tick, 400);
   })();
 
   // terms gate: install commands stay blurred until the user agrees once.
