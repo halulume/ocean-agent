@@ -1360,9 +1360,10 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
     if(!s) return;
     var gone = false;
     function drop(){ if(gone) return; gone = true; s.remove(); }
+    // No click-to-skip: the user wants the opening to always play in full.
+    // The timeout only fires after the animation is already done, as a net
+    // for environments where CSS animations never run.
     setTimeout(drop, 5100);
-    addEventListener('click', drop, {once:true});
-    addEventListener('keydown', drop, {once:true});
   })();
 
   // hero: rotate the verb
