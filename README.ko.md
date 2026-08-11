@@ -1,5 +1,10 @@
 # ocean-agent
 
+> **🧪 클로즈드 베타** — 2026년 8월 11일부터 클로즈드 베타입니다.
+> 측정으로 검증된 브래킷 매매 엔진을 저희 자금으로 먼저 실전 검증하는 단계입니다.
+> 다음 주 베타, 다다음 주 오픈 베타로 전환됩니다.
+> 매일 채점은 [텔레그램](https://t.me/+V7wwRr6n4ZtmOGFl)에서 공개합니다.
+
 > [English](README.md) · 한국어
 
 🌊 **홈페이지:** [oceanagent.vercel.app](https://oceanagent.vercel.app) · **PyPI:** [ocean-agent](https://pypi.org/project/ocean-agent/)

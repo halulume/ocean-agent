@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ocean-agent"
-version = "0.3.8"
+version = "0.4.0"
 description = "Pacifica trading MCP server, measured-edge setups, exchange-native brackets, funding carry, and a policy-governed autonomous trading entity"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 keywords = ["mcp", "pacifica", "trading", "funding-rate", "delta-neutral", "solana"]
+classifiers = ["Development Status :: 4 - Beta"]
 dependencies = [
     "requests>=2.31.0",
     "solders>=0.19.0",

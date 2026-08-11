@@ -1,5 +1,10 @@
 # ocean-agent
 
+> **🧪 CLOSED BETA** — Ocean Agent is in closed beta as of Aug 11, 2026.
+> The measured bracket-trading engine is being live-validated with our own
+> funds first. Public beta opens next week, open beta the week after.
+> Follow the daily scorecard on [Telegram](https://t.me/+V7wwRr6n4ZtmOGFl).
+
 > English · [한국어](README.ko.md)
 
 🌊 **Website:** [oceanagent.vercel.app](https://oceanagent.vercel.app) · **PyPI:** [ocean-agent](https://pypi.org/project/ocean-agent/)
