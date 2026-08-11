@@ -889,6 +889,12 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
       regimes, not forecasts.</p>
 
     <div class="upd-list">
+        <a class="upd-row" href="#u-closed-beta-bracket-engine" data-date="2026-08-11">
+          <span class="d">AUG 11</span>
+          <span class="t">0.4.0: Closed beta, and a measured trading engine</span>
+          <span class="tg feat">feature</span>
+          <span class="chev">&#8250;</span>
+        </a>
         <a class="upd-row" href="#u-security-hardening-audit" data-date="2026-08-10">
           <span class="d">AUG 10</span>
           <span class="t">Routine security review</span>
@@ -928,6 +934,39 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
     </div>
     <div class="upd-pager" id="updPager"></div>
     <div class="upd-count" id="updCount"></div>
+  </section>
+
+  <section class="page" id="u-closed-beta-bracket-engine">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 11</div>
+    <h2>0.4.0: Closed beta, and a measured trading engine</h2>
+    <div class="upd-meta"><span class="tg feat">feature</span><span class="st">2026-08-11</span></div>
+    <div class="upd-article">
+          <p class="lede">Ocean Agent enters closed beta. Version 0.4.0 ships a new
+            bracket-trading engine built the way everything here gets built: by
+            measurement. We tested roughly 430 strategy variants against causal replays
+            and live sealed predictions. Three survived, and together they are the
+            engine.</p>
+
+          <p>The surviving design: trade the top three of the daily sealed picks, exit
+            at a near take-profit or a wide stop placed on the exchange itself, hold at
+            most 24 hours. In replay it wins about four trades in five. We are honest
+            about why: most of that win rate comes from the bracket geometry itself, and
+            the measured edge on top of it is a few points. Those few points are the
+            difference between making and losing money, which is why the next step is
+            not marketing, it is validation.</p>
+
+          <p>Closed beta means exactly that: the engine trades our own funds first,
+            under pre-registered stop conditions that halt it loudly if reality
+            disagrees with the measurements. The daily scorecard, wins and misses both,
+            is public on <a href="https://t.me/+V7wwRr6n4ZtmOGFl" target="_blank"
+            rel="noopener">Telegram</a>. If the forward numbers hold, public beta opens
+            next week and open beta the week after.</p>
+
+          <p>Also in 0.4.0: seals now record their bracket prices and trade ranks
+            before the outcome exists, so every day of validation is pre-registered and
+            auditable after the fact.</p>
+    </div>
   </section>
 
   <section class="page" id="u-security-hardening-audit">
