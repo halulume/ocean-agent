@@ -56,3 +56,4 @@ __pycache__/
 .claude/
 .vercel/
 .DS_Store
+vercel_token.txt
