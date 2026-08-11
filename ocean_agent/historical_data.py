@@ -385,26 +385,107 @@ def _binance_ohlc(bsym: str, binterval: str, start_ms: int,
     return out
 
 
+def _pac_cache_path(symbol: str, interval: str) -> str:
+    return os.path.join(CACHE_DIR, f"pac_{symbol}_{interval}_ohlc.json.gz")
+
+
+def _load_pac_cache(symbol: str, interval: str) -> list[dict]:
+    try:
+        path = _pac_cache_path(symbol, interval)
+        if not os.path.exists(path):
+            return []
+        with gzip.open(path, "rt", encoding="utf-8") as f:
+            bars = json.load(f).get("bars") or []
+        return bars if isinstance(bars, list) else []
+    except Exception:
+        return []
+
+
+def _store_pac_cache(symbol: str, interval: str, bars: list) -> None:
+    if not bars:
+        return
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        path = _pac_cache_path(symbol, interval)
+        tmp = path + ".tmp"
+        with gzip.open(tmp, "wt", encoding="utf-8") as f:
+            json.dump({"bars": bars}, f)
+        os.replace(tmp, path)
+    except Exception:
+        pass
+
+
 def _pacifica_ohlc(client, symbol: str, interval: str, log=print) -> list[dict]:
-    """파시피카 캔들을 같은 포맷으로. 보관 한도(약 3000봉)만큼만 나온다."""
+    """파시피카 캔들을 같은 포맷으로. 보관 한도(약 3000봉)만큼만 나온다.
+
+    닫힌 봉은 두 번 다시 바뀌지 않으므로 디스크에 쌓아두고 새로 생긴 구간만
+    이어받는다. signal_scanner.fetch_bars 가 메모리로 하던 것과 같은 규약인데,
+    그쪽은 프로세스가 끝나면 사라져서 측정 스크립트처럼 매번 새로 뜨는 쪽은
+    혜택을 못 받았다. 실측(2026-08-10): 75종목×4시간봉 수집이 매번 30분 넘게
+    걸렸고 그 사이 레이트리밋에 걸려 수집이 여러 번 중단됐다.
+
+    ⚠️ 진행 중인 마지막 봉은 저장하지 않는다. 그 봉의 종가는 닫힐 때까지 계속
+    바뀌므로 캐시하면 낡은 값이 굳는다. 매 호출마다 마지막 확정봉 이후 구간은
+    반드시 새로 받으므로 최신성은 유지된다.
+
+    주문 가격은 이 경로를 쓰지 않는다(client.get_prices). 여기는 백테스트·
+    재측정·예측 계산용이다.
+    """
     from .indicators import INTERVAL_MS
     step = INTERVAL_MS[interval]
-    end = int(time.time() * 1000)
+    now = int(time.time() * 1000)
+    end = now
     start = end - step * 3000
-    d = _pac_kline(client, symbol, interval, start, end, log=log)
-    if not d:
-        return []
-    out = []
-    for c in d:
+
+    cached = [b for b in _load_pac_cache(symbol, interval) if b.get("t", 0) >= start]
+    fetch_from = (cached[-1]["t"] + step) if cached else start
+
+    d = _pac_kline(client, symbol, interval, fetch_from, end, log=log) if fetch_from <= end else []
+    fresh = []
+    for c in d or []:
         try:
-            out.append({"t": int(c["t"]), "o": float(c.get("o") or c["c"]),
-                        "h": float(c.get("h") or c["c"]),
-                        "l": float(c.get("l") or c["c"]),
-                        "c": float(c["c"]), "v": float(c.get("v") or 0),
-                        "source": "pacifica"})
+            fresh.append({"t": int(c["t"]), "o": float(c.get("o") or c["c"]),
+                          "h": float(c.get("h") or c["c"]),
+                          "l": float(c.get("l") or c["c"]),
+                          "c": float(c["c"]), "v": float(c.get("v") or 0),
+                          "source": "pacifica"})
         except (KeyError, TypeError, ValueError):
             continue
-    out.sort(key=lambda b: b["t"])
+
+    merged = {b["t"]: b for b in cached}
+    merged.update({b["t"]: b for b in fresh})
+    out = [merged[k] for k in sorted(merged)]
+    if not out:
+        return []
+
+    # 최신성 자체 점검. 캐시가 굳어 옛 봉만 돌려주는 사고를 조용히 넘기지 않는다.
+    # 마지막 봉이 두 칸 이상 뒤처져 있으면 캐시를 버리고 통째로 다시 받는다.
+    if out[-1]["t"] < now - step * 2:
+        log(f"  {symbol} {interval}: 캐시가 낡았다(마지막 봉 "
+            f"{(now - out[-1]['t']) // 60000}분 전), 통째로 다시 받는다")
+        try:
+            os.remove(_pac_cache_path(symbol, interval))
+        except OSError:
+            pass
+        d = _pac_kline(client, symbol, interval, start, end, log=log)
+        out = []
+        for c in d or []:
+            try:
+                out.append({"t": int(c["t"]), "o": float(c.get("o") or c["c"]),
+                            "h": float(c.get("h") or c["c"]),
+                            "l": float(c.get("l") or c["c"]),
+                            "c": float(c["c"]), "v": float(c.get("v") or 0),
+                            "source": "pacifica"})
+            except (KeyError, TypeError, ValueError):
+                continue
+        out.sort(key=lambda b: b["t"])
+        if not out:
+            return []
+
+    # 현재 진행 중인 봉은 캐시에서 뺀다. 반환값에는 남겨 둔다 (호출부가
+    # 예전과 같은 데이터를 보도록; 미완성 봉 처리는 호출부 규약이다).
+    open_start = now - (now % step)
+    _store_pac_cache(symbol, interval, [b for b in out if b["t"] < open_start])
     return out
 
 

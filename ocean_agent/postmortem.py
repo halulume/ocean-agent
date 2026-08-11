@@ -19,7 +19,7 @@
 import json
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from . import data_file
 
@@ -119,9 +119,16 @@ def analyze_close(rec: dict, exit_price: float, pnl_usd: float,
 
 
 def _held_hours(at_iso) -> float:
+    # "at" is usually an aware UTC ISO string (autonomous.py). Subtracting an
+    # aware datetime from naive datetime.now() raised TypeError, so every
+    # trade was recorded as held_hours 0.0. Compare aware-to-aware instead;
+    # naive legacy timestamps (harness fromtimestamp) are local KST (UTC+9).
     try:
-        return round((datetime.now()
-                      - datetime.fromisoformat(at_iso)).total_seconds() / 3600, 1)
+        at = datetime.fromisoformat(at_iso)
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=timezone(timedelta(hours=9)))
+        return round((datetime.now(timezone.utc)
+                      - at).total_seconds() / 3600, 1)
     except (ValueError, TypeError):
         return 0.0
 

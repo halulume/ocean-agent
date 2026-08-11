@@ -2,6 +2,7 @@
 # Ocean Agent one-command installer (macOS / Linux)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 set -e
+OA_PKG="ocean-agent@0.4.1"
 echo ""
 echo "=== Ocean Agent installer ==="
 
@@ -30,40 +31,65 @@ if [ "$WRITE" = "1" ]; then
     read ADDR </dev/tty
     echo "  Opening app.pacifica.fi/apikey in your browser (create a key there)..."
     (open "https://app.pacifica.fi/apikey" 2>/dev/null || xdg-open "https://app.pacifica.fi/apikey" 2>/dev/null || true) >/dev/null 2>&1
-    printf "  Agent API key (from app.pacifica.fi/apikey): "
+    printf "  Agent API key (from app.pacifica.fi/apikey, input hidden): "
+    stty -echo </dev/tty 2>/dev/null || true
     read KEY </dev/tty
+    stty echo </dev/tty 2>/dev/null || true
+    echo ""
     (umask 177; printf 'ADDRESS=%s\nPACIFICA_API_KEY=%s\nPACIFICA_BASE_URL=https://api.pacifica.fi\n' "$ADDR" "$KEY" > "$ENVF")
-    chmod 600 "$ENVF" 2>/dev/null || true
+    if ! chmod 600 "$ENVF" 2>/dev/null; then
+        echo "  WARNING: chmod 600 failed; $ENVF may be readable by other users on this machine"
+    fi
     echo "  saved to $ENVF (readable only by you)"
 fi
 
 # 3) terms of use (declining aborts the install; details: oceanagent.vercel.app)
 echo "[3/4] Terms of Use"
 RC=0
-PACIFICA_ENV_FILE="$ENVF" "$UVX" --from ocean-agent@latest python -m ocean_agent.builder_consent </dev/tty || RC=$?
+PACIFICA_ENV_FILE="$ENVF" "$UVX" --from "$OA_PKG" python -m ocean_agent.builder_consent </dev/tty || RC=$?
 if [ "$RC" = "3" ]; then exit 1; fi
 
 # 4) register in Claude Desktop config (uses uv's Python for a safe JSON merge)
 echo "[4/4] Registering with Claude Desktop"
 CFG="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
 [ -d "$HOME/.config/Claude" ] && CFG="$HOME/.config/Claude/claude_desktop_config.json"
-"$UV" run --no-project python - "$CFG" "$UVX" "$ENVF" <<'PY'
+"$UV" run --no-project python - "$CFG" "$UVX" "$ENVF" "$OA_PKG" <<'PY'
 import json, os, sys, shutil
-cfg_path, uvx, envf = sys.argv[1], sys.argv[2], sys.argv[3]
+cfg_path, uvx, envf, pkg = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
-cfg = {}
+cfg, bak = {}, None
 if os.path.exists(cfg_path):
-    shutil.copy2(cfg_path, cfg_path + ".bak")
+    bak = cfg_path + ".bak"
+    shutil.copy2(cfg_path, bak)
     with open(cfg_path, encoding="utf-8") as f:
         try: cfg = json.load(f) or {}
-        except ValueError: cfg = {}
+        except ValueError:
+            print("  WARNING: existing config is not valid JSON; rewriting it (original saved as .bak)")
+            cfg = {}
 cfg.setdefault("mcpServers", {})["ocean-agent"] = {
-    "command": uvx, "args": ["ocean-agent@latest"],
+    "command": uvx, "args": [pkg],
     "env": {"PACIFICA_ENV_FILE": envf},
 }
-with open(cfg_path, "w", encoding="utf-8") as f:
-    json.dump(cfg, f, indent=2)
-print("  updated " + cfg_path + " (backup saved as .bak)")
+tmp = cfg_path + ".tmp"
+try:
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+    with open(tmp, encoding="utf-8") as f:
+        json.load(f)
+    os.replace(tmp, cfg_path)
+except Exception:
+    if os.path.exists(tmp):
+        os.remove(tmp)
+    if bak:
+        shutil.copy2(bak, cfg_path)
+        print("  ERROR: failed to update " + cfg_path + "; original restored from .bak")
+    else:
+        print("  ERROR: failed to update " + cfg_path)
+    raise
+if bak:
+    print("  updated " + cfg_path + " (backup saved as .bak)")
+else:
+    print("  updated " + cfg_path)
 PY
 
 echo ""

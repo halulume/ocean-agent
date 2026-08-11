@@ -52,7 +52,14 @@ class PacificaClient:
     def _get(self, path: str, params: dict | None = None) -> dict:
         import time as _t
         for attempt in range(len(self._RETRY_BACKOFF) + 1):
-            r = self.session.get(f"{self.base}/{path}", params=params, timeout=15)
+            # Network-layer failures (timeout, DNS, connection reset) are
+            # re-raised as PacificaError so callers' `except PacificaError`
+            # safety handling still applies (review H7).
+            try:
+                r = self.session.get(f"{self.base}/{path}", params=params,
+                                     timeout=15)
+            except requests.exceptions.RequestException as e:
+                raise PacificaError(f"GET /{path} 네트워크 오류: {e}") from e
             if r.status_code == 429 and attempt < len(self._RETRY_BACKOFF):
                 _t.sleep(self._RETRY_BACKOFF[attempt])
                 continue
@@ -109,7 +116,12 @@ class PacificaClient:
             request = {"account": self.address, **signed, **payload}
             if signer_pubkey != self.address:
                 request["agent_wallet"] = signer_pubkey
-            r = self.session.post(f"{self.base}/{path}", json=request, timeout=15)
+            # Network-layer failures become PacificaError (review H7).
+            try:
+                r = self.session.post(f"{self.base}/{path}", json=request,
+                                      timeout=15)
+            except requests.exceptions.RequestException as e:
+                raise PacificaError(f"POST /{path} 네트워크 오류: {e}") from e
             if r.status_code == 429 and attempt == 1:
                 _t.sleep(10)          # 레이트리밋, 한 번만 쉬고 재서명·재시도
                 continue
@@ -261,8 +273,13 @@ class PacificaClient:
                 actions.append({"type": "CreateMarket",
                                 "data": self._sign_action_data(
                                     "create_market_order", payload)})
-            r = self.session.post(f"{self.base}/orders/batch",
-                                  json={"actions": actions}, timeout=20)
+            # Network-layer failures become PacificaError (review H7).
+            try:
+                r = self.session.post(f"{self.base}/orders/batch",
+                                      json={"actions": actions}, timeout=20)
+            except requests.exceptions.RequestException as e:
+                raise PacificaError(
+                    f"POST /orders/batch 네트워크 오류: {e}") from e
             if r.status_code == 429 and attempt == 1:
                 _t.sleep(10)      # 레이트리밋, 한 번만 쉬고 재서명·재시도
                 continue

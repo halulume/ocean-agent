@@ -183,12 +183,15 @@ def operating_capital(policy: dict, eq: float) -> float:
 
 
 def close_all(client: PacificaClient, builder: str, reason: str,
-              dry: bool = False) -> int:
+              dry: bool = False, failed: list | None = None) -> int:
     """모든 perp 포지션을 시장가 reduce_only로 청산. 청산 건수 반환.
 
     dry=True 면 주문을 보내지 않고 대상만 센다. --dry 는 '판단만 하고 주문은
     내지 않는다'는 약속이라, 방어선 발동 같은 비상 경로도 예외가 아니다
-    (2026-08-10 검토 B1)."""
+    (2026-08-10 검토 B1).
+
+    failed: if given, symbols whose close order failed are appended, so the
+    caller can tell whether positions remain open (review H8)."""
     n = 0
     for p in client.get_positions():
         try:
@@ -203,12 +206,15 @@ def close_all(client: PacificaClient, builder: str, reason: str,
             n += 1
         except PacificaError as e:
             log(f"청산 실패 {p.get('symbol')}: {e}")
+            if failed is not None:
+                failed.append(str(p.get("symbol") or "?"))
     if n:
         log(f"전량 청산 {n}건 ({reason})")
     return n
 
 
-def _reconcile_balance_change(client: PacificaClient, st: dict, eq: float) -> None:
+def _reconcile_balance_change(client: PacificaClient, st: dict,
+                              eq: float) -> bool:
     """Shift the stop baselines by whatever the user deposited or withdrew, so the
     fatal/soft stops measure *trading* P&L only.
 
@@ -231,25 +237,25 @@ def _reconcile_balance_change(client: PacificaClient, st: dict, eq: float) -> No
                            {"account": client.address})
         rows = rows if isinstance(rows, list) else (rows.get("data") or [])
     except Exception:
-        return                       # 조회 실패, 이번 사이클은 그냥 넘어간다
+        return False                 # 조회 실패, 이번 사이클은 그냥 넘어간다
     xfers = [r for r in rows
              if r.get("event_type") in ("deposit", "withdraw")]
     if not xfers:
-        return
+        return False
     newest = max(float(r.get("created_at") or 0) for r in xfers)
     seen = st.get("last_transfer_ms")
     if seen is None:
         # 첫 실행: 과거 입출금 전체를 소급 적용하면 기준이 엉뚱해진다.
         # 지금까지의 이력은 이미 현재 잔고에 반영돼 있으므로 표시만 남긴다.
         st["last_transfer_ms"] = newest
-        return
+        return False
     fresh = [r for r in xfers if float(r.get("created_at") or 0) > float(seen)]
     if not fresh:
-        return
+        return False
     st["last_transfer_ms"] = newest
     net = sum(float(r.get("amount") or 0) for r in fresh)
     if abs(net) < 0.01:
-        return
+        return False
     for k in ("start_equity", "day_start_equity", "peak_equity"):
         v = st.get(k)
         if v is not None:
@@ -264,6 +270,7 @@ def _reconcile_balance_change(client: PacificaClient, st: dict, eq: float) -> No
                     f"${base:,.2f}로 재조정했습니다. 손익이 아니라 자금 이동입니다.")
     except Exception:
         pass
+    return True
 
 
 def final_stop_check(client: PacificaClient, policy: dict, st: dict,
@@ -289,7 +296,7 @@ def final_stop_check(client: PacificaClient, policy: dict, st: dict,
         return True
     # Deposits/withdrawals are not trading results, shift the baselines before
     # any drawdown is judged (flat-only, see the helper).
-    _reconcile_balance_change(client, st, eq)
+    _xfer = _reconcile_balance_change(client, st, eq)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     if st.get("day") != today:
         # 날짜가 바뀌면 전날 결산을 먼저 보내고 새 기준을 세운다
@@ -324,7 +331,7 @@ def final_stop_check(client: PacificaClient, policy: dict, st: dict,
     # 위의 원장 재앵커가 별도 처리).
     # 글리치 방어: 한 번에 +10% 넘는 점프는 1초 뒤 재읽기해 낮은 쪽을 쓴다,
     # 일시적 과대 응답으로 앵커가 튀면 이후 정상 자본이 낙폭으로 오인된다.
-    if eq > start_eq > 0:
+    if not _xfer and eq > start_eq > 0:
         new_anchor = eq
         if eq > start_eq * 1.10:
             try:
@@ -337,14 +344,23 @@ def final_stop_check(client: PacificaClient, policy: dict, st: dict,
         if new_anchor > start_eq:
             st["start_equity"] = new_anchor
             start_eq = float(new_anchor)
+    if _xfer:
+        # 자금 이동을 방금 반영했다. 거래소 원장은 즉시 바뀌지만 잔고 조회는
+        # 한 박자 늦게 따라오므로, 이 사이클에 낙폭을 재면 입출금이 손실로
+        # 보인다. 입금은 즉시, 출금은 다음 사이클에 전량청산+영구정지로
+        # 이어지는 것을 재현 확인했다 (검토 B7, 08-04 사고와 같은 경로).
+        # 한 사이클 쉬면 다음 조회에서 잔고와 기준이 함께 맞는다.
+        log("자금 이동 반영 직후, 이번 사이클은 낙폭 판정을 건너뜁니다.")
+        return False
     fixed = _fixed_capital(policy)
     allocation = min(fixed, start_eq) if fixed is not None else start_eq
     fatal = float(policy.get("fatal_loss_pct", 0.20))
     drawdown_usd = start_eq - eq                    # 양수면 손실
     if allocation > 0 and drawdown_usd >= fatal * allocation:
         dd_pct = drawdown_usd / allocation
+        failed_closes: list = []
         close_all(client, policy.get("builder_code", ""), "치명적 손실 방어선",
-                  dry=dry)
+                  dry=dry, failed=failed_closes)
         if dry:
             # 드라이런은 판단만 남긴다. 알림·정지 래치까지 실행하면 실운영
             # 상태 파일이 오염된다 (dry/live가 같은 파일을 쓴다).
@@ -355,6 +371,12 @@ def final_stop_check(client: PacificaClient, policy: dict, st: dict,
                     f"(손실 ${drawdown_usd:,.0f} / 배정 ${allocation:,.0f}, "
                     f"방어선 -{fatal:.0%}). 전량 청산·정지. "
                     f"원인 검토 후 --resume 로 재개하세요.")
+        # Halt regardless (safety latch), but if some closes failed the
+        # operator must know positions are still open (review H8).
+        if failed_closes:
+            notify.send(f"⚠️ 방어선 청산 일부 실패: {', '.join(failed_closes)} "
+                        f"포지션이 아직 열려 있습니다. 거래소에서 직접 확인 후 "
+                        f"수동 청산하세요.")
         st["halted"] = True
         return True
 
@@ -446,142 +468,150 @@ def review_and_adapt(client: PacificaClient, policy: dict, st: dict) -> None:
     regime_now = read_regime(client).get("label", "")
     still_open = []
     for rec in opened:
-        sym = rec.get("symbol")
-        sig = rec.get("signal", "")
-        # ★ 자가개선 화이트리스트: '시그널 매매'만 학습한다 (사용자 지시 2026-07-27).
-        #   지표 시그널로 진입한 것(RSI/볼린저/프랙탈 등)만 승률·메타학습에 반영.
-        #   펀딩 캐리(방향중립·신호아님)·정체불명 진입은 라이브 메타데이터가 아니므로
-        #   기록만 유지하고 채점에서 제외, 오염 원천 차단.
-        if not sig or sig == "funding_carry":
-            still_open.append(rec)   # 기록은 두되 채점 안 함
-            continue
         try:
-            at = datetime.fromisoformat(rec["at"])
-            # UTC(+00:00)로 기록된 새 형식과 시간대 없는 옛 형식을 모두
-            # naive 로컬시각으로 통일, naive now 와 빼도 안 터지게.
-            if at.tzinfo is not None:
-                at = at.astimezone().replace(tzinfo=None)
-        except (ValueError, KeyError):
-            continue
-        due_h = rec.get("horizon_hours") or 24
-        expired = (now - at).total_seconds() >= due_h * 3600
-        closed = sym not in live_syms
-        # 이미 채점된 만기 포지션은 청산될 때까지 장부에만 남긴다 (검토 B2).
-        # 청산되면 아래로 내려가 실제 손익으로 다시 한 번 기록된다.
-        if rec.get("_graded") and not closed:
-            still_open.append(rec)
-            continue
-        if not closed and not expired:
-            still_open.append(rec)
-            continue
-        cur = float(pr.get(sym, {}).get("mark")
-                    or pr.get(sym, {}).get("mid") or 0)
-        entry = float(rec.get("entry_price") or 0)
-        if entry <= 0 or cur <= 0:
-            # 가격을 못 구했다고 만기 기록을 조용히 버리지 않는다(M7),
-            # 만기 후 실패만 세서 재시도 3회를 보장하고, 4번째 만기 실패에
-            # 사유를 남기고 정리한다 (만기 전 실패는 카운트하지 않는다,
-            # 검토자 지적: 만기 전 누적이 만기 후 재시도 몫을 깎지 않게).
-            tries = int(rec.get("_grade_retries", 0)) + (1 if expired else 0)
-            if not expired or tries <= 3:
-                rec["_grade_retries"] = tries
+            sym = rec.get("symbol")
+            sig = rec.get("signal", "")
+            # ★ 자가개선 화이트리스트: '시그널 매매'만 학습한다 (사용자 지시 2026-07-27).
+            #   지표 시그널로 진입한 것(RSI/볼린저/프랙탈 등)만 승률·메타학습에 반영.
+            #   펀딩 캐리(방향중립·신호아님)·정체불명 진입은 라이브 메타데이터가 아니므로
+            #   기록만 유지하고 채점에서 제외, 오염 원천 차단.
+            if not sig or sig == "funding_carry":
+                still_open.append(rec)   # 기록은 두되 채점 안 함
+                continue
+            try:
+                at = datetime.fromisoformat(rec["at"])
+                # UTC(+00:00)로 기록된 새 형식과 시간대 없는 옛 형식을 모두
+                # naive 로컬시각으로 통일, naive now 와 빼도 안 터지게.
+                if at.tzinfo is not None:
+                    at = at.astimezone().replace(tzinfo=None)
+            except (ValueError, KeyError):
+                continue
+            due_h = rec.get("horizon_hours") or 24
+            elapsed = (now - at).total_seconds()
+            expired = elapsed >= due_h * 3600
+            closed = sym not in live_syms
+            # 만기여도 아직 열려 있으면 장부에 남기되 채점은 미룬다.
+            #   · 남기는 이유(B2): 빼버리면 만기청산·트레일링·본전스탑이 그 심볼을
+            #     건너뛰어 남은 생애 내내 무관리가 된다.
+            #   · 미루는 이유(N1): 만기 시점의 미실현 호가로 먼저 채점하면, 나중에
+            #     실제 청산될 때 같은 거래가 한 번 더 계상된다(08-10 재현, 2배).
+            #     실제 청산 손익이 언제나 더 정확하므로 청산 때 한 번만 센다.
+            # 영원히 안 닫히는 기록이 장부에 쌓이지 않도록, 지평의 3배가 지나면
+            # 그때는 추정으로 채점하고 정리한다 (만기청산이 1.5배라 여기 도달하면
+            # 사후관리가 실패했다는 뜻이다).
+            if not closed and elapsed < due_h * 3 * 3600:
                 still_open.append(rec)
+                continue
+            cur = float(pr.get(sym, {}).get("mark")
+                        or pr.get(sym, {}).get("mid") or 0)
+            entry = float(rec.get("entry_price") or 0)
+            if entry <= 0 or cur <= 0:
+                # 가격을 못 구했다고 만기 기록을 조용히 버리지 않는다(M7),
+                # 만기 후 실패만 세서 재시도 3회를 보장하고, 4번째 만기 실패에
+                # 사유를 남기고 정리한다 (만기 전 실패는 카운트하지 않는다,
+                # 검토자 지적: 만기 전 누적이 만기 후 재시도 몫을 깎지 않게).
+                tries = int(rec.get("_grade_retries", 0)) + (1 if expired else 0)
+                if not expired or tries <= 3:
+                    rec["_grade_retries"] = tries
+                    still_open.append(rec)
+                else:
+                    log(f"채점 불가로 정리: {sym} {rec.get('signal', '?')} "
+                        f"(가격 조회 {tries}회 실패)")
+                continue
+            # 승패·손익 판정: 실제 청산 손익이 있으면 그걸 쓴다(정직).
+            # 없으면(만기지만 아직 보유 등) 방향 추측으로 폴백.
+            # 이 진입 이후에 일어난 청산만 센다 (같은 심볼의 옛 거래를 끌어오지 않게).
+            real = _closes_since(sym, int(at.timestamp() * 1000))
+            base_sig = rec.get("signal", "?").split(" +조합")[0]
+            if closed and real is not None:
+                pnl_usd = real["pnl"]
+                won = pnl_usd > 0
+                exit_px = real["exit"] or cur
+                reason = real["cause"] or "closed"
             else:
-                log(f"채점 불가로 정리: {sym} {rec.get('signal', '?')} "
-                    f"(가격 조회 {tries}회 실패)")
-            continue
-        # 승패·손익 판정: 실제 청산 손익이 있으면 그걸 쓴다(정직).
-        # 없으면(만기지만 아직 보유 등) 방향 추측으로 폴백.
-        # 이 진입 이후에 일어난 청산만 센다 (같은 심볼의 옛 거래를 끌어오지 않게).
-        real = _closes_since(sym, int(at.timestamp() * 1000))
-        base_sig = rec.get("signal", "?").split(" +조합")[0]
-        if closed and real is not None:
-            pnl_usd = real["pnl"]
-            won = pnl_usd > 0
-            exit_px = real["exit"] or cur
-            reason = real["cause"] or "closed"
-        else:
-            move = cur / entry - 1
-            signal_move = move if rec["side"] == "long" else -move
-            won = signal_move > 0
-            # 방향 추측일 땐 명목가 기준 근사 손익 (달러 단위로 통일)
-            notional = entry * abs(float(rec.get("amount") or 0)) \
-                or float(rec.get("notional") or 0)
-            pnl_usd = signal_move * (notional or entry)
-            exit_px = cur
-            reason = "expire"
-        # 적응 단위 = 신호×시간봉 (같은 신호도 시간봉 따라 EV 부호가 뒤집힘).
-        key = f"{base_sig}@{rec.get('interval','?')}"
-        g = graded.setdefault(key, {"win": 0, "total": 0, "pnl": 0.0})
-        g["win"] += int(won)
-        g["total"] += 1
-        g["pnl"] = round(g.get("pnl", 0.0) + pnl_usd, 2)
-        # R 단위(위험 배수) 손익도 함께 기록한다. 달러 손익은 포지션 크기·
-        # 레버리지·자본이 바뀌면 같은 신호라도 값이 달라져, 설정을 조정한
-        # 전후 거래를 나란히 비교할 수 없다. 1R = 그 거래가 손절에 걸렸을 때
-        # 잃기로 한 금액이므로, 규모가 어떻게 바뀌어도 '몇 배 벌었나'는 그대로다.
-        # (2026-08-05 레버리지 3→5배·동시 6→3개 조정 시점부터 기록)
-        try:
-            risk_usd = abs(float(rec.get("notional") or 0)
-                           * float(rec.get("sl_move") or 0))
-            if risk_usd > 0:
-                g["pnl_r"] = round(g.get("pnl_r", 0.0) + pnl_usd / risk_usd, 3)
-                g["n_r"] = g.get("n_r", 0) + 1
-        except (TypeError, ValueError):
-            pass
-        # 예측봉 대조 (사용자 루트 2026-08-07): 진입 때 그려둔 체크포인트와
-        # 실제 1h 종가를 대조해 경로 적중을 채점한다. 실패해도 채점은 계속.
-        try:
-            pred = rec.get("pred") or {}
-            checks = pred.get("checks") or []
-            if checks and entry > 0:
-                from .signal_scanner import fetch_bars
-                t0 = int(at.timestamp() * 1000)
-                bars1h = [b for b in fetch_bars(client, sym, "1h", max_bars=200)
-                          if b[0] >= t0]
-                hits = n_checked = 0
-                errs = []
-                for ck in checks:
-                    tgt_ms = t0 + int(float(ck["h"]) * 3_600_000)
-                    cand = [b for b in bars1h if b[0] <= tgt_ms]
-                    if not cand:
-                        continue
-                    actual_px = float(cand[-1][4])
-                    n_checked += 1
-                    same_dir = (actual_px - entry) * (float(ck["px"]) - entry) > 0
-                    hits += int(same_dir)
-                    errs.append(abs(actual_px - float(ck["px"])) / entry)
-                if n_checked:
-                    rec["pred_check"] = {
-                        "hits": hits, "n": n_checked,
-                        "avg_err_pct": round(sum(errs) / len(errs) * 100, 3)}
-        except Exception:
-            pass
-        # 원인분석: 실제 손익 + 청산사유 + 귀인 기록
-        try:
-            from .postmortem import analyze_close
-            pm = analyze_close(rec, exit_px, pnl_usd, reason, regime_now)
-            changed.append(
-                f"청산분석 {sym} {base_sig[:10]}: "
-                f"{'승' if won else '패'} {pnl_usd:+.2f} · {pm['attribution']}")
+                move = cur / entry - 1
+                signal_move = move if rec.get("side") == "long" else -move
+                won = signal_move > 0
+                # 방향 추측일 땐 명목가 기준 근사 손익 (달러 단위로 통일)
+                notional = entry * abs(float(rec.get("amount") or 0)) \
+                    or float(rec.get("notional") or 0)
+                pnl_usd = signal_move * (notional or entry)
+                exit_px = cur
+                reason = "expire"
+            # 적응 단위 = 신호×시간봉 (같은 신호도 시간봉 따라 EV 부호가 뒤집힘).
+            key = f"{base_sig}@{rec.get('interval','?')}"
+            g = graded.setdefault(key, {"win": 0, "total": 0, "pnl": 0.0})
+            g["win"] += int(won)
+            g["total"] += 1
+            g["pnl"] = round(g.get("pnl", 0.0) + pnl_usd, 2)
+            # R 단위(위험 배수) 손익도 함께 기록한다. 달러 손익은 포지션 크기·
+            # 레버리지·자본이 바뀌면 같은 신호라도 값이 달라져, 설정을 조정한
+            # 전후 거래를 나란히 비교할 수 없다. 1R = 그 거래가 손절에 걸렸을 때
+            # 잃기로 한 금액이므로, 규모가 어떻게 바뀌어도 '몇 배 벌었나'는 그대로다.
+            # (2026-08-05 레버리지 3→5배·동시 6→3개 조정 시점부터 기록)
+            try:
+                risk_usd = abs(float(rec.get("notional") or 0)
+                               * float(rec.get("sl_move") or 0))
+                if risk_usd > 0:
+                    g["pnl_r"] = round(g.get("pnl_r", 0.0) + pnl_usd / risk_usd, 3)
+                    g["n_r"] = g.get("n_r", 0) + 1
+            except (TypeError, ValueError):
+                pass
+            # 예측봉 대조 (사용자 루트 2026-08-07): 진입 때 그려둔 체크포인트와
+            # 실제 1h 종가를 대조해 경로 적중을 채점한다. 실패해도 채점은 계속.
+            try:
+                pred = rec.get("pred") or {}
+                checks = pred.get("checks") or []
+                if checks and entry > 0:
+                    from .signal_scanner import fetch_bars
+                    t0 = int(at.timestamp() * 1000)
+                    bars1h = [b for b in fetch_bars(client, sym, "1h", max_bars=200)
+                              if b[0] >= t0]
+                    hits = n_checked = 0
+                    errs = []
+                    for ck in checks:
+                        tgt_ms = t0 + int(float(ck["h"]) * 3_600_000)
+                        cand = [b for b in bars1h if b[0] <= tgt_ms]
+                        if not cand:
+                            continue
+                        actual_px = float(cand[-1][4])
+                        n_checked += 1
+                        same_dir = (actual_px - entry) * (float(ck["px"]) - entry) > 0
+                        hits += int(same_dir)
+                        errs.append(abs(actual_px - float(ck["px"])) / entry)
+                    if n_checked:
+                        rec["pred_check"] = {
+                            "hits": hits, "n": n_checked,
+                            "avg_err_pct": round(sum(errs) / len(errs) * 100, 3)}
+            except Exception:
+                pass
+            # 원인분석: 실제 손익 + 청산사유 + 귀인 기록
+            try:
+                from .postmortem import analyze_close
+                pm = analyze_close(rec, exit_px, pnl_usd, reason, regime_now)
+                changed.append(
+                    f"청산분석 {sym} {base_sig[:10]}: "
+                    f"{'승' if won else '패'} {pnl_usd:+.2f} · {pm['attribution']}")
+            except Exception as e:
+                log(f"원인분석 스킵: {e}")
+            # 메타학습: '예측 승률 vs 실제 승패'를 캘리브레이션에 축적.
+            # 표본이 쌓이면 봇이 자기 낙관/비관을 스스로 교정하기 시작한다.
+            try:
+                from .brain import record_prediction
+                pred = float(rec.get("win_rate") or 0)
+                if pred > 0:
+                    record_prediction(pred, won)
+            except Exception:
+                pass
         except Exception as e:
-            log(f"원인분석 스킵: {e}")
-        # 메타학습: '예측 승률 vs 실제 승패'를 캘리브레이션에 축적.
-        # 표본이 쌓이면 봇이 자기 낙관/비관을 스스로 교정하기 시작한다.
-        try:
-            from .brain import record_prediction
-            pred = float(rec.get("win_rate") or 0)
-            if pred > 0:
-                record_prediction(pred, won)
-        except Exception:
-            pass
-        # 만기지만 거래소에는 아직 열려 있는 포지션은 장부에 남긴다.
-        # 빼버리면 expire_after_horizons(1.5배) 만기청산이 도달 불가가 되고,
-        # 남은 생애 동안 트레일링·본전스탑도 멈춘 채 방치된다 (검토 B2).
-        # 채점은 위에서 이미 끝났으므로 _graded 표식으로 재채점만 막는다.
-        if not closed:
-            rec["_graded"] = True
+            # 한 기록의 오류가 루프 전체를 무너뜨리면, 앞서 처리된 건들이
+            # postmortem.jsonl·calibration.json 에는 이미 쓰였는데 st 는
+            # 통째로 버려진다. 다음 사이클에 같은 거래가 다시 채점돼
+            # 학습 파일이 이중 기록된다 (검토 H13). 문제 기록만 남기고
+            # 넘어가 나머지 채점과 st 저장이 정상 완료되게 한다.
+            log(f"채점 오류로 이 기록만 건너뜀: {rec.get('symbol')} {e}")
             still_open.append(rec)
+            continue
     st["opened"] = still_open
 
     # --- 2) 지는 조합 정지 (실제 손익 우선) ---
@@ -1177,6 +1207,19 @@ def run_cycle(client: PacificaClient, policy: dict, st: dict, dry: bool) -> None
                 entry*(1-sl_pct) if best.side == "long" else entry*(1+sl_pct), tick)
             tp_px = _round_to_tick(
                 entry*(1+tp_pct) if best.side == "long" else entry*(1-tp_pct), tick)
+            # Wrong-side stop guard (review H10): after tick rounding the stop
+            # must still sit below entry for a long, above entry for a short.
+            # A coarse tick can round a tight stop onto/past the entry, which
+            # the exchange rejects or triggers instantly. In that case do not
+            # attach the stop, and warn so the operator can protect manually.
+            sl_f = float(sl_px)
+            if not (sl_f < entry if best.side == "long" else sl_f > entry):
+                log(f"손절가 검증 실패: {best.symbol} {best.side} 반올림 후 "
+                    f"{sl_px} (진입가 {entry}), 손절 미부착으로 진입")
+                notify.send(f"⚠️ {best.symbol} 손절가가 반올림 후 진입가와 "
+                            f"방향이 맞지 않아({sl_px} vs {entry}) 이번 진입에 "
+                            f"손절을 붙이지 못했습니다. 수동 확인 필요.")
+                sl_px = ""
             amount = _round_down_to_lot(max(notional / entry, 0), lot)
             if amount * entry < min_usd:
                 log(f"진입 스킵: {best.symbol} 수량이 최소 주문(${min_usd}) 미달")

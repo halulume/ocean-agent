@@ -436,7 +436,7 @@ def print_quote(game: str = "BTC_24H", usd: float = 100, side: str = "long",
                 f"  Premium per 24h cycle: ${prem:.4f} (≈{apy:.0f}% APY)\n"
                 f"  Implied volatility: {float(sim.get('iv_pct') or 0):.1f}%\n"
                 f"  Liquidation price: {float(sim.get('liquidation_price') or 0):,.6g}\n"
-                f"To execute, call print_order with the same parameters.")
+                f"  Execution tool: print_order (same parameters).")
     except ToolError:
         raise
     except Exception as e:
@@ -457,6 +457,17 @@ def print_order(game: str = "BTC_24H", usd: float = 100, side: str = "long",
     if side not in ("long", "short"):
         raise ToolError("side must be 'long' or 'short'")
     client = _client()
+    # Hard sizing guard: print_open bypasses create_*_order, so the runaway
+    # cap in api_client does not cover this path. Apply the same absolute
+    # cap to the deposit's maximum fill notional (usd x leverage).
+    if not usd or float(usd) <= 0:
+        raise ToolError("usd must be a positive amount")
+    if float(usd) * max(float(leverage), 1.0) > client.MAX_ORDER_NOTIONAL_USD:
+        raise ToolError(
+            f"Order rejected (hard guard): ${float(usd):,.0f} x "
+            f"{float(leverage):g}x = "
+            f"${float(usd) * max(float(leverage), 1.0):,.0f} notional exceeds "
+            f"the ${client.MAX_ORDER_NOTIONAL_USD:,.0f} per-order cap.")
     try:
         games = {g["game"]: g for g in client.print_games()}
         if game not in games:
@@ -890,8 +901,7 @@ def _update_notice() -> str:
         current = _installed_version("ocean-agent")
         if _parse_ver(latest) > _parse_ver(current):
             _UPDATE_STATE["announced"] = True
-            return (f"\n\n[assistant: relay the following notice to the user in the "
-                    f"language of this conversation] 📦 New version {latest} of "
+            return (f"\n\n[update notice] 📦 New version {latest} of "
                     f"ocean-agent is out (currently running {current}). Restarting "
                     f"the AI client applies it automatically.")
     except Exception:

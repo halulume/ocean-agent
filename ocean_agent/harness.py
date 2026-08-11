@@ -59,7 +59,13 @@ LOCK_FILE = os.path.join(OUT_DIR, ".harness.lock")
 DISCLAIMER = (
     "⚠️ 완벽체결·슬리피지 0 가정, 펀딩 제외, 과거 국면 실측치이며 미래 보장 아님.\n"
     "   유동성/호가 데이터가 없어 유동성 관문은 생략했다.\n"
-    "   한 봉 안에서 익절·손절이 모두 닿으면 손절을 먼저 적용한다(보수적).\n")
+    "   한 봉 안에서 익절·손절이 모두 닿으면 손절을 먼저 적용한다(보수적).\n"
+    "   ⚠️ 진입 관문이 실거래와 다르다. 실거래는 9년 매트릭스 기각·보정곡선·\n"
+    "   관측DB 블렌드를 얹어 승률을 낮춰 잡는데, 여기서는 그 층을 쓰지 않는다.\n"
+    "   그 값들이 전 기간을 통째로 측정해 만든 것이라, 과거 시점 판단에 넣으면\n"
+    "   미래참조가 되기 때문이다. 결과적으로 하네스 관문이 실거래보다 헐거워\n"
+    "   **절대 금액(최종 자본)은 실거래 예측치가 아니다.** 두 설정을 같은 관문\n"
+    "   아래서 비교하는 A/B 용도로만 쓸 것. (2026-08-10 검토 B6)\n")
 
 
 def _log(msg: str, quiet: bool = False) -> None:
@@ -282,7 +288,9 @@ def evaluate(st: dict, name: str, tf: str, bars: list[dict], i: int,
 
     try:
         from .brain import conviction
-        cv = conviction("", name, tf, side, pwin, st["n"], graded)
+        # 라이브 보정표는 끈다, 백테스트가 재현 가능해야 한다 (검토 B6-b).
+        cv = conviction("", name, tf, side, pwin, st["n"], graded,
+                        use_live_calibration=False)
         conv = float(cv.get("conviction", pwin))
     except Exception:
         conv = pwin
@@ -322,6 +330,12 @@ class Backtest:
     def manage(self, sym: str, bar: dict, ts: int):
         pos = self.open.get(sym)
         if not pos:
+            return
+        # 체결 이전에 시작한 봉은 이 포지션을 건드릴 수 없다. 포지션은 심볼
+        # 하나로만 키잉되는데 이벤트는 여러 시간봉이 섞여 들어오므로, 이 가드가
+        # 없으면 1h 종가로 진입한 직후 같은 시각의 1d 봉(그 하루 전체를 덮는)이
+        # '진입 전' 저가로 손절을 낸다. 실측 재현 완료 (검토 B5).
+        if ts < pos["opened_ts"]:
             return
         p = self.p
         hi, lo, close = bar["h"], bar["l"], bar["c"]
@@ -512,11 +526,15 @@ class Backtest:
         if notional < 10 or not self.can_open(sym, s["side"], notional,
                                               s["leverage"]):
             return False
+        # 체결 시각 = 그 봉의 '종가' 시각이다. 봉 시작시각(ts)을 쓰면 진입
+        # 이전 구간이 보유 기간에 섞인다. 특히 여러 시간봉을 함께 돌릴 때
+        # 같은 시각에 시작한 큰 봉이 진입 전 저가로 손절을 때린다 (검토 B5).
+        fill_ts = ts + INTERVAL_MS.get(s["interval"], 0)
         self.open[sym] = {
             "side": s["side"], "signal": s["signal"], "interval": s["interval"],
             "entry": bar["c"], "notional": notional, "leverage": s["leverage"],
             "tp_dist": s["tp_move"], "sl_dist": s["sl_move"],
-            "horizon_hours": s["horizon_hours"], "opened_ts": ts,
+            "horizon_hours": s["horizon_hours"], "opened_ts": fill_ts,
             "win_rate": s["win_rate"], "n_samples": s["n_samples"],
             "partial_done": False, "partial_pnl": 0.0, "sl_moved": False}
         return True

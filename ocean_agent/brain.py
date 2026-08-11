@@ -112,7 +112,8 @@ def calibration_report() -> dict:
 
 def conviction(symbol: str, signal: str, interval: str, side: str,
                base_win_rate: float, n_samples: int,
-               graded: dict | None = None) -> dict:
+               graded: dict | None = None,
+               use_live_calibration: bool = True) -> dict:
     """한 셋업에 대해 모든 학습원을 종합한 최종 확신도.
 
     입력:
@@ -125,8 +126,11 @@ def conviction(symbol: str, signal: str, interval: str, side: str,
     notes = []
     wr = base_win_rate
 
-    # 1) 메타학습 보정, 이 승률대의 과거 예측이 실제로 맞았나
-    meta = calibration_factor(base_win_rate)
+    # 1) 메타학습 보정, 이 승률대의 과거 예측이 실제로 맞았나.
+    # 백테스트는 use_live_calibration=False 로 부른다. 이 보정표는 '오늘의'
+    # 실거래 성적이라, 과거 시점 판단에 넣으면 미래참조이고 같은 백테스트를
+    # 두 번 돌려도 답이 달라진다 (검토 B6-b).
+    meta = calibration_factor(base_win_rate) if use_live_calibration else 1.0
     if meta < 1.0:
         wr *= meta
         notes.append(f"메타보정 x{meta:.2f}")
@@ -149,24 +153,30 @@ def conviction(symbol: str, signal: str, interval: str, side: str,
     # 3) 원인분석(postmortem) 귀인, '역행패배'(유리한 국면인데 진 것)가
     #    쌓인 신호는 신호 자체가 나쁘다는 증거. '시장순풍'으로만 이긴 신호는
     #    국면이 바뀌면 무너진다 → 둘 다 감점.
-    try:
-        from .postmortem import signal_verdict
-        # 표본 하한 4 → 25. 진짜 승률이 52~58%인 시장에서 4건짜리 성적표로
-        # '실전패배多'를 판정하면, 진짜 54%짜리 신호가 25.5% 확률로 부당하게
-        # 감점된다(25건이면 5.4%). 자동정지와 같은 종류의 실수이고, 여기선
-        # 감점이라 덜 치명적일 뿐 방향은 똑같이 좋은 신호를 죽이는 쪽이다.
-        v = signal_verdict(signal.split(" +조합")[0], interval)
-        if v and v["n"] >= 25:
-            luck_ratio = (v["market_luck_wins"] /
-                          max(v["market_luck_wins"] + v["real_edge_wins"], 1))
-            if v["win_rate"] < 0.4:
-                wr *= 0.85
-                notes.append(f"귀인:실전패배多({v['n']}건)")
-            elif luck_ratio > 0.8 and v["real_edge_wins"] == 0:
-                wr *= 0.92
-                notes.append("귀인:운으로만 이김")
-    except Exception:
-        pass
+    # Gated like the calibration table above (review B6-b): signal_verdict
+    # reads today's live postmortem log, so feeding it into a past-dated
+    # backtest decision is lookahead. Backtests pass
+    # use_live_calibration=False; live keeps the default True (unchanged).
+    if use_live_calibration:
+        try:
+            from .postmortem import signal_verdict
+            # 표본 하한 4 → 25. 진짜 승률이 52~58%인 시장에서 4건짜리 성적표로
+            # '실전패배多'를 판정하면, 진짜 54%짜리 신호가 25.5% 확률로 부당하게
+            # 감점된다(25건이면 5.4%). 자동정지와 같은 종류의 실수이고, 여기선
+            # 감점이라 덜 치명적일 뿐 방향은 똑같이 좋은 신호를 죽이는 쪽이다.
+            v = signal_verdict(signal.split(" +조합")[0], interval)
+            if v and v["n"] >= 25:
+                luck_ratio = (v["market_luck_wins"] /
+                              max(v["market_luck_wins"] + v["real_edge_wins"],
+                                  1))
+                if v["win_rate"] < 0.4:
+                    wr *= 0.85
+                    notes.append(f"귀인:실전패배多({v['n']}건)")
+                elif luck_ratio > 0.8 and v["real_edge_wins"] == 0:
+                    wr *= 0.92
+                    notes.append("귀인:운으로만 이김")
+        except Exception:
+            pass
 
     # 4) 표본 신뢰도, 표본 적으면 확신을 중앙(0.5)으로 끌어당김
     confidence = min(n_samples / 60, 1.0)

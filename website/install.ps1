@@ -1,6 +1,7 @@
 # Ocean Agent one-command installer (Windows)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 $ErrorActionPreference = 'Stop'
+$oaPkg = "ocean-agent@0.4.1"
 Write-Host ""
 Write-Host "=== Ocean Agent installer ===" -ForegroundColor Cyan
 
@@ -31,7 +32,10 @@ if ($write) {
     $addr = Read-Host "  Wallet public address (ADDRESS)"
     Write-Host "  Opening app.pacifica.fi/apikey in your browser (create a key there)..."
     try { Start-Process "https://app.pacifica.fi/apikey" } catch {}
-    $key  = Read-Host "  Agent API key (from app.pacifica.fi/apikey)"
+    $keySec = Read-Host "  Agent API key (from app.pacifica.fi/apikey, input hidden)" -AsSecureString
+    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($keySec)
+    $key  = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
     @(
         "ADDRESS=$addr"
         "PACIFICA_API_KEY=$key"
@@ -40,14 +44,18 @@ if ($write) {
     # Lock the file to the current user only (remove inherited access).
     try {
         icacls $envFile /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
-    } catch {}
+        if ($LASTEXITCODE -ne 0) { throw "icacls exited with code $LASTEXITCODE" }
+    } catch {
+        Write-Host "  WARNING: could not restrict permissions on $envFile ($_)" -ForegroundColor Yellow
+        Write-Host "  The file may be readable by other users on this machine." -ForegroundColor Yellow
+    }
     Write-Host "  saved to $envFile (readable only by you)"
 }
 
 # 3) terms of use (declining aborts the install; details: oceanagent.vercel.app)
 Write-Host "[3/4] Terms of Use"
 $env:PACIFICA_ENV_FILE = $envFile
-& $uvx --from ocean-agent@latest python -m ocean_agent.builder_consent
+& $uvx --from $oaPkg python -m ocean_agent.builder_consent
 if ($LASTEXITCODE -eq 3) { exit 1 }
 
 # 4) register in Claude Desktop config
@@ -56,12 +64,19 @@ $cfgDir  = Join-Path $env:APPDATA "Claude"
 $cfgPath = Join-Path $cfgDir "claude_desktop_config.json"
 $server  = [pscustomobject]@{
     command = "$uvx"
-    args    = @("ocean-agent@latest")
+    args    = @($oaPkg)
     env     = [pscustomobject]@{ PACIFICA_ENV_FILE = "$envFile" }
 }
+$bakPath = $null
 if (Test-Path $cfgPath) {
-    Copy-Item $cfgPath "$cfgPath.bak" -Force
-    $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
+    $bakPath = "$cfgPath.bak"
+    Copy-Item $cfgPath $bakPath -Force
+    try {
+        $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
+    } catch {
+        Write-Host "  WARNING: existing config is not valid JSON; rewriting it (original saved as .bak)" -ForegroundColor Yellow
+        $cfg = $null
+    }
     if ($null -eq $cfg) { $cfg = [pscustomobject]@{} }
 } else {
     New-Item -ItemType Directory -Force $cfgDir | Out-Null
@@ -75,8 +90,26 @@ if ($cfg.mcpServers.PSObject.Properties.Name -contains 'ocean-agent') {
 } else {
     $cfg.mcpServers | Add-Member -NotePropertyName 'ocean-agent' -NotePropertyValue $server
 }
-$cfg | ConvertTo-Json -Depth 10 | Out-File -Encoding utf8 $cfgPath
-Write-Host "  updated $cfgPath (backup saved as .bak)"
+$tmpPath = "$cfgPath.tmp"
+try {
+    $cfg | ConvertTo-Json -Depth 10 | Out-File -Encoding utf8 $tmpPath
+    $null = Get-Content $tmpPath -Raw | ConvertFrom-Json
+    Move-Item -Force $tmpPath $cfgPath
+} catch {
+    if (Test-Path $tmpPath) { Remove-Item $tmpPath -Force }
+    if ($bakPath -and (Test-Path $bakPath)) {
+        Copy-Item $bakPath $cfgPath -Force
+        Write-Host "  ERROR: failed to update $cfgPath; original restored from .bak" -ForegroundColor Red
+    } else {
+        Write-Host "  ERROR: failed to update $cfgPath" -ForegroundColor Red
+    }
+    exit 1
+}
+if ($bakPath) {
+    Write-Host "  updated $cfgPath (backup saved as .bak)"
+} else {
+    Write-Host "  updated $cfgPath"
+}
 
 Write-Host ""
 Write-Host "Done. Restart Claude Desktop and the Ocean Agent tools appear in chat." -ForegroundColor Green
