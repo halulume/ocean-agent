@@ -459,6 +459,20 @@ def main():
         print("정지 해제됨")
         return
 
+    # X1: the old EV bot and this one share one account's margin. A docstring
+    # warning does not stop a double launch; a recent heartbeat on the old
+    # bot's state file does.
+    old_state = "state.json"
+    if os.path.exists(old_state) and not args.close_all:
+        age_min = (time.time() - os.path.getmtime(old_state)) / 60
+        if age_min < 10:
+            msg = (f"기존 EV 봇(autonomous)이 {age_min:.0f}분 전까지 살아있던 "
+                   "흔적이 있어 시작을 거부합니다. 같은 계좌 증거금을 두 봇이 "
+                   "나눠 쓰면 안 됩니다. EV 봇을 끄고 다시 실행하세요.")
+            log(msg)
+            notify.send("브래킷: " + msg)
+            return
+
     client = make_client(policy)
 
     if args.close_all:
