@@ -1210,16 +1210,15 @@ def run_cycle(client: PacificaClient, policy: dict, st: dict, dry: bool) -> None
             # Wrong-side stop guard (review H10): after tick rounding the stop
             # must still sit below entry for a long, above entry for a short.
             # A coarse tick can round a tight stop onto/past the entry, which
-            # the exchange rejects or triggers instantly. In that case do not
-            # attach the stop, and warn so the operator can protect manually.
+            # the exchange rejects or triggers instantly. A stop that fails
+            # validation is a reason to skip the entry, not to enter naked:
+            # the always-attached native stop is a code-fixed invariant
+            # (review 6 regression fix; same rule as bracket_prices()).
             sl_f = float(sl_px)
             if not (sl_f < entry if best.side == "long" else sl_f > entry):
-                log(f"손절가 검증 실패: {best.symbol} {best.side} 반올림 후 "
-                    f"{sl_px} (진입가 {entry}), 손절 미부착으로 진입")
-                notify.send(f"⚠️ {best.symbol} 손절가가 반올림 후 진입가와 "
-                            f"방향이 맞지 않아({sl_px} vs {entry}) 이번 진입에 "
-                            f"손절을 붙이지 못했습니다. 수동 확인 필요.")
-                sl_px = ""
+                log(f"진입 스킵: {best.symbol} {best.side} 손절가가 반올림 후 "
+                    f"{sl_px} (진입가 {entry})로 방향이 어긋남")
+                continue
             amount = _round_down_to_lot(max(notional / entry, 0), lot)
             if amount * entry < min_usd:
                 log(f"진입 스킵: {best.symbol} 수량이 최소 주문(${min_usd}) 미달")
