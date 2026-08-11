@@ -16,8 +16,14 @@ Safety posture:
     cannot orphan a position without its lines.
   · Pre-registered circuit breakers halt the bot loudly (file flag + telegram)
     rather than letting it degrade quietly.
-  · The old EV bot (autonomous.py) is untouched; never run both at once, they
-    would fight over the same margin.
+  · Dry runs touch NOTHING on disk (review 5, BR1/BR4: a dry run once burned
+    the day's seal and could even flip the halt flag; now it only logs).
+  · Grading of closed trades reads the exchange's own realized pnl and cause,
+    not a mark-price guess (BR3/BR11); the guess remains only as a fallback
+    and errs to the stop, never the target.
+  · The old EV bot (autonomous.py) is untouched; never run both at once. On
+    entry, any symbol that already has a live exchange position - whoever
+    opened it - is skipped (BR2).
 
 Run:  python -m ocean_agent.bracket_trader [--once] [--dry] [--status]
                                            [--resume] [--close-all]
@@ -40,11 +46,15 @@ STATE_PATH = os.path.join("outputs", "bracket_state.json")
 LOOP_MIN = 30
 
 # ── pre-registered circuit breakers (round-3 review, 2026-08-11) ──
-HALT_ON_LIQUIDATION = True          # any liquidation = full stop
+HALT_ON_LIQUIDATION = True          # exchange-confirmed liquidation = stop
 HALT_AVG_AFTER = 30                 # trades before the average is judged
 HALT_AVG_FLOOR = -0.55              # % per trade; -2 sigma of the expectation
 DEMOTE_SLIP_EVENTS = 2              # stop fills worse than line by ...
 DEMOTE_SLIP_PCT = 0.5               # ... this many %p, twice -> leverage down
+
+# Seals a dry run has already logged, per process. Deliberately NOT persisted:
+# dry must leave no trace in the state file (BR1), this only stops log spam.
+_dry_logged: set[str] = set()
 
 
 def _now():
@@ -99,6 +109,12 @@ def latest_seal() -> dict | None:
     return None
 
 
+def seal_key(rec: dict) -> str:
+    """Content-based identity (BR10): renaming or moving the file must not
+    make a seal enterable twice."""
+    return str(rec.get("made_at", ""))
+
+
 def select_picks(rec: dict, cfg: dict) -> list[dict]:
     """Top slots by trade_rank; a pick under the vol floor is skipped and the
     next rank takes its seat (the floor is cost-derived: TP must clear 3x the
@@ -116,37 +132,72 @@ def select_picks(rec: dict, cfg: dict) -> list[dict]:
     return out
 
 
+def bracket_prices(px: float, direction: str, mv: float, cfg: dict,
+                   tick: float) -> tuple[str, str] | None:
+    """Tick-rounded TP/SL, validated to sit on the correct sides of entry.
+
+    With a tight target (0.3x of a small expected move) and a coarse tick,
+    rounding can collapse the TP onto the entry price or past it (BR8). A
+    bracket that fails validation is a reason to skip the pick, not to enter
+    it naked.
+    """
+    long_ = direction == "long"
+    tp = px * (1 + cfg["tp_mult"] * mv) if long_ else px * (1 - cfg["tp_mult"] * mv)
+    sl = px * (1 - cfg["sl_mult"] * mv) if long_ else px * (1 + cfg["sl_mult"] * mv)
+    tp_s, sl_s = _round_to_tick(tp, tick), _round_to_tick(sl, tick)
+    tp_f, sl_f = float(tp_s), float(sl_s)
+    ok = (sl_f < px < tp_f) if long_ else (tp_f < px < sl_f)
+    if not ok:
+        return None
+    return tp_s, sl_s
+
+
 def enter_positions(client, policy, st, cfg, dry: bool) -> None:
     rec = latest_seal()
     if not rec:
         return
+    key = seal_key(rec)
     made = dt.datetime.fromisoformat(rec["made_at"])
-    seal_id = rec["_path"]
-    if seal_id in st["entered_seals"]:
+    if key in st["entered_seals"] or (dry and key in _dry_logged):
         return
     age_h = (_now() - made).total_seconds() / 3600
     if age_h > 6:
-        # a stale seal is not an entry signal; wait for tonight's fresh one
+        # a stale seal is not an entry signal; wait for tonight's fresh one.
+        # dry leaves no trace (BR1): only a live run marks the seal consumed.
         log(f"봉인이 {age_h:.1f}시간 지나 진입 생략 (다음 봉인 대기)")
-        st["entered_seals"].append(seal_id)
+        if dry:
+            _dry_logged.add(key)
+        else:
+            st["entered_seals"].append(key)
+            save_state(st)
         return
 
     acct = client.get_account()
-    equity = float(acct.get("account_equity") or acct.get("balance") or 0)
-    if equity <= 0:
-        notify.send("브래킷: 계좌 잔고를 읽지 못해 진입 중단")
+    # Spendable margin, not equity: equity counts unrealized pnl and does not
+    # subtract margin already locked by other positions (BR2, same as the old
+    # bot's S4 fix).
+    funds = float(acct.get("available_to_spend") or 0)
+    if funds <= 0:
+        notify.send("브래킷: 가용 증거금을 읽지 못해 진입 중단")
         return
     picks = select_picks(rec, cfg)
     if not picks:
         return
-    margin_per = equity * cfg["deploy_pct"] / cfg["slots"]
+    open_slots = max(1, cfg["slots"] - len(st["positions"]))
+    margin_per = funds * cfg["deploy_pct"] / open_slots
     mkts = {m["symbol"]: m for m in client.get_markets()}
     prices = {p["symbol"]: p for p in client.get_prices()}
+    # any live exchange position blocks that symbol, whoever opened it:
+    # the old bot, a manual trade, or ourselves (BR2)
+    live_syms = {p.get("symbol") for p in client.get_positions()}
 
     opened = []
     for p in picks:
         sym, direction = p["sym"], p["dir"]
         if sym in st["positions"]:
+            continue
+        if sym in live_syms:
+            log(f"{sym}: 거래소에 이미 포지션이 있어 건너뜀 (타 봇/수동?)")
             continue
         m = mkts.get(sym) or {}
         px = float(prices.get(sym, {}).get("mark")
@@ -163,9 +214,12 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             continue
         mv = p["exp_move_pct"] / 100
         long_ = direction == "long"
-        tp_px = px * (1 + cfg["tp_mult"] * mv) if long_ else px * (1 - cfg["tp_mult"] * mv)
-        sl_px = px * (1 - cfg["sl_mult"] * mv) if long_ else px * (1 + cfg["sl_mult"] * mv)
-        tp_s, sl_s = _round_to_tick(tp_px, tick), _round_to_tick(sl_px, tick)
+        pr = bracket_prices(px, direction, mv, cfg, tick)
+        if pr is None:
+            notify.send(f"브래킷 스킵 {sym}: 익절/손절가가 틱 반올림 후 "
+                        f"진입가와 어긋남 (틱 {tick}, 변동폭 {mv:.4f})")
+            continue
+        tp_s, sl_s = pr
 
         if dry:
             log(f"[DRY] {sym} {direction} 명목 ${amount*px:.0f} ({lev}배) "
@@ -184,39 +238,91 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                 sym, "bid" if long_ else "ask", str(amount), "0.5",
                 builder_code=policy.get("builder_code", ""),
                 take_profit_price=tp_s, stop_loss_price=sl_s)
-            # read back the fill so the record holds reality, not intent
-            time.sleep(2)
-            fill = px
-            for pos in client.get_positions():
-                if pos.get("symbol") == sym:
-                    fill = float(pos.get("entry_price") or px)
+            # read back the fill so the record holds reality, not intent.
+            # a few retries (BR5); if it still cannot be read, record the
+            # intent but say so, and let later loops repair it.
+            fill, confirmed = px, False
+            for _ in range(3):
+                time.sleep(2)
+                for pos in client.get_positions():
+                    if pos.get("symbol") == sym:
+                        fill = float(pos.get("entry_price") or px)
+                        confirmed = True
+                        break
+                if confirmed:
                     break
             st["positions"][sym] = {
                 "dir": direction, "amount": amount, "entry_intent": px,
-                "entry_fill": fill, "tp": float(tp_s), "sl": float(sl_s),
+                "entry_fill": fill, "fill_confirmed": confirmed,
+                "tp": float(tp_s), "sl": float(sl_s),
                 "exp_move_pct": p["exp_move_pct"], "leverage": lev,
-                "opened_at": _now().isoformat(), "seal": seal_id,
+                "opened_at": _now().isoformat(), "seal": key,
                 "trade_rank": p.get("trade_rank"),
             }
+            save_state(st)          # persist each fill immediately (BR7)
             slip = (fill - px) / px * 100 * (1 if long_ else -1)
             opened.append(f"{sym} {direction} {lev}배 체결 {fill} "
-                          f"(슬리피지 {slip:+.3f}%)")
+                          f"(슬리피지 {slip:+.3f}%"
+                          f"{'' if confirmed else ', 체결가 미확인'})")
         except PacificaError as e:
             notify.send(f"브래킷 진입 실패 {sym}: {str(e)[:120]}")
-    st["entered_seals"].append(seal_id)
-    if opened:
-        notify.send("브래킷 진입:\n" + "\n".join(opened))
+    if dry:
+        _dry_logged.add(key)
+    else:
+        st["entered_seals"].append(key)
+        save_state(st)
+        if opened:
+            notify.send("브래킷 진입:\n" + "\n".join(opened))
 
 
-def close_market(client, policy, sym: str, pos: dict) -> None:
+def realized_close(client, sym: str, since_ms: int) -> dict | None:
+    """The exchange's own record of how a position ended (BR3/BR11).
+
+    positions/history carries pnl in dollars and a cause, including
+    "liquidation", so grading and the liquidation halt rest on facts rather
+    than a mark-price guess.
+    """
+    try:
+        evs = []
+        for h in client._get("positions/history", {"account": client.address}):
+            if h.get("symbol") != sym:
+                continue
+            t = int(h.get("created_at") or 0)
+            if t < since_ms:
+                continue
+            cause = h.get("cause") or ""
+            if str(h.get("side", "")).startswith("close") or \
+                    cause in ("take_profit", "stop_loss", "liquidation"):
+                evs.append((t, float(h.get("pnl") or 0), cause))
+        if not evs:
+            return None
+        evs.sort()
+        return {"pnl_usd": sum(e[1] for e in evs), "cause": evs[-1][2]}
+    except Exception:
+        return None
+
+
+def close_market(client, policy, sym: str, pos: dict, live: dict) -> None:
+    # close what the exchange actually holds, not what the ledger remembers
+    # (BR6: partial fills or partial closes make the two diverge)
+    amt = pos["amount"]
+    lp = live.get(sym)
+    if lp:
+        try:
+            amt = abs(float(lp.get("amount") or amt))
+        except (TypeError, ValueError):
+            pass
     side = "ask" if pos["dir"] == "long" else "bid"
-    client.create_market_order(sym, side, str(pos["amount"]), "0.5",
-                              reduce_only=True,
+    client.create_market_order(sym, side, str(amt), "0.5", reduce_only=True,
                               builder_code=policy.get("builder_code", ""))
 
 
 def watch_positions(client, policy, st, cfg, dry: bool) -> None:
     """Expiries, stuck exits, and disappeared positions, every loop."""
+    if dry:
+        # a dry run observes nothing it did not open, and must never write
+        # closed records or flip the halt flag (BR4)
+        return
     live = {p.get("symbol"): p for p in client.get_positions()}
     prices = {p["symbol"]: p for p in client.get_prices()}
 
@@ -226,35 +332,42 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
         mark = float(prices.get(sym, {}).get("mark")
                      or prices.get(sym, {}).get("mid") or 0)
         long_ = pos["dir"] == "long"
+        entry = pos["entry_fill"]
+        notional = entry * pos["amount"] if entry > 0 else 0
 
         if sym not in live:
-            # the exchange closed it: TP, SL, or something worse. classify by
-            # where the mark sits; flag anything far beyond the stop.
-            entry = pos["entry_fill"]
-            if mark <= 0 or entry <= 0:
-                est = 0.0
-            else:
-                move = (mark / entry - 1) * 100 * (1 if long_ else -1)
-                tp_d = cfg["tp_mult"] * pos["exp_move_pct"]
-                sl_d = cfg["sl_mult"] * pos["exp_move_pct"]
-                est = tp_d if move >= 0 else max(move, -sl_d)
-                if move < -sl_d - DEMOTE_SLIP_PCT:
-                    st["slip_events"] = st.get("slip_events", 0) + 1
-                    est = move
-                    notify.send(f"브래킷 경고: {sym} 손절 이탈 추정 "
-                                f"({move:+.2f}% vs 손절선 -{sl_d:.2f}%) "
-                                f"[{st['slip_events']}회]")
-                if move < -sl_d * 2.2 and HALT_ON_LIQUIDATION:
+            since = int(opened.timestamp() * 1000)
+            real = realized_close(client, sym, since)
+            tp_d = cfg["tp_mult"] * pos["exp_move_pct"]
+            sl_d = cfg["sl_mult"] * pos["exp_move_pct"]
+            if real and notional > 0:
+                est = real["pnl_usd"] / notional * 100
+                cause = real["cause"]
+                if cause == "liquidation" and HALT_ON_LIQUIDATION:
                     st["halted"] = True
-                    st["halt_reason"] = (f"청산 의심: {sym} {move:+.2f}% "
-                                         f"(손절선의 2.2배 초과)")
+                    st["halt_reason"] = f"거래소 청산 확인: {sym} ({est:+.2f}%)"
+                if cause == "stop_loss" and est < -sl_d - DEMOTE_SLIP_PCT:
+                    st["slip_events"] = st.get("slip_events", 0) + 1
+                    notify.send(f"브래킷 경고: {sym} 손절 이탈 "
+                                f"({est:+.2f}% vs -{sl_d:.2f}%) "
+                                f"[{st['slip_events']}회]")
+            else:
+                # history unavailable: fall back to the mark, and err to the
+                # stop, never the target (the old guess scored anything a hair
+                # above entry as a full TP win and fed that into the breaker)
+                move = (mark / entry - 1) * 100 * (1 if long_ else -1) \
+                    if mark > 0 and entry > 0 else 0.0
+                est = min(move, tp_d) if move > 0 else max(move, -sl_d)
+                cause = "추정(이력 조회 실패)"
             st["closed"].append({"sym": sym, "dir": pos["dir"],
                                  "pnl_pct_est": round(est, 3),
+                                 "cause": cause,
                                  "opened_at": pos["opened_at"],
                                  "closed_at": _now().isoformat(),
                                  "trade_rank": pos.get("trade_rank")})
             del st["positions"][sym]
-            notify.send(f"브래킷 청산 감지: {sym} 추정 {est:+.2f}%")
+            save_state(st)
+            notify.send(f"브래킷 청산: {sym} {est:+.2f}% ({cause})")
             continue
 
         held_h = (_now() - opened).total_seconds() / 3600
@@ -262,21 +375,18 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                               or (not long_ and mark <= pos["tp"]))
         if held_h >= cfg["horizon_h"] or stuck:
             why = "만기" if held_h >= cfg["horizon_h"] else "익절 트리거 잔류"
-            if dry:
-                log(f"[DRY] {sym} {why} 청산")
-                continue
             try:
-                close_market(client, policy, sym, pos)
-                entry = pos["entry_fill"]
+                close_market(client, policy, sym, pos, live)
                 move = (mark / entry - 1) * 100 * (1 if long_ else -1) \
                     if entry > 0 and mark > 0 else 0.0
                 st["closed"].append({"sym": sym, "dir": pos["dir"],
                                      "pnl_pct_est": round(move, 3),
+                                     "cause": why,
                                      "opened_at": pos["opened_at"],
                                      "closed_at": _now().isoformat(),
-                                     "reason": why,
                                      "trade_rank": pos.get("trade_rank")})
                 del st["positions"][sym]
+                save_state(st)
                 notify.send(f"브래킷 {why} 청산: {sym} {move:+.2f}%")
             except PacificaError as e:
                 notify.send(f"브래킷 청산 실패 {sym}: {str(e)[:120]}")
@@ -321,7 +431,8 @@ def cycle(client, policy, st, cfg, dry: bool) -> None:
     circuit_breakers(st, cfg)
     if not st["halted"]:
         enter_positions(client, policy, st, cfg, dry)
-    save_state(st)
+    if not dry:
+        save_state(st)
 
 
 def main():
@@ -351,9 +462,10 @@ def main():
     client = make_client(policy)
 
     if args.close_all:
+        live = {p.get("symbol"): p for p in client.get_positions()}
         for sym, pos in list(st["positions"].items()):
             try:
-                close_market(client, policy, sym, pos)
+                close_market(client, policy, sym, pos, live)
                 log(f"청산: {sym}")
             except PacificaError as e:
                 log(f"청산 실패 {sym}: {e}")
@@ -370,8 +482,12 @@ def main():
             cycle(client, policy, st, cfg, args.dry)
         except PacificaError as e:
             log(f"사이클 오류(다음 사이클에 재시도): {e}")
+            if not args.dry:
+                save_state(st)      # keep whatever was booked before the error
         except Exception as e:                     # noqa: BLE001
             notify.send(f"브래킷 예상 밖 오류: {type(e).__name__}: {str(e)[:150]}")
+            if not args.dry:
+                save_state(st)
         if args.once:
             break
         print(status(st))
