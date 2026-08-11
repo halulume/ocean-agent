@@ -259,6 +259,14 @@ def extended_closes(client, symbol: str, interval: str,
     if not validate_overlap(client, symbol, interval, pac_start, log=log):
         return pacifica_closes   # 괴리 크면 증강 안 함
     # 2017 ~ 파시피카시작 직전 구간. 캐시에 있는 만큼 쓰고 모자란 뒤쪽만 이어받는다.
+    # A fetch that stops short of pac_start must NOT be stitched to the
+    # Pacifica segment: that splices two series across a silent hole, and
+    # stamping end_ms=pac_start would freeze the hole into the cache as
+    # "complete" forever. Instead the real coverage is stored (so the next run
+    # resumes where this one stopped) and the caller gets Pacifica-only data,
+    # the module's normal safe fallback.
+    from .indicators import INTERVAL_MS
+    step = INTERVAL_MS[interval]
     binance_closes, resume = _cached_closes(bsym, binterval, pac_start)
     if binance_closes is None:
         hist = _binance_klines(bsym, binterval, EARLIEST_MS,
@@ -266,13 +274,25 @@ def extended_closes(client, symbol: str, interval: str,
         if not hist:
             return pacifica_closes
         binance_closes = [h["c"] for h in hist if h["t"] < pac_start]
+        covered = hist[-1]["t"] + step        # end of what was actually fetched
+        if covered < pac_start - step:        # more than one bar missing
+            _store_closes(bsym, binterval, covered, binance_closes)
+            log(f"  {symbol} {interval}: 바이낸스 구간 미완성"
+                f"(빈틈 {(pac_start - covered) / 3_600_000:.1f}시간), 증강 건너뜀")
+            return pacifica_closes
         _store_closes(bsym, binterval, pac_start, binance_closes)
     elif resume is not None:
         add = _binance_klines(bsym, binterval, resume, pac_start - 1, log=log)
-        if add:
-            binance_closes = binance_closes + [h["c"] for h in add
-                                               if h["t"] < pac_start]
-            _store_closes(bsym, binterval, pac_start, binance_closes)
+        binance_closes = binance_closes + [h["c"] for h in add
+                                           if h["t"] < pac_start]
+        covered = (add[-1]["t"] + step) if add else resume
+        if covered < pac_start - step:        # top-up failed or stopped short
+            if add:
+                _store_closes(bsym, binterval, covered, binance_closes)
+            log(f"  {symbol} {interval}: 바이낸스 이어받기 미완성"
+                f"(빈틈 {(pac_start - covered) / 3_600_000:.1f}시간), 증강 건너뜀")
+            return pacifica_closes
+        _store_closes(bsym, binterval, pac_start, binance_closes)
     log(f"  {symbol} {interval}: 바이낸스 {len(binance_closes)}봉 + "
         f"파시피카 {len(pacifica_closes)}봉 = {len(binance_closes)+len(pacifica_closes)}봉")
     return binance_closes + pacifica_closes
@@ -513,18 +533,35 @@ def extended_ohlc(client, symbol: str, interval: str, log=print) -> list[dict]:
         log(f"  {symbol} {interval}: 겹침 검증 실패, 파시피카 {len(pac)}봉만")
         return pac
 
+    # Same no-holes rule as extended_closes: a fetch that stops short of
+    # pac_start is stored with its real coverage and NOT stitched, otherwise
+    # the cache would be stamped "complete" over a silent gap.
+    from .indicators import INTERVAL_MS
+    step = INTERVAL_MS[interval]
     bars, resume = _cached_ohlc(bsym, binterval, pac_start)
     if bars is None:
-        bars = _binance_ohlc(bsym, binterval, EARLIEST_MS, pac_start - 1, log=log)
-        if not bars:
+        hist = _binance_ohlc(bsym, binterval, EARLIEST_MS, pac_start - 1, log=log)
+        if not hist:
             return pac
-        bars = [b for b in bars if b["t"] < pac_start]
+        bars = [b for b in hist if b["t"] < pac_start]
+        covered = hist[-1]["t"] + step
+        if covered < pac_start - step:        # more than one bar missing
+            _store_ohlc(bsym, binterval, covered, bars)
+            log(f"  {symbol} {interval}: 바이낸스 OHLC 구간 미완성"
+                f"(빈틈 {(pac_start - covered) / 3_600_000:.1f}시간), 증강 건너뜀")
+            return pac
         _store_ohlc(bsym, binterval, pac_start, bars)
     elif resume is not None:
         add = _binance_ohlc(bsym, binterval, resume, pac_start - 1, log=log)
-        if add:
-            bars = bars + [b for b in add if b["t"] < pac_start]
-            _store_ohlc(bsym, binterval, pac_start, bars)
+        bars = bars + [b for b in add if b["t"] < pac_start]
+        covered = (add[-1]["t"] + step) if add else resume
+        if covered < pac_start - step:        # top-up failed or stopped short
+            if add:
+                _store_ohlc(bsym, binterval, covered, bars)
+            log(f"  {symbol} {interval}: 바이낸스 OHLC 이어받기 미완성"
+                f"(빈틈 {(pac_start - covered) / 3_600_000:.1f}시간), 증강 건너뜀")
+            return pac
+        _store_ohlc(bsym, binterval, pac_start, bars)
     bars = [b for b in bars if b["t"] < pac_start]
     log(f"  {symbol} {interval}: 바이낸스 {len(bars)}봉 + 파시피카 {len(pac)}봉 "
         f"= {len(bars) + len(pac)}봉")

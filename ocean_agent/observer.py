@@ -174,6 +174,40 @@ def observe(client: PacificaClient, universe: int = 15,
     return len(recs)
 
 
+def _close_near(client: PacificaClient, sym: str, tf: str, due_ms: float,
+                cache: dict):
+    """Close of the bar whose close time is nearest to due_ms.
+
+    Grading must use the price at the observation's due time, not whatever the
+    price is when the grading pass happens to run: a pass that runs hours late
+    would otherwise score a different, longer horizon than the one recorded.
+    Still-open bars are skipped (their close is not final). Returns None when
+    no closed bar ends within one interval of due_ms, so the caller can retry
+    later or drop the observation instead of grading it against an unrelated
+    moment in time."""
+    key = (sym, tf)
+    bars = cache.get(key)
+    if bars is None:
+        from .historical_data import _pacifica_ohlc
+        try:
+            bars = _pacifica_ohlc(client, sym, tf, log=lambda *_: None)
+        except Exception:
+            bars = []
+        cache[key] = bars
+    step = INTERVAL_MS[tf]
+    now_ms = time.time() * 1000
+    best = best_gap = None
+    for b in bars:
+        if b["t"] + step > now_ms:
+            continue                      # bar still open
+        gap = abs(b["t"] + step - due_ms)  # bar close time vs due
+        if best_gap is None or gap < best_gap:
+            best, best_gap = b["c"], gap
+    if best is None or best_gap > step:
+        return None
+    return float(best)
+
+
 def grade(client: PacificaClient) -> dict:
     """만기 지난 관측을 실제 결과로 채점 → signal_stats.json 갱신.
     채점한 관측은 파일에서 제거. 갱신된 통계 요약 반환."""
@@ -188,14 +222,20 @@ def grade(client: PacificaClient) -> dict:
     if not due:
         return {}
 
-    prices = {p["symbol"]: p for p in client.get_prices()}
     stats = _load_stats()
     graded_now = 0
+    bar_cache = {}
+    retry = []
     for o in due:
-        pr = prices.get(o["sym"])
-        if not pr:
+        # Price at the bar closest to due, not at grading-run time.
+        cur = _close_near(client, o["sym"], o["tf"], float(o["due"]), bar_cache)
+        if cur is None:
+            # No bar near due (fetch failure or feed gap). Keep it pending for
+            # a few more passes; past that window drop it, a made-up price is
+            # worse than a lost sample.
+            if now_ms - o["due"] <= INTERVAL_MS[o["tf"]] * 6:
+                retry.append(o)
             continue
-        cur = float(pr.get("mark") or pr.get("mid") or 0)
         if cur <= 0 or o["entry"] <= 0:
             continue
         move = cur / o["entry"] - 1
@@ -221,13 +261,13 @@ def grade(client: PacificaClient) -> dict:
         graded_now += 1
     _save_stats(stats)
 
-    # 남은(미만기) 관측만 다시 기록
+    # 남은(미만기) 관측 + 채점을 미룬 관측만 다시 기록
     tmp = obs_path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        for o in pending:
+        for o in pending + retry:
             f.write(json.dumps(o, ensure_ascii=False) + "\n")
     os.replace(tmp, obs_path)
-    return {"graded": graded_now, "pending": len(pending),
+    return {"graded": graded_now, "pending": len(pending) + len(retry),
             "signals_tracked": len(stats)}
 
 

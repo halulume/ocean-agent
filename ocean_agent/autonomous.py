@@ -115,20 +115,49 @@ def save_state(st: dict) -> None:
     os.replace(tmp, path)
 
 
-def equity(client: PacificaClient) -> float:
-    """총 자본 = 계좌 자본 + Print(게임) 예치금.
-    Print로 옮긴 돈은 잃은 게 아니므로 포함해야 최후 방어선이 오판하지 않는다."""
+def exchange_equity(client: PacificaClient) -> float:
+    """Exchange account equity only, no Print face value.
+
+    This is the basis for position sizing and the fatal/soft defense lines
+    (review M5): Print deposits are carried at face value and can already be
+    partly lost before settlement, so counting them would inflate sizing and
+    hide Print losses from the stops until settlement. User-facing profit
+    reporting keeps using equity() (balance + Print) below."""
     try:
-        eq = float(client.get_account().get("account_equity") or 0)
-        try:
-            for a in client.print_positions().get("game_accounts", []):
-                if not a.get("game_ended_at_ms"):
-                    eq += float(a.get("initial_deposit") or 0)
-        except Exception:
-            pass   # Print 조회 실패 시 계좌 자본만 (비공개 API라 보수적으로)
-        return eq
+        return float(client.get_account().get("account_equity") or 0)
     except Exception:
         return 0.0
+
+
+def _live_print_face(client: PacificaClient):
+    """Sum of face-value deposits of Print games still running.
+
+    Returns None when the lookup fails (private API), so callers can tell
+    "no Print money" apart from "could not check" and skip baseline
+    adjustments instead of applying a phantom change."""
+    try:
+        total = 0.0
+        for a in client.print_positions().get("game_accounts", []):
+            if not a.get("game_ended_at_ms"):
+                total += float(a.get("initial_deposit") or 0)
+        return total
+    except Exception:
+        return None
+
+
+def equity(client: PacificaClient) -> float:
+    """Total capital = exchange equity + live Print deposits at face value.
+
+    Reporting only: the user judges results by balance + Print combined, so
+    reports and the equity curve keep using this. Sizing and defense lines
+    use exchange_equity() instead (review M5)."""
+    try:
+        eq = float(client.get_account().get("account_equity") or 0)
+    except Exception:
+        return 0.0
+    face = _live_print_face(client)
+    # Print lookup failure -> exchange equity only (conservative fallback).
+    return eq + (face or 0.0)
 
 
 def _deep_history_symbols(policy: dict):
@@ -278,7 +307,9 @@ def final_stop_check(client: PacificaClient, policy: dict, st: dict,
     """최후 방어선만 판정. True면 거래 금지.
     킬스위치(멈춤) 대신 적응(review_and_adapt)이 주 방어이고,
     여기서는 '적응이 실패했다는 증거'인 치명적 손실만 잡는다."""
-    eq = equity(client)
+    # Defense lines run on exchange equity only (review M5): Print deposits
+    # sit at face value and their losses only surface at settlement.
+    eq = exchange_equity(client)
     # Guard against transient/partial balance reads. You cannot lose most of the
     # account in one cycle (fatal stop is -20%, every position carries native
     # TP/SL), so a value implausibly far below the running peak is almost always
@@ -290,13 +321,37 @@ def final_stop_check(client: PacificaClient, policy: dict, st: dict,
     if _peak > 20 and 0 < eq < _peak * 0.5:
         import time as _t
         _t.sleep(1)
-        eq = max(eq, equity(client))
+        eq = max(eq, exchange_equity(client))
     if eq <= 0:
         log("잔고 조회 실패(일시적), 이번 사이클 쉼")
         return True
     # Deposits/withdrawals are not trading results, shift the baselines before
     # any drawdown is judged (flat-only, see the helper).
     _xfer = _reconcile_balance_change(client, st, eq)
+    # Print deposits/settlements move money between the exchange account and
+    # the Print game without touching the deposit/withdraw ledger. Since the
+    # defense lines now run on exchange equity only (review M5), shift the
+    # baselines by the change in live Print face value; otherwise a Print
+    # deposit would read as a trading loss and could false-trigger the stops.
+    # At settlement only the Print P&L (payout minus face) flows into the
+    # drawdown, which is exactly when the loss becomes real.
+    # First run after the basis change (no stored face): stored baselines were
+    # built with Print face included, so subtracting the full current face
+    # converts them to the exchange-only basis once.
+    _face = _live_print_face(client)
+    if _face is not None:
+        _delta = _face - float(st.get("print_face_live") or 0)
+        if abs(_delta) >= 0.01:
+            _shifted = False
+            for _k in ("start_equity", "day_start_equity", "peak_equity"):
+                _v = st.get(_k)
+                if _v is not None:
+                    st[_k] = float(_v) - _delta
+                    _shifted = True
+            if _shifted:
+                log(f"Print 예치 변화 ${_delta:+,.2f} 반영, 방어선 기준 조정 "
+                    f"(현재 Print 액면 ${_face:,.2f})")
+        st["print_face_live"] = _face
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     if st.get("day") != today:
         # 날짜가 바뀌면 전날 결산을 먼저 보내고 새 기준을 세운다
@@ -337,7 +392,7 @@ def final_stop_check(client: PacificaClient, policy: dict, st: dict,
             try:
                 import time as _t2
                 _t2.sleep(1)
-                re_eq = equity(client)
+                re_eq = exchange_equity(client)   # same basis as eq (M5)
                 new_anchor = min(eq, re_eq) if re_eq > 0 else start_eq
             except Exception:
                 new_anchor = start_eq      # 확인 못 하면 올리지 않는다
@@ -476,6 +531,16 @@ def review_and_adapt(client: PacificaClient, policy: dict, st: dict) -> None:
             #   펀딩 캐리(방향중립·신호아님)·정체불명 진입은 라이브 메타데이터가 아니므로
             #   기록만 유지하고 채점에서 제외, 오염 원천 차단.
             if not sig or sig == "funding_carry":
+                # Funding-carry records are never graded (direction-neutral,
+                # horizon 9999h), but they must not outlive their position:
+                # a leftover carry record keeps the symbol in carry_syms
+                # forever and would permanently exempt later normal positions
+                # in that symbol from aftercare (review M3). Drop the record
+                # once its perp leg is gone; keep it while the carry is live
+                # so the TP/SL aftercare exemption still applies.
+                if sig == "funding_carry" and sym not in live_syms:
+                    log(f"펀딩 캐리 기록 정리: {sym} (포지션 종료 확인)")
+                    continue
                 still_open.append(rec)   # 기록은 두되 채점 안 함
                 continue
             try:
@@ -660,7 +725,7 @@ def review_and_adapt(client: PacificaClient, policy: dict, st: dict) -> None:
     live_pnl = sum(g.get("pnl", 0.0) for k, g in graded.items()
                    if k not in banned)
     total_n = sum(g["total"] for k, g in graded.items() if k not in banned)
-    base_cap = operating_capital(policy, equity(client))
+    base_cap = operating_capital(policy, exchange_equity(client))
     scale = float(st.get("size_scale", 1.0))
     if total_n >= min_grade and base_cap > 0:
         pnl_pct = live_pnl / base_cap
@@ -729,7 +794,7 @@ def try_funding_carry(client, policy, st, held, scale,
     # (덜 숏 → 롱 노출) 빼지 않는다. 수수료는 손익이지 헤지 수량이 아니다.
     from .position import _round_down_to_lot
     bucket = budget_cap if budget_cap > 0 else \
-        operating_capital(policy, equity(client)) \
+        operating_capital(policy, exchange_equity(client)) \
         * float(policy.get("funding_alloc", 0.3))
     budget = min(bucket * scale, float(policy["max_position_usd"]))
     lot = max(best.perp_lot_size, best.spot_lot_size)   # 공통 배수
@@ -865,6 +930,18 @@ def manage_positions(client: PacificaClient, policy: dict, st: dict) -> None:
         is_long = p.get("side") == "bid"
         profit = (mark - entry) / entry if is_long else (entry - mark) / entry
         c = care.setdefault(sym, {})
+        # Aftercare memory must not outlive the position it was built for.
+        # If the symbol closed and re-entered between checks (possibly in the
+        # opposite direction), the old SL ratchet would block the new
+        # position's stop from ever moving (review M2). Key the memory to the
+        # open record's timestamp + current side and reset on mismatch.
+        # Entries written before this key existed are adopted as-is once, so
+        # an upgrade does not re-lower an already ratcheted stop.
+        pos_id = f"{(rec or {}).get('at', '')}|{p.get('side', '')}"
+        if c.get("pos_id") != pos_id:
+            if "pos_id" in c:
+                c.clear()          # different position -> stale memory
+            c["pos_id"] = pos_id
         tick = float(mkts.get(sym, {}).get("tick_size") or 0.01)
         lot = float(mkts.get(sym, {}).get("lot_size") or 0.0001)
         min_usd = float(mkts.get(sym, {}).get("min_order_size") or 10)
@@ -913,7 +990,9 @@ def manage_positions(client: PacificaClient, policy: dict, st: dict) -> None:
 
 def run_cycle(client: PacificaClient, policy: dict, st: dict, dry: bool) -> None:
     st["cycles"] = st.get("cycles", 0) + 1
-    eq = equity(client)
+    # Sizing basis: exchange equity only (review M5). The combined figure
+    # (balance + Print) is still what reports and the equity curve show.
+    eq = exchange_equity(client)
 
     # 최후 방어선(치명적 손실)만 확인, 아니면 계속 가동
     if final_stop_check(client, policy, st, dry=dry):
@@ -930,7 +1009,8 @@ def run_cycle(client: PacificaClient, policy: dict, st: dict, dry: bool) -> None
         return
 
     # 자본 곡선 기록 (성과 추적·수익 그래프 재료)
-    record_equity(eq if eq > 0 else equity(client))
+    # The curve is user-facing performance, so it keeps balance + Print.
+    record_equity(equity(client))
 
     # 자가 재측정: 오래됐으면 백그라운드로 전 시간봉 매트릭스를 다시 돌린다.
     # 국면이 바뀌면 최적 시간봉·유효 신호도 바뀌므로, 고정 파라미터로 두지 않는다.
@@ -1244,6 +1324,9 @@ def run_cycle(client: PacificaClient, policy: dict, st: dict, dry: bool) -> None
                                 break
                     except Exception:
                         pass
+                    # Fresh position: drop any stale aftercare/ratchet memory
+                    # left by a previous position in this symbol (review M2).
+                    st.setdefault("aftercare", {}).pop(best.symbol, None)
                     st.setdefault("opened", []).append({
                         "symbol": best.symbol, "side": best.side,
                         "signal": best.signal, "win_rate": best.win_rate,
@@ -1299,12 +1382,16 @@ def run_cycle(client: PacificaClient, policy: dict, st: dict, dry: bool) -> None
 
 
 def report(client: PacificaClient, st: dict, policy: dict, push: bool = False) -> str:
-    eq = equity(client)
-    peak = st.get("peak_equity") or eq
-    day0 = st.get("day_start_equity") or eq
+    eq = equity(client)              # user-facing capital: balance + Print
+    # peak/day baselines are kept on the exchange-only basis (review M5), so
+    # the percentages must compare against exchange equity, not the combined
+    # figure, or a live Print game would skew them.
+    ex_eq = exchange_equity(client)
+    peak = st.get("peak_equity") or ex_eq
+    day0 = st.get("day_start_equity") or ex_eq
     positions = client.get_positions()
-    day_pct = (eq / day0 - 1) if day0 > 0 else 0.0
-    peak_pct = (eq / peak - 1) if peak > 0 else 0.0
+    day_pct = (ex_eq / day0 - 1) if day0 > 0 else 0.0
+    peak_pct = (ex_eq / peak - 1) if peak > 0 else 0.0
     lines = [
         f"📊 {agent_name()} 성과 보고",
         f"  현재 자본: {eq:,.2f}",
@@ -1510,7 +1597,8 @@ def main():
             n = close_all(client, policy.get("builder_code", ""), "수동 정리")
             print(f"청산 주문 {n}건 전송.")
             time.sleep(3)
-        eq = equity(client)
+        # Baselines are exchange-basis (review M5), reset them from the same.
+        eq = exchange_equity(client)
         left = client.get_positions()
         if left:
             print(f"⚠️ 아직 {len(left)}건 남아 있습니다, 다시 실행하거나 "
@@ -1520,6 +1608,11 @@ def main():
             for k in ("start_equity", "day_start_equity", "peak_equity"):
                 st[k] = eq
             st["last_equity"] = eq
+            # Sync the stored Print face too, so the next cycle's Print
+            # reconciliation does not shift the freshly reset baselines.
+            face = _live_print_face(client)
+            if face is not None:
+                st["print_face_live"] = face
             st["halted"] = False
             st.pop("soft_halt_day", None)
             save_state(st)
@@ -1536,7 +1629,8 @@ def main():
     net = "테스트넷" if "test-api" in policy["base_url"] else "메인넷"
     # 자본 표시: 고정값이면 숫자, live면 현재 지갑 잔고 연동임을 표시
     _fx = _fixed_capital(policy)
-    cap_disp = f"{_fx:,.0f}" if _fx is not None else f"지갑연동(현재 {equity(client):,.0f})"
+    cap_disp = f"{_fx:,.0f}" if _fx is not None \
+        else f"지갑연동(현재 {exchange_equity(client):,.0f})"
     # 절전 방지, 봇이 도는 동안 PC가 잠들지 않게 (화면은 꺼져도 됨)
     awake = keep_awake_on() if not args.once else False
     log(f"{agent_name()} 시작, {net} / 모드 {policy.get('_mode','?').upper()} / "

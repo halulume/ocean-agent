@@ -26,6 +26,43 @@ import time
 
 MATRIX_FILE = os.path.join(os.path.expanduser("~"), ".ocean_agent_matrix.json")
 LOCK_FILE = MATRIX_FILE + ".running"
+STALE_LOCK_SEC = 10800   # a lock older than 3h means that run died mid-way
+
+
+def _acquire_lock(log=print) -> bool:
+    """Create the lock file atomically (O_CREAT|O_EXCL, no check-then-write
+    race). Returns False while another measurement holds a live lock. A stale
+    lock is taken over, loudly, because the previous run most likely died
+    before its release (e.g. hard kill)."""
+    for _ in range(2):
+        try:
+            fd = os.open(LOCK_FILE, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            with os.fdopen(fd, "w") as f:
+                f.write(str(time.time()))
+            return True
+        except FileExistsError:
+            try:
+                age = time.time() - os.path.getmtime(LOCK_FILE)
+            except OSError:
+                continue        # lock vanished between open and stat, retry
+            if age < STALE_LOCK_SEC:
+                return False    # a measurement is still running
+            log(f"재측정 락이 {age / 3600:.1f}시간째 방치됨, "
+                f"죽은 실행으로 보고 인수")
+            try:
+                os.remove(LOCK_FILE)
+            except OSError:
+                return False
+        except OSError:
+            return False        # cannot create the lock: fail closed
+    return False
+
+
+def _release_lock() -> None:
+    try:
+        os.remove(LOCK_FILE)
+    except OSError:
+        pass
 
 # Measured universe. The first 12 have a Binance spot mapping, so with
 # use_extended their backtest reaches back to 2017 (bull, bear and chop) instead
@@ -461,14 +498,10 @@ def ensure_fresh(policy: dict, log=print) -> bool:
         return False
     # 중복 실행 방지. 측정 시간이 늘었다(심볼 6→14, 바이낸스 과거 구간 추가)
     #, 락이 1시간이면 측정이 아직 도는 중에 두 번째가 떠서 서로 덮어쓴다.
-    try:
-        if os.path.exists(LOCK_FILE) and \
-                time.time() - os.path.getmtime(LOCK_FILE) < 10800:
-            return False
-        with open(LOCK_FILE, "w") as f:
-            f.write(str(time.time()))
-    except OSError:
-        pass
+    # On success the lock is handed to the child process, which releases it
+    # at the end of main(); the parent only releases when the spawn fails.
+    if not _acquire_lock(log):
+        return False
     try:
         # --extended: 바이낸스 과거 종가로 표본을 두껍게 한다. 이게 빠져 있어서
         # 2017년 데이터가 자동 측정에 한 번도 쓰인 적이 없었다(매트릭스에
@@ -483,6 +516,7 @@ def ensure_fresh(policy: dict, log=print) -> bool:
         return True
     except Exception as e:
         log(f"재측정 실행 실패: {e}")
+        _release_lock()   # child never started, so it cannot release it
         return False
 
 
@@ -520,11 +554,12 @@ def main():
         print("전 조합 재측정 시작, 증강 모드(바이낸스 과거 종가 포함, 가격 전용)...")
     else:
         print("전 코인 × 전 시간봉 × 전 신호 재측정 시작 (약 20분, 파시피카만)...")
-    run_measurement(use_extended=ext)
     try:
-        os.remove(LOCK_FILE)
-    except OSError:
-        pass
+        run_measurement(use_extended=ext)
+    finally:
+        # Release even when the measurement raises, otherwise the lock file
+        # lingers and blocks re-measurement for the whole stale window.
+        _release_lock()
     print(summary())
 
 

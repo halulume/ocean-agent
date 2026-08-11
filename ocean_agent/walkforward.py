@@ -410,6 +410,43 @@ def calibrated(pwin: float):
 
 
 LOCK_FILE = CURVE_FILE + ".running"
+STALE_LOCK_SEC = 10800   # a lock older than 3h means that run died mid-way
+
+
+def _acquire_lock(log=print) -> bool:
+    """Create the lock file atomically (O_CREAT|O_EXCL, no check-then-write
+    race). Returns False while another measurement holds a live lock. A stale
+    lock is taken over, loudly, because the previous run most likely died
+    before its release (e.g. hard kill)."""
+    for _ in range(2):
+        try:
+            fd = os.open(LOCK_FILE, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            with os.fdopen(fd, "w") as f:
+                f.write(str(time.time()))
+            return True
+        except FileExistsError:
+            try:
+                age = time.time() - os.path.getmtime(LOCK_FILE)
+            except OSError:
+                continue        # lock vanished between open and stat, retry
+            if age < STALE_LOCK_SEC:
+                return False    # a measurement is still running
+            log(f"보정표 재측정 락이 {age / 3600:.1f}시간째 방치됨, "
+                f"죽은 실행으로 보고 인수")
+            try:
+                os.remove(LOCK_FILE)
+            except OSError:
+                return False
+        except OSError:
+            return False        # cannot create the lock: fail closed
+    return False
+
+
+def _release_lock() -> None:
+    try:
+        os.remove(LOCK_FILE)
+    except OSError:
+        pass
 
 
 def curve_age_days() -> float:
@@ -507,14 +544,10 @@ def ensure_fresh(policy: dict, log=print) -> bool:
         log(alarm + " → 보정표 재측정 앞당김")
     elif curve_age_days() < every:
         return False
-    try:
-        if os.path.exists(LOCK_FILE) and \
-                time.time() - os.path.getmtime(LOCK_FILE) < 10800:
-            return False
-        with open(LOCK_FILE, "w") as f:
-            f.write(str(time.time()))
-    except OSError:
-        pass
+    # On success the lock is handed to the child process, which releases it
+    # at the end of main(); the parent only releases when the spawn fails.
+    if not _acquire_lock(log):
+        return False
     try:
         subprocess.Popen(
             [sys.executable, "-m", "ocean_agent.walkforward",
@@ -527,6 +560,7 @@ def ensure_fresh(policy: dict, log=print) -> bool:
         return True
     except Exception as e:
         log(f"보정표 재측정 실행 실패: {e}")
+        _release_lock()   # child never started, so it cannot release it
         return False
 
 
@@ -582,21 +616,22 @@ def main():
     if "--tf" in args:
         tfs = args[args.index("--tf") + 1].split(",")
     print("워크포워드 검증 시작, 과거 시점에서 예측하고 결과를 대조합니다...")
-    agg = run(symbols=syms, tfs=tfs)
-    # 보정표까지 만들어야 봇이 쓸 수 있다. 이게 빠지면 백그라운드 재측정이
-    # 기록만 갱신하고 정작 판단에 쓰이는 표는 낡은 채로 남는다.
-    c = build_curve(agg)
-    if c:
-        print(f"보정표 갱신, 곡선 {len(c['curve'])}구간 · "
-              f"신호별 {len(c.get('sig_tf', {}))}조합 (표본 {c['n']:,})")
-    else:
-        print("보정표 생성 실패, 표본 부족")
-    print()
-    print(summarize(agg))
     try:
-        os.remove(LOCK_FILE)
-    except OSError:
-        pass
+        agg = run(symbols=syms, tfs=tfs)
+        # 보정표까지 만들어야 봇이 쓸 수 있다. 이게 빠지면 백그라운드 재측정이
+        # 기록만 갱신하고 정작 판단에 쓰이는 표는 낡은 채로 남는다.
+        c = build_curve(agg)
+        if c:
+            print(f"보정표 갱신, 곡선 {len(c['curve'])}구간 · "
+                  f"신호별 {len(c.get('sig_tf', {}))}조합 (표본 {c['n']:,})")
+        else:
+            print("보정표 생성 실패, 표본 부족")
+        print()
+        print(summarize(agg))
+    finally:
+        # Release even when the measurement raises, otherwise the lock file
+        # lingers and blocks re-measurement for the whole stale window.
+        _release_lock()
 
 
 if __name__ == "__main__":

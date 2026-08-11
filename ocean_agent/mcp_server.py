@@ -557,20 +557,27 @@ def print_close(game: str = "BTC_24H", confirm: bool = False) -> str:
         raise ToolError(f"Print 현황 조회 실패: {e}") from e
     if not accounts:
         raise ToolError(f"{game}에 열려 있는 Print 예치가 없습니다.")
-    out = []
+    ok, failed = [], []
     for a in accounts:
         addr = a["address"]
         try:
             client.print_end(addr)
-            out.append(f"{game} {addr[:8]}… 종료 요청됨.")
+            ok.append(f"{game} {addr[:8]}… 종료 요청됨.")
         except Exception as e:
-            out.append(f"end({addr[:8]}…): {e}")
+            failed.append(f"종료 실패({addr[:8]}…): {e}")
         try:
             client.print_withdraw(addr)
-            out.append("회수 완료.")
+            ok.append("회수 완료.")
         except Exception as e:
-            out.append(f"withdraw: {e} (24h 사이클 종료 후 다시 시도)")
-    return " ".join(out)
+            failed.append(f"회수 실패({addr[:8]}…): {e} (24h 사이클 종료 후 다시 시도)")
+    if failed:
+        # Any failure must be the headline of the response, not a footnote
+        # buried in a success-looking string.
+        msg = "Print 종료·회수가 완료되지 않았습니다. " + " / ".join(failed)
+        if ok:
+            msg += " · 성공한 단계: " + " ".join(ok)
+        raise ToolError(msg)
+    return " ".join(ok)
 
 
 # readOnlyHint=False: 주문은 넣지 않지만 예측 로그 파일에 기록을 남긴다.
@@ -670,7 +677,11 @@ def learned_combos(top: int = 12) -> str:
     return "\n".join(lines)
 
 
-@mcp.tool(title="Prediction Scorecard", annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
+# readOnlyHint=False: scoring rewrites the predictions ledger (marks matured
+# records win/loss and saves the file), so it is not a pure read. Same honesty
+# rule as top_setups above. Re-running is safe: already-scored records are
+# skipped, hence idempotentHint stays True.
+@mcp.tool(title="Prediction Scorecard", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def review_predictions() -> str:
     """Score past setups from top_setups against what actually happened:
     per-prediction hit/miss, cumulative realized win rate vs predicted win
@@ -766,6 +777,16 @@ def protect_position(symbol: str, stop_loss_pct: float = 3,
         raise ToolError(f"{symbol} 가격 조회 실패")
     sl = float(stop_loss_pct)
     tp = float(take_profit_pct)
+    # Bounds check BEFORE anything is sent. A percent at or above 100 puts the
+    # downside leg's trigger at zero or below; _round_to_tick would render that
+    # as a truthy string like "0.00" which would be sent to the exchange while
+    # we report success. Reject bad inputs here instead.
+    if sl < 0 or tp < 0:
+        raise ToolError("stop_loss_pct/take_profit_pct는 음수가 될 수 없습니다 "
+                        f"(받은 값: 손절 {sl}, 익절 {tp})")
+    if sl >= 100 or tp >= 100:
+        raise ToolError("stop_loss_pct/take_profit_pct는 100 미만이어야 합니다. "
+                        f"100% 이상 움직이면 가격이 0 이하가 됩니다 (받은 값: 손절 {sl}, 익절 {tp})")
     from .position import _round_to_tick
     tick = _tick_size(symbol)
     sl_px = _round_to_tick(
@@ -774,6 +795,12 @@ def protect_position(symbol: str, stop_loss_pct: float = 3,
         mark * (1 + tp/100) if is_long else mark * (1 - tp/100), tick) if tp > 0 else ""
     if not sl_px and not tp_px:
         raise ToolError("stop_loss_pct 또는 take_profit_pct 중 하나는 0보다 커야 합니다")
+    # Tick rounding can still collapse a tiny-priced coin's trigger to "0.00"
+    # (e.g. mark 0.004 with tick 0.01). Never send a non-positive price.
+    for label, p in (("손절", sl_px), ("익절", tp_px)):
+        if p and float(p) <= 0:
+            raise ToolError(f"{label} 가격이 {p}(으)로 계산되어 등록할 수 없습니다. "
+                            f"{symbol}의 틱 단위에 비해 거리가 너무 좁거나 가격이 너무 낮습니다.")
     legs = []
     if sl_px:
         legs.append(f"손절 {sl}% → {sl_px}")
