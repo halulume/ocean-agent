@@ -57,3 +57,9 @@ __pycache__/
 .vercel/
 .DS_Store
 vercel_token.txt
+
+# internal working documents, never publish
+\uCE21\uC815\uAE30\uB85D.md
+\uC758\uB3C4\uC801\uACB0\uC815.md
+\uBAA9\uC694\uC77C\uACC4\uD68D.md
+\uCF54\uB4DC\uAC80\uD1A0.md
