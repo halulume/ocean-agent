@@ -43,13 +43,10 @@ MIN_N = 30               # 최소 표본, 이 미만이면 진입하지 않는�
 # (CHIP $403 · ZK $491 · PIPPIN $789). 슬리피지 위험은 이제 필터가 아니라
 # 사용자 판단에 맡긴다.
 MIN_VOLUME_24H = 0
-# 기준선 대비 최소 엣지. 예전 값 0.05는 백테 승률이 60~77%로 부풀려져 있던
-# 시절 기준이었다. 승률을 워크포워드 실측값으로 바꾸면 그 숫자는 50~58%가 되고,
-# 5%p를 요구하면 통과 조합이 1개로 줄어 사실상 거래가 멈춘다.
-# 홀드아웃 측정(학습 7종목 / 검증 7종목, 기준선 50.46%):
-#   0%p → 36조합 51.20%  ·  1%p → 14조합 52.34%  ·  2%p → 7조합 54.97%
-#   3%p →  4조합 55.30%  ·  5%p →  1조합 54.12%(기회 1,251건뿐)
-# 2%p 채택, 3%p가 0.33%p 높지만 4조합에 몰려 한 신호가 무너지면 타격이 크다.
+# Minimum edge over the baseline. Chosen by out-of-sample measurement as
+# the balance between selectivity and having enough passing combinations
+# to trade; do not change without re-measuring, a stricter cut starves
+# the scanner and a looser one admits noise.
 MIN_EDGE = 0.02
 # 증거 수축, 표본이 이만큼일 때 초과분을 절반으로 줄인다(신뢰 50%).
 # 표본이 많을수록 1에 수렴해 원래 승률을 그대로 쓴다.
@@ -553,13 +550,13 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 # (2026-08-04 금·은 77% 사건이 정확히 이것).
                 # 보정표가 없으면(미측정) 아래 증거 수축으로 넘어간다.
                 # 순서: ① 신호 실측이 있으면 그것을 쓴다 ② 없으면 보정 곡선
-                # ①이 우선인 이유, 보정 곡선은 "이 숫자 믿지 마라"까지만 말하고
-                # 55% 위를 전부 51%로 눌러 순위 정보를 없앤다. 실측(홀드아웃 검증)
-                # 결과가 그걸 확인해줬다: 상위 5% 선택 시 백테 52.60% · 보정 53.14%로
-                # 거의 차이가 없었고, 신호 실측으로 정렬하니 55.16%였다.
-                # 종목별 백테 숫자는 그 종목의 우연이고, 신호의 성적은 다른 종목으로
-                # 넘어간다. 종목별 차이는 avg_win/avg_loss(→EV)에 그대로 남아
-                # 같은 신호 안에서의 미세 순위를 만든다.
+                # (1) wins because the calibration curve compresses high
+                # backtest figures into a narrow band and destroys ranking
+                # information, while per-signal live measurement preserves
+                # it (confirmed out of sample). Per-symbol backtest numbers
+                # are that symbol's luck; a signal's skill transfers across
+                # symbols. Per-symbol differences stay in avg_win/avg_loss
+                # (hence EV) and rank within a signal.
                 calibrated_ok = False
                 try:
                     from .walkforward import calibrated, measured_winrate

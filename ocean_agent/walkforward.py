@@ -275,10 +275,9 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
 CURVE_FILE = os.path.join(os.path.expanduser("~"),
                           ".ocean_agent_walkforward_curve.json")
 CURVE_MIN_BIN = 2000     # bin must hold this many samples to be trusted
-# 신호별 표본 하한. 홀드아웃에서 300으로도 상위 1~25% 구간은 잘 넘어갔지만,
-# 극단(상위 0.1%)에서는 1등 조합 하나에 몰려 47%로 무너졌다, 그 조합이
-# 학습 종목에서만 좋았던 것이다. 봇이 그렇게까지 좁게 고르지는 않으나,
-# 얇은 조합이 1등을 차지하지 못하도록 하한을 넉넉히 잡는다.
+# Per-signal sample floor. Out-of-sample checks showed thin combinations
+# can top the ranking on luck that does not transfer to other symbols,
+# so the floor is set generously to keep them out of first place.
 SIG_MIN_N = 1000
 
 
@@ -322,11 +321,10 @@ def build_curve(agg, save: bool = True) -> dict:
         tot = n0 + t
         curve[-1] = [round((p0 * n0 + ps) / tot, 4),
                      round((a0 * n0 + w) / tot, 4), tot]
-    # 신호별 실측 승률, 이게 진짜 순위 정보다.
-    # 홀드아웃 검증(학습 7종목 / 검증 7종목, 다른 종목에서 채점)에서 상위 5%
-    # 선택 시 백테 원값 52.60% vs 신호실측 55.16%, 상위 1%는 51.46% vs 53.01%.
-    # 기준선이 50.5%이므로 엣지가 두 배 이상이 된다. 종목별 백테 숫자는
-    # 그 종목의 우연을 담지만, 신호의 성적은 다른 종목으로도 넘어간다.
+    # Per-signal measured win rate is the real ranking information:
+    # validated out of sample, it separates candidates far better than raw
+    # backtest figures. A symbol's own backtest number carries that
+    # symbol's luck; a signal's skill transfers across symbols.
     sig_tf = {k: [round(v[0] / v[1], 4), v[1]]
               for k, v in agg.sig_tf.items() if v[1] >= SIG_MIN_N}
     out = {"measured_at": int(time.time() * 1000), "n": agg.n,
