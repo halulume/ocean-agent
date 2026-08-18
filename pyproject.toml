@@ -37,3 +37,7 @@ packages = ["ocean_agent"]
 # 열린 채 돌아 아무 신호나 진입한다, 코드만 같고 판단은 빈 상태가 된다.
 ocean_agent = ["policy_default.yaml", "matrix_seed.json", "curve_seed.json",
                "data/calib_offsets.json"]
+
+[project.urls]
+Homepage = "https://oceanagent.fi"
+Repository = "https://github.com/halulume/ocean-agent"
