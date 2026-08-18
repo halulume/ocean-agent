@@ -571,35 +571,44 @@ def lang_kb() -> str:
 
 # ── tier selection, member Claude key, menu extras (2026-08-18) ──────────
 T["tier_pick"] = {
- "en": "Choose your mode (switch anytime with /mode):\n🆓 Free: instant answers built from live data tables. Always free.\n✨ Claude: natural conversation, Claude reads your data and explains. Uses YOUR own Claude API key; chat usage is light, typically a few cents a day.",
- "zh": "选择模式（随时用 /mode 切换）：\n🆓 免费：基于实时数据表的即时回答，永久免费。\n✨ Claude：自然对话，Claude 阅读您的数据并解释。使用您自己的 Claude API 密钥，对话用量很小，通常每天几美分。",
- "ja": "モードを選んでください（/mode でいつでも切替可）：\n🆓 無料：リアルタイムデータ表による即答。ずっと無料。\n✨ Claude：自然な会話。Claude がデータを読んで説明します。ご自身の Claude API キーを使用、会話の使用量は少なく、通常は一日数セントです。",
- "ko": "모드를 선택하세요 (/mode 로 언제든 변경):\n🆓 무료: 실시간 데이터표 기반 즉답. 계속 무료.\n✨ Claude: 자연스러운 대화형. 본인의 Claude API 키를 씁니다. 대화 사용량은 적어 보통 하루 몇 센트 수준.",
- "vi": "Chọn chế độ (đổi bằng /mode bất kỳ lúc nào):\n🆓 Miễn phí: trả lời tức thì từ bảng dữ liệu trực tiếp.\n✨ Claude: hội thoại tự nhiên, dùng API key Claude CỦA BẠN; mức dùng nhẹ, thường vài cent mỗi ngày.",
- "hi": "मोड चुनें (/mode से कभी भी बदलें):\n🆓 मुफ़्त: लाइव डेटा से तुरंत जवाब।\n✨ Claude: आपकी अपनी Claude API key से स्वाभाविक बातचीत; खर्च कम, आमतौर पर कुछ सेंट प्रतिदिन।",
- "id": "Pilih mode (ganti kapan saja dengan /mode):\n🆓 Gratis: jawaban instan dari tabel data langsung.\n✨ Claude: percakapan alami memakai API key Claude MILIK ANDA; pemakaian ringan, biasanya beberapa sen per hari.",
- "ru": "Выберите режим (смена в любое время: /mode):\n🆓 Бесплатно: мгновенные ответы из живых таблиц.\n✨ Claude: живой диалог через ВАШ Claude API ключ; расход мал, обычно несколько центов в день.",
- "pt": "Escolha o modo (troque quando quiser com /mode):\n🆓 Grátis: respostas instantâneas das tabelas de dados ao vivo.\n✨ Claude: conversa natural usando a SUA chave de API do Claude; uso leve, normalmente alguns centavos por dia.",
- "tr": "Mod seçin (/mode ile her zaman değiştirilebilir):\n🆓 Ücretsiz: canlı veri tablolarından anında yanıt.\n✨ Claude: KENDİ Claude API anahtarınızla doğal sohbet; kullanım hafiftir, genellikle günde birkaç sent.",
- "es": "Elige el modo (cámbialo cuando quieras con /mode):\n🆓 Gratis: respuestas instantáneas de tablas de datos en vivo.\n✨ Claude: conversación natural usando TU propia clave API de Claude; uso ligero, normalmente unos centavos al día.",
+ "en": "Choose your mode (switch anytime with /mode):\n🆓 Free mode: instant answers built from live data tables (picks, funding, balance, trades). Always free, nothing to set up.\n✨ Paid mode (Claude / ChatGPT / Gemini / Grok): what you type in Telegram goes straight to your chosen AI together with the live data, and it answers in natural conversation. Uses your own API key; chat usage is light, typically a few cents a day.",
+ "zh": "选择模式（随时用 /mode 切换）：\n🆓 免费模式：基于实时数据表的即时回答（推荐、资金费率、余额、交易），永久免费，无需设置。\n✨ 付费模式（Claude / ChatGPT / Gemini / Grok）：您在 Telegram 里输入的内容会原样连同实时数据一起发给所选 AI，由它自然对话回答。使用您自己的 API 密钥，用量很小，通常每天几美分。",
+ "ja": "モードを選んでください（/mode でいつでも切替可）：\n🆓 無料モード：リアルタイムデータ表による即答（ピック・資金調達率・残高・取引）。ずっと無料、設定不要。\n✨ 有料モード（Claude / ChatGPT / Gemini / Grok）：Telegram に打った内容がそのまま実データと一緒に選んだ AI へ送られ、自然な会話で答えます。ご自身の API キーを使用、通常は一日数セントです。",
+ "ko": "모드를 선택하세요 (/mode 로 언제든 변경):\n🆓 무료모드: 실시간 데이터표 기반 즉답 (픽·펀딩·잔고·거래). 계속 무료, 설정 불필요.\n✨ 유료모드 (클로드 / GPT / 제미나이 / 그록): 텔레그램에서 말하는 그대로 실데이터와 함께 선택한 AI에 전달되고, 그 AI가 자연스러운 대화로 답합니다. 본인 API 키 사용, 대화 사용량은 적어 보통 하루 몇 센트.",
+ "vi": "Chọn chế độ (đổi bằng /mode bất kỳ lúc nào):\n🆓 Miễn phí: trả lời tức thì từ bảng dữ liệu trực tiếp. Luôn miễn phí.\n✨ Trả phí (Claude / ChatGPT / Gemini / Grok): những gì bạn gõ trong Telegram được gửi thẳng đến AI bạn chọn cùng dữ liệu thật, AI trả lời tự nhiên. Dùng API key của bạn; thường vài cent mỗi ngày.",
+ "hi": "मोड चुनें (/mode से कभी भी बदलें):\n🆓 मुफ़्त: लाइव डेटा से तुरंत जवाब। हमेशा मुफ़्त।\n✨ पेड (Claude / ChatGPT / Gemini / Grok): Telegram में जो लिखें वह सीधे चुने हुए AI को जाता है और वह स्वाभाविक बातचीत में जवाब देता है। आपकी अपनी API key; आमतौर पर कुछ सेंट प्रतिदिन।",
+ "id": "Pilih mode (ganti kapan saja dengan /mode):\n🆓 Gratis: jawaban instan dari tabel data langsung. Selalu gratis.\n✨ Berbayar (Claude / ChatGPT / Gemini / Grok): apa yang Anda ketik di Telegram diteruskan apa adanya ke AI pilihan bersama data langsung, dan AI menjawab secara alami. Memakai API key Anda sendiri; biasanya beberapa sen per hari.",
+ "ru": "Выберите режим (смена в любое время: /mode):\n🆓 Бесплатный: мгновенные ответы из живых таблиц. Всегда бесплатно.\n✨ Платный (Claude / ChatGPT / Gemini / Grok): то, что вы пишете в Telegram, передаётся выбранному ИИ вместе с живыми данными, и он отвечает в живом диалоге. Ваш собственный API ключ; обычно несколько центов в день.",
+ "pt": "Escolha o modo (troque quando quiser com /mode):\n🆓 Grátis: respostas instantâneas das tabelas de dados ao vivo. Sempre grátis.\n✨ Pago (Claude / ChatGPT / Gemini / Grok): o que você digita no Telegram vai direto para a IA escolhida junto com os dados reais, e ela responde em conversa natural. Sua própria chave de API; normalmente alguns centavos por dia.",
+ "tr": "Mod seçin (/mode ile her zaman değiştirilebilir):\n🆓 Ücretsiz: canlı veri tablolarından anında yanıt. Her zaman ücretsiz.\n✨ Ücretli (Claude / ChatGPT / Gemini / Grok): Telegram'a yazdıklarınız canlı verilerle birlikte seçtiğiniz yapay zekaya aynen iletilir ve o doğal sohbetle yanıtlar. Kendi API anahtarınız; genellikle günde birkaç sent.",
+ "es": "Elige el modo (cámbialo cuando quieras con /mode):\n🆓 Gratis: respuestas instantáneas de tablas de datos en vivo. Siempre gratis.\n✨ De pago (Claude / ChatGPT / Gemini / Grok): lo que escribes en Telegram va tal cual a la IA elegida junto con los datos reales, y responde en conversación natural. Con tu propia clave API; normalmente unos centavos al día.",
 }
+T["prov_pick"] = {
+ "en": "Which AI do you want to use?", "zh": "想使用哪个 AI？",
+ "ja": "どの AI を使いますか？", "ko": "어떤 AI를 쓰시겠어요?",
+ "vi": "Bạn muốn dùng AI nào?", "hi": "कौन सा AI इस्तेमाल करना है?",
+ "id": "AI mana yang ingin Anda pakai?", "ru": "Какой ИИ использовать?",
+ "pt": "Qual IA você quer usar?", "tr": "Hangi yapay zekayı kullanmak istersiniz?",
+ "es": "¿Qué IA quieres usar?"}
 T["btn_free"] = {"en": "🆓 Free", "zh": "🆓 免费", "ja": "🆓 無料",
                  "ko": "🆓 무료", "vi": "🆓 Miễn phí", "hi": "🆓 मुफ़्त",
                  "id": "🆓 Gratis", "ru": "🆓 Бесплатно", "pt": "🆓 Grátis",
                  "tr": "🆓 Ücretsiz", "es": "🆓 Gratis"}
-T["btn_paid"] = {c: "✨ Claude" for c, _ in LANGS}
+T["btn_paid"] = {c: "✨ AI" for c, _ in LANGS}
+# ask_token takes .format(name, prefix, url): provider name, key prefix,
+# and the page where the key is issued
 T["ask_token"] = {
- "en": "Paste your Claude API key (starts with sk-ant-). Get one at console.anthropic.com > API keys. It is stored on the operator's server and used only to answer YOUR questions. Switch to free anytime with /mode.",
- "zh": "粘贴您的 Claude API 密钥（以 sk-ant- 开头）。在 console.anthropic.com > API keys 获取。密钥保存在运营者服务器上，仅用于回答您的问题。随时用 /mode 切回免费。",
- "ja": "Claude API キー（sk-ant- で始まる）を貼り付けてください。console.anthropic.com > API keys で発行できます。キーは運営者のサーバーに保存され、あなたの質問への回答にのみ使われます。/mode でいつでも無料に戻せます。",
- "ko": "Claude API 키(sk-ant- 로 시작)를 붙여넣으세요. console.anthropic.com > API keys 에서 발급. 키는 운영자 서버에 저장되며 본인 질문 답변에만 쓰입니다. /mode 로 언제든 무료 전환.",
- "vi": "Dán API key Claude của bạn (bắt đầu bằng sk-ant-). Lấy tại console.anthropic.com > API keys. Key được lưu trên máy chủ của nhà vận hành và chỉ dùng để trả lời câu hỏi của bạn. Đổi về miễn phí bằng /mode.",
- "hi": "अपनी Claude API key पेस्ट करें (sk-ant- से शुरू)। console.anthropic.com > API keys पर मिलेगी। /mode से कभी भी मुफ़्त पर लौटें।",
- "id": "Tempel API key Claude Anda (diawali sk-ant-). Dapatkan di console.anthropic.com > API keys. Key disimpan di server operator dan hanya dipakai menjawab pertanyaan ANDA. Kembali ke gratis dengan /mode.",
- "ru": "Вставьте ваш Claude API ключ (начинается с sk-ant-). Получить: console.anthropic.com > API keys. Ключ хранится на сервере оператора и отвечает только на ВАШИ вопросы. Вернуться: /mode.",
- "pt": "Cole a sua chave de API do Claude (começa com sk-ant-). Obtenha em console.anthropic.com > API keys. Fica no servidor do operador e só responde às SUAS perguntas. Volte ao grátis com /mode.",
- "tr": "Claude API anahtarınızı yapıştırın (sk-ant- ile başlar). console.anthropic.com > API keys. Anahtar operatörün sunucusunda saklanır ve yalnızca SİZİN sorularınız için kullanılır. /mode ile her zaman ücretsize dönebilirsiniz.",
- "es": "Pega tu clave API de Claude (empieza con sk-ant-). Consiguela en console.anthropic.com > API keys. Se guarda en el servidor del operador y solo responde TUS preguntas. Vuelve a gratis con /mode.",
+ "en": "Paste your {0} API key (starts with {1}). Get one at {2}. It is stored on the operator's server and used only to answer YOUR questions. Switch modes anytime with /mode.",
+ "zh": "粘贴您的 {0} API 密钥（以 {1} 开头）。在 {2} 获取。密钥保存在运营者服务器上，仅用于回答您的问题。随时用 /mode 切换模式。",
+ "ja": "{0} の API キー（{1} で始まる）を貼り付けてください。{2} で発行できます。キーは運営者のサーバーに保存され、あなたの質問への回答にのみ使われます。/mode でいつでも切替できます。",
+ "ko": "{0} API 키({1} 로 시작)를 붙여넣으세요. {2} 에서 발급. 키는 운영자 서버에 저장되며 본인 질문 답변에만 쓰입니다. /mode 로 언제든 전환.",
+ "vi": "Dán API key {0} của bạn (bắt đầu bằng {1}). Lấy tại {2}. Key được lưu trên máy chủ của nhà vận hành và chỉ dùng để trả lời câu hỏi của bạn. Đổi chế độ bằng /mode.",
+ "hi": "अपनी {0} API key पेस्ट करें ({1} से शुरू)। {2} पर मिलेगी। /mode से कभी भी मोड बदलें।",
+ "id": "Tempel API key {0} Anda (diawali {1}). Dapatkan di {2}. Key disimpan di server operator dan hanya dipakai menjawab pertanyaan ANDA. Ganti mode dengan /mode.",
+ "ru": "Вставьте ваш {0} API ключ (начинается с {1}). Получить: {2}. Ключ хранится на сервере оператора и отвечает только на ВАШИ вопросы. Сменить режим: /mode.",
+ "pt": "Cole a sua chave de API do {0} (começa com {1}). Obtenha em {2}. Fica no servidor do operador e só responde às SUAS perguntas. Troque de modo com /mode.",
+ "tr": "{0} API anahtarınızı yapıştırın ({1} ile başlar). {2} adresinden alın. Anahtar operatörün sunucusunda saklanır ve yalnızca SİZİN sorularınız için kullanılır. /mode ile modu değiştirin.",
+ "es": "Pega tu clave API de {0} (empieza con {1}). Consiguela en {2}. Se guarda en el servidor del operador y solo responde TUS preguntas. Cambia de modo con /mode.",
 }
 T["token_saved"] = {
  "en": "Key saved. Claude mode is on. Just chat naturally.",
@@ -608,18 +617,19 @@ T["token_saved"] = {
  "hi": "Key सहेजी गई। Claude मोड चालू।", "id": "Key tersimpan. Mode Claude aktif.",
  "ru": "Ключ сохранён. Режим Claude включён.", "pt": "Chave salva. Modo Claude ativado.",
  "tr": "Anahtar kaydedildi. Claude modu açık.", "es": "Clave guardada. Modo Claude activado."}
+# token_bad takes .format(name, prefix)
 T["token_bad"] = {
- "en": "That does not look like a Claude API key (should start with sk-ant-). Try again, or /mode for free mode.",
- "zh": "这不像 Claude API 密钥（应以 sk-ant- 开头）。请重试，或用 /mode 选择免费。",
- "ja": "Claude API キーではないようです（sk-ant- で始まるはず）。もう一度か、/mode で無料を。",
- "ko": "Claude API 키가 아닌 것 같습니다 (sk-ant- 로 시작). 다시 시도하거나 /mode 로 무료 선택.",
- "vi": "Không giống API key Claude (phải bắt đầu bằng sk-ant-). Thử lại hoặc /mode.",
- "hi": "यह Claude API key नहीं लगती (sk-ant- से शुरू हो)। फिर कोशिश करें या /mode।",
- "id": "Sepertinya bukan API key Claude (harus diawali sk-ant-). Coba lagi atau /mode.",
- "ru": "Не похоже на ключ Claude (должен начинаться с sk-ant-). Попробуйте ещё раз или /mode.",
- "pt": "Não parece uma chave de API do Claude (deve começar com sk-ant-). Tente de novo ou /mode.",
- "tr": "Claude API anahtarına benzemiyor (sk-ant- ile başlamalı). Tekrar deneyin veya /mode.",
- "es": "No parece una clave API de Claude (debe empezar con sk-ant-). Intentalo de nuevo o /mode."}
+ "en": "That does not look like a {0} API key (should start with {1}). Try again, or /mode to switch.",
+ "zh": "这不像 {0} API 密钥（应以 {1} 开头）。请重试，或用 /mode 切换。",
+ "ja": "{0} の API キーではないようです（{1} で始まるはず）。もう一度か、/mode で切替を。",
+ "ko": "{0} API 키가 아닌 것 같습니다 ({1} 로 시작). 다시 시도하거나 /mode 로 전환.",
+ "vi": "Không giống API key {0} (phải bắt đầu bằng {1}). Thử lại hoặc /mode.",
+ "hi": "यह {0} API key नहीं लगती ({1} से शुरू हो)। फिर कोशिश करें या /mode।",
+ "id": "Sepertinya bukan API key {0} (harus diawali {1}). Coba lagi atau /mode.",
+ "ru": "Не похоже на ключ {0} (должен начинаться с {1}). Попробуйте ещё раз или /mode.",
+ "pt": "Não parece uma chave de API do {0} (deve começar com {1}). Tente de novo ou /mode.",
+ "tr": "{0} API anahtarına benzemiyor ({1} ile başlamalı). Tekrar deneyin veya /mode.",
+ "es": "No parece una clave API de {0} (debe empezar con {1}). Intentalo de nuevo o /mode."}
 T["mode_now_free"] = {
  "en": "Free mode is on. Your saved key was removed.",
  "zh": "已切换到免费模式，已删除保存的密钥。", "ja": "無料モードにしました。保存されたキーは削除済みです。",
@@ -646,3 +656,22 @@ def tier_kb(lang: str) -> str:
         {"text": tr("btn_free", lang), "callback_data": "tier:free"},
         {"text": tr("btn_paid", lang), "callback_data": "tier:paid"},
     ]]})
+
+
+# paid-mode AI providers: key prefix for validation, issue page for the ask
+PROVIDERS = {
+    "claude": {"name": "Claude",  "prefix": "sk-ant-",
+               "url": "console.anthropic.com > API keys"},
+    "gpt":    {"name": "ChatGPT", "prefix": "sk-",
+               "url": "platform.openai.com/api-keys"},
+    "gemini": {"name": "Gemini",  "prefix": "AIza",
+               "url": "aistudio.google.com/apikey"},
+    "grok":   {"name": "Grok",    "prefix": "xai-",
+               "url": "console.x.ai"},
+}
+
+
+def prov_kb() -> str:
+    return json.dumps({"inline_keyboard": [[
+        {"text": PROVIDERS[k]["name"], "callback_data": "prov:" + k}]
+        for k in ("claude", "gpt", "gemini", "grok")]})

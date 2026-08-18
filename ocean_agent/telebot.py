@@ -291,39 +291,76 @@ def _pick_model(client, env):
     return pick
 
 
-def _llm_answer(env, question, data, lang="ko"):
-    """Paid tier: the telebot becomes a Claude interface. Same commands, same
-    data in and out as the free tier - the difference is that free returns the
-    raw data and paid has Claude read that data and answer in conversation.
-    Claude never invents numbers because the only facts it sees are `data`.
-    Activates when the user has put ANTHROPIC_API_KEY in .env and installed
-    the `anthropic` package; otherwise returns None and the free tier answers.
-    Pay-as-you-go on the user's own key."""
-    key = env.get("ANTHROPIC_API_KEY", "")
+_SYS_PROMPT = (
+    "너는 오션 에이전트(파시피카 트레이딩 도구)의 안내원이다. "
+    "Answer briefly, ONLY from the data below, in the user's language "
+    "(code: {lang}). 데이터에 없는 것은 모른다고 말한다. 숫자를 지어내지 "
+    "않는다. 투자 조언·매수 권유는 하지 않는다.")
+
+
+def _llm_http(url, headers, payload):
+    import json as _json
+    import urllib.request
+    req = urllib.request.Request(
+        url, data=_json.dumps(payload).encode(), headers=headers)
+    with urllib.request.urlopen(req, timeout=45) as r:
+        return _json.loads(r.read())
+
+
+def _llm_answer(env, question, data, lang="ko", provider="claude",
+                token=None):
+    """Paid tier: what the member types goes straight to their chosen AI
+    (Claude, ChatGPT, Gemini or Grok) together with the live data tables,
+    and the AI answers in conversation. The AI never invents numbers
+    because the only facts it sees are `data`. Runs on the member's own
+    API key; any failure quietly falls back to the free-tier answer."""
+    key = token or env.get("ANTHROPIC_API_KEY", "")
     if not key:
         return None
+    sys_p = _SYS_PROMPT.format(lang=lang)
+    user_p = f"[실데이터]\n{data}\n\n[질문]\n{question}"
     try:
-        import anthropic
-    except ImportError:
-        return None
-    try:
-        client = anthropic.Anthropic(api_key=key)
-        r = client.messages.create(
-            model=_pick_model(client, env),
-            max_tokens=1000,
-            system=(
-                "너는 오션 에이전트(파시피카 트레이딩 도구)의 안내원이다. "
-                "Answer briefly, ONLY from the data below, in the "
-                f"user's language (code: {lang}). "
-                "데이터에 없는 것은 모른다고 말한다. 숫자를 지어내지 않는다. "
-                "투자 조언·매수 권유는 하지 않는다."),
-            messages=[{"role": "user", "content":
-                       f"[실데이터]\n{data}\n\n[질문]\n{question}"}],
-        )
-        out = "".join(b.text for b in r.content if b.type == "text").strip()
-        return out or None
+        if provider == "claude":
+            try:
+                import anthropic
+            except ImportError:
+                return None
+            client = anthropic.Anthropic(api_key=key)
+            r = client.messages.create(
+                model=_pick_model(client, env), max_tokens=1000,
+                system=sys_p,
+                messages=[{"role": "user", "content": user_p}])
+            out = "".join(b.text for b in r.content
+                          if b.type == "text").strip()
+            return out or None
+        if provider in ("gpt", "grok"):
+            base = ("https://api.openai.com/v1" if provider == "gpt"
+                    else "https://api.x.ai/v1")
+            model = "gpt-4o-mini" if provider == "gpt" else "grok-3-mini"
+            d = _llm_http(base + "/chat/completions",
+                          {"Authorization": "Bearer " + key,
+                           "Content-Type": "application/json"},
+                          {"model": model, "max_tokens": 1000,
+                           "messages": [{"role": "system", "content": sys_p},
+                                        {"role": "user", "content": user_p}]})
+            out = (d.get("choices") or [{}])[0].get(
+                "message", {}).get("content", "").strip()
+            return out or None
+        if provider == "gemini":
+            d = _llm_http(
+                "https://generativelanguage.googleapis.com/v1beta/models/"
+                "gemini-2.0-flash:generateContent?key=" + key,
+                {"Content-Type": "application/json"},
+                {"system_instruction": {"parts": [{"text": sys_p}]},
+                 "contents": [{"parts": [{"text": user_p}]}],
+                 "generationConfig": {"maxOutputTokens": 1000}})
+            cands = d.get("candidates") or [{}]
+            parts = (cands[0].get("content") or {}).get("parts") or []
+            out = "".join(p.get("text", "") for p in parts).strip()
+            return out or None
     except Exception:
         return None          # 어떤 실패든 무료 동작으로 조용히 복귀
+    return None
 
 
 def chat(text, env, root, lang="ko"):
@@ -425,15 +462,18 @@ def _handle_member(text, chat_id, env, root, admin):
         return handle("/menu", env, root, lang0) + "\n" + tr("menu_extra",
                                                              lang0)
     if u.get("await_token"):
+        from .telebot_i18n import PROVIDERS
+        p = PROVIDERS.get(u.get("provider") or "claude",
+                          PROVIDERS["claude"])
         tok = text.strip()
-        if tok.startswith("sk-ant-") and len(tok) > 30:
+        if tok.startswith(p["prefix"]) and len(tok) > 20:
             u["token"] = tok
             u["paid"] = True
             u["await_token"] = False
             _save_users(root, users)
             return tr("token_saved", lang0) + ("\n\n" + tr("ask_addr", lang0)
                                                if not u.get("address") else "")
-        return tr("token_bad", lang0)
+        return tr("token_bad", lang0).format(p["name"], p["prefix"])
     if not u.get("address"):
         b58 = set("123456789ABCDEFGHJKLMNPQRSTUVWXYZ"
                   "abcdefghijkmnopqrstuvwxyz")
@@ -452,13 +492,12 @@ def _handle_member(text, chat_id, env, root, admin):
         return handle(text, e2, root, lang)
     base = _rule_answer(text, e2, root, lang)
     if u.get("paid"):
-        # paid members bring their own Claude key; the operator's key is
-        # only the fallback for members the admin sponsored via /승인
-        e3 = dict(env)
-        if u.get("token"):
-            e3["ANTHROPIC_API_KEY"] = u["token"]
-        return _llm_answer(e3, text, base,
-                           u.get("lang") or "en") or base
+        # paid members bring their own AI key (Claude/GPT/Gemini/Grok);
+        # the operator's Claude key is only the fallback for members the
+        # admin sponsored via /승인
+        return _llm_answer(env, text, base, u.get("lang") or "en",
+                           provider=u.get("provider") or "claude",
+                           token=u.get("token") or None) or base
     return base
 
 
@@ -524,10 +563,10 @@ def _process_update(u, env, root, gate, central, token):
             lang = rec.get("lang") or "en"
             choice = data.split(":", 1)[1]
             if choice == "paid":
-                rec["await_token"] = True
+                from .telebot_i18n import prov_kb
                 users[cid] = rec
                 _save_users(root, users)
-                _send(token, cid, tr("ask_token", lang))
+                _send(token, cid, tr("prov_pick", lang), kb=prov_kb())
             else:
                 rec["paid"] = False
                 rec["token"] = ""
@@ -537,6 +576,21 @@ def _process_update(u, env, root, gate, central, token):
                 _send(token, cid, tr("mode_now_free", lang) + "\n\n"
                       + (tr("ask_addr", lang) if not rec.get("address")
                          else tr("menu_extra", lang)))
+        elif data.startswith("prov:") and cid:
+            from .telebot_i18n import PROVIDERS
+            users = _load_users(root)
+            rec = users.get(cid) or {"lang": "en", "address": "",
+                                     "paid": False}
+            lang = rec.get("lang") or "en"
+            prov = data.split(":", 1)[1]
+            if prov in PROVIDERS:
+                rec["provider"] = prov
+                rec["await_token"] = True
+                users[cid] = rec
+                _save_users(root, users)
+                p = PROVIDERS[prov]
+                _send(token, cid, tr("ask_token", lang).format(
+                    p["name"], p["prefix"], p["url"]))
         return
     msg = u.get("message") or {}
     cid = str((msg.get("chat") or {}).get("id", ""))
