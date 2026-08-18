@@ -154,7 +154,7 @@ bracket_capital_pct: 100    # 가용 증거금 중 이만큼만 사용 (100 = �
 bracket_slots: 8            # 봉인의 trade_rank 상위 픽 수 (일반 6 + 특별 2)
 bracket_leverage: 5         # 종목 상한이 더 낮으면 그 값
 bracket_deploy_pct: 0.97    # 가용 증거금의 97% 투입 (3%는 수수료·펀딩 버퍼)
-bracket_tp_mult: 0.85       # 익절 = 예상변동폭 x 0.85
+bracket_tp_mult: 1.5        # 익절 = 예상변동폭 x 1.5
 bracket_sl_mult: 1.0        # 손절 = 예상변동폭 x 1.0
 bracket_vol_floor_pct: 0.8  # 예상변동 0.8% 미만 픽 제외
 bracket_horizon_h: 24       # 만기: 다음 봉인 전 시장가 청산

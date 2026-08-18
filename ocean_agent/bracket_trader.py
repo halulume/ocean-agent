@@ -69,12 +69,12 @@ LOOP_MIN = 30
 # ── pre-registered circuit breakers (round-3 review, 2026-08-11) ──
 HALT_ON_LIQUIDATION = True          # exchange-confirmed liquidation = stop
 HALT_AVG_AFTER = 30                 # trades before the average is judged
-# Floor for the effective 0.85x TP geometry: expected mean is about -0.09%
-# per trade and the per-trade std is taken as 2.5% (TP +2.1% / SL -2.9%
-# two-point spread), so a 30-trade average two sigmas below expectation is
-# -0.09 - 2 * 2.5 / sqrt(30) ~= -1.0. Re-derive from the live sample once
-# 30 real trades are on the books.
-HALT_AVG_FLOOR = -1.0               # % per trade; -2 sigma of the expectation
+# Floor for the 1.5x TP geometry (same derivation as before, re-evaluated
+# 2026-08-19 when the target widened): wins near +4.4% and stops near
+# -3.0% put the per-trade std around 3.7%, so a 30-trade average two
+# sigmas below a roughly breakeven expectation is 0 - 2 * 3.7 / sqrt(30)
+# ~= -1.4. Re-derive from the live sample once 30 real trades are booked.
+HALT_AVG_FLOOR = -1.4               # % per trade; -2 sigma of the expectation
 DEMOTE_SLIP_EVENTS = 2              # stop fills worse than line by ...
 DEMOTE_SLIP_PCT = 0.5               # ... this many %p, twice -> leverage down
 
