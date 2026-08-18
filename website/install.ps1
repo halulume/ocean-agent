@@ -1,7 +1,7 @@
 # Ocean Agent one-command installer (Windows)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 $ErrorActionPreference = 'Stop'
-$oaPkg = "ocean-agent@0.4.12"
+$oaPkg = "ocean-agent@0.4.13"
 Write-Host ""
 Write-Host "=== Ocean Agent installer ===" -ForegroundColor Cyan
 

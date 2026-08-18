@@ -387,10 +387,12 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
         if y <= 0:
             continue            # no 24h reference: skip, never guess a side
         r24 = px / y - 1
-        # 2026-08-19: the calibrated touch side steers; the cross-sectional
-        # side is still sealed alongside so both arms stay comparable
+        # 2026-08-19: stocks ride the cross-sectional side, every other
+        # class the calibrated touch side; both arms are sealed alongside
+        # so the ledger keeps comparing them
         xsec_dir = "long" if r24 >= xsec_median else "short"
-        direction = "long" if u >= d_ else "short"
+        touch_dir = "long" if u >= d_ else "short"
+        direction = xsec_dir if r["cls"] == "주식" else touch_dir
         picks.append({
             "sym": r["sym"], "dir": direction, "xsec_dir": xsec_dir,
             "entry": px,
