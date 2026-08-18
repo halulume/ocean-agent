@@ -387,9 +387,13 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
         if y <= 0:
             continue            # no 24h reference: skip, never guess a side
         r24 = px / y - 1
-        direction = "long" if r24 >= xsec_median else "short"
+        # 2026-08-19: the calibrated touch side steers; the cross-sectional
+        # side is still sealed alongside so both arms stay comparable
+        xsec_dir = "long" if r24 >= xsec_median else "short"
+        direction = "long" if u >= d_ else "short"
         picks.append({
-            "sym": r["sym"], "dir": direction, "entry": px,
+            "sym": r["sym"], "dir": direction, "xsec_dir": xsec_dir,
+            "entry": px,
             "exp_move_pct": round(r["pred"] * 100, 2),
             "rank_score": round(r["score"], 5),
             "touch_up_pct": round(u * 100, 1),
