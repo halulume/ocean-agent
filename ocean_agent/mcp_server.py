@@ -404,99 +404,70 @@ def account_status() -> str:
 @mcp.tool(title="Connect Pacifica Account",
           annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False,
                                       idempotentHint=True, openWorldHint=True))
-async def connect_pacifica(ctx: Context) -> str:
-    """Register the user's Pacifica credentials through secure input forms
-    inside the Claude app - no terminal, no manual .env editing. Walks the
-    user through: log in at pacifica.fi, create an API key, then paste the
-    public wallet address and the API key into input boxes. The values go
-    straight into the local .env file and never appear in the chat. Ends
-    with a live connection test. Use this whenever the user wants to link
-    their account, or when auto trading complains that keys are missing.
-    Explain the steps in the user's own language before calling."""
-    from pydantic import BaseModel, Field
+def connect_pacifica() -> str:
+    """Open a styled local browser form where the user registers their
+    Pacifica credentials - the same clean window on every AI client
+    (Claude, ChatGPT, Gemini, Grok). The form guides them: log in at
+    pacifica.fi, create an API key, paste the PUBLIC wallet address and
+    the key. Values go straight into the local .env and never appear in
+    this chat; the form runs a live connection test and shows the balance.
+    Use whenever the user wants to link their account or auto trading
+    complains that keys are missing. Tell the user a browser window opened
+    and to finish there, in their own language."""
+    def _save_and_test(addr: str, key: str) -> dict:
+        env_path = os.environ.get("PACIFICA_ENV_FILE") or os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            ".env")
+        lines = []
+        if os.path.exists(env_path):
+            with open(env_path, encoding="utf-8", errors="replace") as f:
+                lines = f.read().splitlines()
 
-    class AddrForm(BaseModel):
-        address: str = Field(description="Solana wallet PUBLIC address "
-                                         "(starts with a letter/number, "
-                                         "32-44 chars). NOT a private key.")
-
-    class KeyForm(BaseModel):
-        api_key: str = Field(description="Pacifica API key from "
-                                         "app.pacifica.fi/apikey. Stored "
-                                         "only in your local .env.")
-
-    guide = ("1) https://app.pacifica.fi 로그인(지갑 연결) → "
-             "2) https://app.pacifica.fi/apikey 에서 API 키 생성 → "
-             "3) 아래 입력창에 붙여넣기")
-    env_hint = os.environ.get("PACIFICA_ENV_FILE") or os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
-    try:
-        r1 = await ctx.elicit(message="지갑 공개주소를 입력하세요 (개인키 "
-                                      "아님). " + guide, schema=AddrForm)
-    except Exception:
-        # client has no input-form (elicitation) support: fall back to the
-        # manual .env path instead of dying with a protocol error
-        return ("이 AI 클라이언트는 입력창(폼)을 지원하지 않습니다. 대신 "
-                "다음 파일을 직접 열어 두 줄을 채워 주세요:\n"
-                + env_hint + "\n"
-                "ADDRESS=지갑공개주소\n"
-                "PACIFICA_API_KEY=발급한키\n"
-                "키 발급: https://app.pacifica.fi/apikey (거래 전용, 출금 "
-                "불가, 언제든 폐기 가능). 저장 후 이 앱을 재시작하면 "
-                "연결됩니다. 설치 스크립트를 다시 실행해도 됩니다.")
-    if r1.action != "accept" or not r1.data:
-        return "주소 입력이 취소되어 연결을 중단했습니다. 언제든 다시 하시면 됩니다."
-    addr = r1.data.address.strip()
-    import re as _re
-    if not _re.fullmatch(r"[1-9A-HJ-NP-Za-km-z]{32,44}", addr):
-        raise ToolError("주소 형식이 올바르지 않습니다 (base58 32~44자). "
-                        "공개주소인지 확인하고 다시 시도하세요.")
-    r2 = await ctx.elicit(message="Pacifica API 키를 입력하세요. 이 값은 "
-                                  "이 컴퓨터의 .env 에만 저장되며 대화에 "
-                                  "표시되지 않습니다.", schema=KeyForm)
-    if r2.action != "accept" or not r2.data:
-        return "API 키 입력이 취소되어 연결을 중단했습니다."
-    key = r2.data.api_key.strip()
-    if len(key) < 20:
-        raise ToolError("API 키가 너무 짧습니다. app.pacifica.fi/apikey 에서 "
-                        "발급한 키 전체를 붙여넣어 주세요.")
-    env_path = os.environ.get("PACIFICA_ENV_FILE") or os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
-    lines = []
-    if os.path.exists(env_path):
-        with open(env_path, encoding="utf-8", errors="replace") as f:
-            lines = f.read().splitlines()
-    def upsert(ls, k, v):
-        out, done = [], False
-        for ln in ls:
-            if ln.strip().startswith(k + "="):
+        def upsert(ls, k, v):
+            out, done = [], False
+            for ln in ls:
+                if ln.strip().startswith(k + "="):
+                    out.append(f"{k}={v}")
+                    done = True
+                else:
+                    out.append(ln)
+            if not done:
                 out.append(f"{k}={v}")
-                done = True
-            else:
-                out.append(ln)
-        if not done:
-            out.append(f"{k}={v}")
-        return out
-    lines = upsert(lines, "ADDRESS", addr)
-    lines = upsert(lines, "PACIFICA_API_KEY", key)
-    tmp = env_path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
-    os.replace(tmp, env_path)
-    os.environ["ADDRESS"] = addr
-    os.environ["PACIFICA_API_KEY"] = key
+            return out
+
+        lines = upsert(lines, "ADDRESS", addr)
+        lines = upsert(lines, "PACIFICA_API_KEY", key)
+        tmp = env_path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        os.replace(tmp, env_path)
+        os.environ["ADDRESS"] = addr
+        os.environ["PACIFICA_API_KEY"] = key
+        try:
+            client = PacificaClient(os.environ.get(
+                "PACIFICA_BASE_URL", "https://api.pacifica.fi"),
+                address=addr)
+            bal = client.get_account().get("balance")
+            return {"ok": True, "bal": bal}
+        except PacificaError as e:
+            return {"ok": False, "msg": str(e)[:150]}
+
+    from .connect_ui import open_connect_page
     try:
-        client = PacificaClient(os.environ.get(
-            "PACIFICA_BASE_URL", "https://api.pacifica.fi"), address=addr)
-        acct = client.get_account()
-        bal = acct.get("balance")
-    except PacificaError as e:
-        return (f"저장은 됐지만 연결 테스트에 실패했습니다: {str(e)[:120]}\n"
-                f"주소가 파시피카에 입금 이력이 있는 계정인지 확인하세요. "
-                f"수정하려면 이 도구를 다시 실행하면 됩니다.")
-    return (f"등록 완료. 연결 테스트 성공: 잔고 {bal} USDC. "
-            f"키는 .env 에만 저장됐고 대화에는 남지 않습니다. 이제 자동매매를 "
-            f"켜려면 start_auto_trading, 해제는 .env 에서 두 줄을 지우면 됩니다.")
+        url = open_connect_page(_save_and_test)
+    except Exception as e:
+        env_hint = os.environ.get("PACIFICA_ENV_FILE") or os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            ".env")
+        return ("연결 창을 열지 못했습니다 (" + type(e).__name__ + "). 대신 "
+                "다음 파일을 직접 열어 두 줄을 채워 주세요:\n" + env_hint
+                + "\nADDRESS=지갑공개주소\nPACIFICA_API_KEY=발급한키\n"
+                "키 발급: https://app.pacifica.fi/apikey")
+    return ("브라우저에 연결 창을 열었습니다. 창이 안 보이면 이 주소를 "
+            "여세요: " + url + "\n창에서 지갑 공개주소와 API 키를 넣으면 "
+            "이 컴퓨터의 .env 에만 저장되고(대화에 안 남음) 연결 테스트와 "
+            "잔고 확인까지 그 자리에서 끝납니다. 10분 안에 입력하면 되고, "
+            "완료 후 자동매매를 시작할 수 있습니다.")
 
 
 @mcp.tool(title="Start Auto Trading",
