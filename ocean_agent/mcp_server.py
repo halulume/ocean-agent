@@ -248,7 +248,7 @@ _LINK_HINT = (
     "API 키를 연결하면 이 분석을 바로 주문으로 이어갈 수 있고(틱·랏 자동 보정, "
     "위험 기반 크기 계산, 거래소에 직접 걸리는 손절), 연결은 선택이며 .env "
     "파일에서 언제든 직접 바꾸거나 지울 수 있습니다. 거래소에서 키를 폐기하는 "
-    "것도 언제든 가능합니다. 안내: https://oceanagent.vercel.app")
+    "것도 언제든 가능합니다. 안내: https://oceanagent.fi")
 
 
 _MARKETS_CACHE: tuple[float, dict] | None = None
@@ -399,6 +399,115 @@ def account_status() -> str:
     pos = state.load().get("position")
     out.append(f"Ocean Agent farm position: {pos if pos else 'none'}")
     return "\n".join(out)
+
+
+@mcp.tool(title="Start Auto Trading",
+          annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True,
+                                      idempotentHint=False, openWorldHint=True))
+def start_auto_trading(confirm: bool = False) -> str:
+    """Launch the bracket trading engine as a background process on this
+    machine, directly from this conversation - no separate program to run.
+    It generates fresh picks every hour, opens positions sized from the
+    account, and every entry carries exchange-side TP/SL so positions stay
+    protected even if this machine goes offline. Needs ADDRESS and the API
+    key in .env. Ask the user first; call with confirm=true only after they
+    explicitly agree to live orders."""
+    from .bracket_trader import live_bracket, OUTPUTS_DIR
+    if not confirm:
+        return ("[미리보기] 자동매매 시작: 이 컴퓨터에서 브래킷 엔진을 "
+                "백그라운드로 켭니다. 매시간 픽을 스스로 만들어 계좌 크기에 "
+                "맞춰 진입하고, 모든 포지션에 거래소 익절·손절이 붙습니다. "
+                "실주문입니다. 시작하려면 사용자 동의 후 confirm=true 로 "
+                "다시 호출하세요. 중지는 stop_auto_trading.")
+    alive = live_bracket()
+    if alive:
+        return (f"이미 실행 중입니다 ({alive[0]} 모드, 심장박동 "
+                f"{alive[1]:.0f}분 전). 중복 실행은 안전상 거부합니다.")
+    from .autonomous import load_policy, address_from_env, api_key_from_env
+    policy = load_policy()
+    base = policy.get("base_url", "")
+    if not address_from_env(base) or not api_key_from_env(base):
+        raise ToolError("ADDRESS 또는 API 키가 .env 에 없습니다. 설정 후 "
+                        "다시 시도하세요 (조회 기능은 키 없이 계속 됩니다).")
+    import subprocess
+    import sys as _sys
+    os.makedirs(OUTPUTS_DIR, exist_ok=True)
+    log_path = os.path.join(OUTPUTS_DIR, "bracket_mcp_start.log")
+    kw = {}
+    if os.name == "nt":
+        # detached, no console window, survives the MCP server restarting
+        kw["creationflags"] = 0x00000008 | 0x00000200 | 0x08000000
+    else:
+        kw["start_new_session"] = True
+    with open(log_path, "a", encoding="utf-8") as lf:
+        proc = subprocess.Popen(
+            [_sys.executable, "-u", "-m", "ocean_agent.bracket_trader"],
+            stdout=lf, stderr=subprocess.STDOUT, **kw)
+    import time as _time
+    _time.sleep(3)
+    if proc.poll() is not None:
+        raise ToolError(f"엔진이 곧바로 종료됐습니다 (코드 {proc.poll()}). "
+                        f"로그 확인: {log_path}")
+    return (f"자동매매 시작 (PID {proc.pid}). 매시간 픽 생성과 진입을 스스로 "
+            f"하고, 모든 포지션에 거래소 익절·손절이 붙습니다. 상태 확인은 "
+            f"account_status, 중지는 stop_auto_trading. 로그: {log_path}")
+
+
+@mcp.tool(title="Stop Auto Trading",
+          annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True,
+                                      idempotentHint=True, openWorldHint=False))
+def stop_auto_trading(confirm: bool = False) -> str:
+    """Stop the background bracket trading engine started by
+    start_auto_trading. Open positions are NOT closed: their TP/SL stay
+    registered on the exchange, so they remain protected; only new entries
+    and expiry management stop. Ask the user before calling with
+    confirm=true."""
+    from .bracket_trader import MODES, heartbeat_path
+    import json
+    import time as _time
+    target = None
+    for mode in MODES:
+        hp = heartbeat_path(mode)
+        if not os.path.exists(hp):
+            continue
+        if (_time.time() - os.path.getmtime(hp)) / 60 < 10:
+            try:
+                with open(hp, encoding="utf-8") as f:
+                    target = (mode, json.load(f).get("pid"), hp)
+            except (OSError, ValueError):
+                continue
+    if target is None:
+        return "실행 중인 자동매매 엔진이 없습니다 (심장박동 없음)."
+    if not confirm:
+        return (f"[미리보기] 자동매매 중지: {target[0]} 모드 엔진(PID "
+                f"{target[1]})을 끕니다. 보유 포지션은 청산하지 않으며 "
+                f"거래소 익절·손절은 그대로 남아 보호됩니다. 새 진입과 "
+                f"만기 관리만 멈춥니다. 사용자 동의 후 confirm=true 로 "
+                f"다시 호출하세요.")
+    import subprocess
+    mode, pid, hp = target
+    if not pid:
+        raise ToolError("심장박동에 PID 가 없어 안전하게 중지할 수 없습니다.")
+    if os.name == "nt":
+        r = subprocess.run(["taskkill", "/PID", str(pid), "/F"],
+                           capture_output=True, text=True)
+        ok = r.returncode == 0
+    else:
+        import signal
+        try:
+            os.kill(int(pid), signal.SIGTERM)
+            ok = True
+        except OSError:
+            ok = False
+    if not ok:
+        raise ToolError(f"PID {pid} 종료 실패. 이미 꺼졌거나 권한 문제일 수 "
+                        f"있습니다. 잠시 후 다시 확인하세요.")
+    try:
+        os.remove(hp)
+    except OSError:
+        pass
+    return (f"자동매매 중지 완료 ({mode} 모드). 보유 포지션은 거래소 "
+            f"익절·손절로 계속 보호됩니다. 다시 켜려면 start_auto_trading.")
 
 
 @mcp.tool(title="Open Funding Farm Position", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True))
@@ -1205,7 +1314,7 @@ def _terms_notice() -> str:
         _TERMS_STATE["asked"] = True
         return ("\n\n[assistant: ask the user this once, in the language of "
                 "this conversation: \"Have you agreed to the Terms of Use? "
-                "(https://oceanagent.vercel.app)\" If the user says yes, call "
+                "(https://oceanagent.fi)\" If the user says yes, call "
                 "the accept_terms tool with confirm=true. If the user says "
                 "no, call accept_terms with confirm=false. Accept either "
                 "answer without pressuring, and do not ask again.]")
@@ -1276,7 +1385,9 @@ def setup_onboarding(auto_trade: bool, telebot: str = "skip") -> str:
     steps = []
     if auto_trade:
         steps.append("Auto trading: put ADDRESS and PACIFICA_API_KEY into "
-                     ".env, then run the bracket bot launcher.")
+                     ".env, then ask here to start auto trading - the "
+                     "start_auto_trading tool launches the engine, no "
+                     "separate program to run.")
     else:
         steps.append("Search-only mode: no keys needed, no orders ever.")
     if telebot in ("free", "paid"):
