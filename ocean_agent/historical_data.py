@@ -479,11 +479,10 @@ def _binance_ohlc(bsym: str, binterval: str, start_ms: int,
             # [openTime, O, H, L, C, V, closeTime, quoteV, trades,
             #  takerBuyBaseV, takerBuyQuoteV, ignore]
             #
-            # tb 는 그 봉에서 '사는 쪽이 급해서' 체결된 물량이다. 총 거래량에서
-            # 빼면 파는 쪽이 급했던 물량이 나오고, 그 차이가 델타다. 거래량은
-            # 크기만 알려주지만 델타는 어느 쪽이 밀었는지를 알려준다 — 08-13
-            # 실측에서 거래량 문턱이 0.5%p 안쪽으로 무효였던 이유가 그것이다.
-            # 이 값은 처음부터 kline 응답에 있었는데 버리고 있었다.
+            # tb is the taker-buy volume of the bar. Subtracting it from the
+            # total volume gives the taker-sell side; the difference between
+            # the two is the volume delta, i.e. which side was pressing.
+            # Volume alone only carries size, so the delta is kept as well.
             out.append({"t": int(k[0]), "o": float(k[1]), "h": float(k[2]),
                         "l": float(k[3]), "c": float(k[4]), "v": float(k[5]),
                         "tb": float(k[9]) if len(k) > 9 else None,

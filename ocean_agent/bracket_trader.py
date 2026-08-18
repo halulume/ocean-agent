@@ -1077,6 +1077,54 @@ def cycle(client, policy, st, cfg, dry: bool) -> None:
 
 SEAL_POLL_SEC = 30
 
+# ── seal self-generation ─────────────────────────────────────────────────
+# The trader consumes seals; seal_maker produces them. When no seal fresh
+# enough exists, the loop generates one itself so a standalone install
+# needs no external scheduler. At most one attempt per hour, and a failed
+# generation only logs: position aftercare must never die with it.
+SEAL_FRESH_H = 1.0
+SEAL_GEN_MIN_INTERVAL_SEC = 3600
+_last_seal_gen: float = 0.0
+# An operator who runs an external seal generator sets
+# bracket_selfgen_seal: false in policy.yaml so the bot never competes
+# with it; the shipped default (no key) keeps self-generation on.
+_selfgen_enabled: bool = True
+
+
+def _newest_seal_age_h() -> float:
+    """Age in hours of the newest seal file, by mtime; huge when none."""
+    files = glob.glob(os.path.join(OUTPUTS_DIR, "내일예측_*.json"))
+    if not files:
+        return 1e9
+    return (time.time() - max(os.path.getmtime(p) for p in files)) / 3600.0
+
+
+def maybe_generate_seal() -> None:
+    """Generate a fresh seal when the newest one is older than an hour.
+
+    Every failure path logs and returns: the loop's job of watching and
+    closing positions continues on the existing seal (or none).
+    """
+    global _last_seal_gen
+    if not _selfgen_enabled:
+        return
+    try:
+        age_h = _newest_seal_age_h()
+        if age_h <= SEAL_FRESH_H:
+            return
+        if time.time() - _last_seal_gen < SEAL_GEN_MIN_INTERVAL_SEC:
+            return
+        _last_seal_gen = time.time()
+        ago = "없음" if age_h > 1e8 else f"{age_h:.1f}시간 지남"
+        log(f"봉인 {ago}, 새로 만듭니다 (몇 분 걸릴 수 있음)")
+        from . import seal_maker
+        path = seal_maker.make_seal(out_dir=OUTPUTS_DIR, log=log)
+        if path is None:
+            log("봉인 생성 보류(표본 부족), 다음 시간에 재시도합니다")
+    except Exception as e:                 # noqa: BLE001
+        log(f"봉인 생성 실패({type(e).__name__}: {str(e)[:120]}), "
+            f"기존 봉인과 보유 관리로 계속합니다")
+
 
 def fresh_seal_waiting(st: dict, dry: bool) -> bool:
     """Is there a seal this run has not entered yet, still inside its window?
@@ -1143,6 +1191,10 @@ def main():
 
     policy = load_policy()
     cfg = bracket_cfg(policy)
+    global _selfgen_enabled
+    _selfgen_enabled = bool(policy.get("bracket_selfgen_seal", True))
+    if not _selfgen_enabled:
+        log("봉인 자체 생성 꺼짐 (bracket_selfgen_seal: false), 외부 생성기를 기다립니다")
     use_mode(bracket_mode(policy))      # before any file is read or written
     # Every safety file (state, heartbeat, seals) lives under OUTPUTS_DIR.
     # If it cannot be written, the heartbeat and ledger the cross-bot guards
@@ -1242,6 +1294,9 @@ def main():
         while True:
             if not args.dry:
                 write_heartbeat()      # hold the account for this mode
+            maybe_generate_seal()
+            if not args.dry:
+                write_heartbeat()      # generation can take minutes; renew
             try:
                 cycle(client, policy, st, cfg, args.dry)
             except PacificaError as e:

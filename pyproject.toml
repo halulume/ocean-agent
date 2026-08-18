@@ -35,4 +35,5 @@ packages = ["ocean_agent"]
 [tool.setuptools.package-data]
 # 씨앗 측정 데이터를 함께 배포한다. 없으면 새 사용자는 관문이 "모르면 통과"로
 # 열린 채 돌아 아무 신호나 진입한다, 코드만 같고 판단은 빈 상태가 된다.
-ocean_agent = ["policy_default.yaml", "matrix_seed.json", "curve_seed.json"]
+ocean_agent = ["policy_default.yaml", "matrix_seed.json", "curve_seed.json",
+               "data/calib_offsets.json"]

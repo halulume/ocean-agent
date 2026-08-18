@@ -30,7 +30,19 @@ class PacificaClient:
                 f"https:// 여야 합니다 (중간자 공격 방어).")
         self.base = u + "/api/v1"
         self.address = address
-        self.keypair = keypair_from_base58(private_key) if private_key else None
+        # A malformed key (typo, truncated paste) must not kill read-only
+        # use: markets, prices, books and bars need no signature. The parse
+        # error is kept and surfaced only when a signed call is attempted.
+        self.keypair = None
+        self.key_error = ""
+        if private_key:
+            try:
+                self.keypair = keypair_from_base58(private_key)
+            except Exception:
+                self.key_error = (
+                    "PACIFICA_API_KEY 형식이 올바르지 않습니다 (오타나 일부 "
+                    "누락 가능성). .env 의 키를 다시 확인해 주세요. 시세 조회 "
+                    "같은 읽기 기능은 계속 사용할 수 있습니다.")
         self.session = requests.Session()
 
     # ---------- 공개 GET ----------
@@ -113,8 +125,10 @@ class PacificaClient:
 
     def _signed_post(self, path: str, op_type: str, payload: dict) -> dict:
         if not self.keypair:
-            raise PacificaError("API 키가 없어 주문을 보낼 수 없습니다 "
-                                "(.env의 PACIFICA_API_KEY에 app.pacifica.fi/apikey 발급 키 입력)")
+            raise PacificaError(
+                self.key_error
+                or "API 키가 없어 주문을 보낼 수 없습니다 "
+                   "(.env의 PACIFICA_API_KEY에 app.pacifica.fi/apikey 발급 키 입력)")
         import time as _t
         signer_pubkey = str(self.keypair.pubkey())
         for attempt in (1, 2):
@@ -230,7 +244,8 @@ class PacificaClient:
         최대 10개. 개별 서명되어 actions 배열로 묶인다.
         """
         if not self.keypair:
-            raise PacificaError("API 키가 없어 주문을 보낼 수 없습니다")
+            raise PacificaError(self.key_error
+                                or "API 키가 없어 주문을 보낼 수 없습니다")
         if not 1 <= len(orders) <= 10:
             raise PacificaError("배치는 1~10개 주문만 가능합니다")
         # 하드 가드, 배치 내 각 신규 주문도 명목가 상한 검사 (청산 제외).
