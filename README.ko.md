@@ -7,7 +7,7 @@
 
 > [English](README.md) · 한국어
 
-🌊 **홈페이지:** [oceanagent.vercel.app](https://oceanagent.vercel.app) · **PyPI:** [ocean-agent](https://pypi.org/project/ocean-agent/)
+🌊 **홈페이지:** [oceanagent.fi](https://oceanagent.fi) · **PyPI:** [ocean-agent](https://pypi.org/project/ocean-agent/)
 
 **AI에게 매매를 시키세요.** [Pacifica](https://app.pacifica.fi)용 MCP 서버로,
 자연어를 정확하고 위험이 계산된 선물 주문으로 바꿉니다. 여기에 사용자가 직접
@@ -141,10 +141,10 @@ python -m ocean_agent.walkforward --live # 실전이 실측표와 맞는지 대�
 
 ```bash
 # 윈도우 (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://oceanagent.vercel.app/install.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://oceanagent.fi/install.ps1 | iex"
 
 # macOS / Linux
-sh -c "$(curl -LsSf https://oceanagent.vercel.app/install.sh)"
+sh -c "$(curl -LsSf https://oceanagent.fi/install.sh)"
 ```
 
 직접 설정하려면:

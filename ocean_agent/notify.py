@@ -18,4 +18,7 @@ def send(text: str) -> None:
             timeout=10,
         )
     except requests.RequestException as e:
-        print(f"[알림 실패] {e}")
+        # The exception text can embed the request URL, which contains the
+        # bot token. Redact it so logs never leak the credential.
+        msg = str(e).replace(token, "***") if token else str(e)
+        print(f"[알림 실패] {msg}")

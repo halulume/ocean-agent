@@ -2,7 +2,7 @@
 # Ocean Agent one-command installer (macOS / Linux)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 set -e
-OA_PKG="ocean-agent@0.4.1"
+OA_PKG="ocean-agent@0.4.2"
 echo ""
 echo "=== Ocean Agent installer ==="
 
@@ -43,7 +43,7 @@ if [ "$WRITE" = "1" ]; then
     echo "  saved to $ENVF (readable only by you)"
 fi
 
-# 3) terms of use (declining aborts the install; details: oceanagent.vercel.app)
+# 3) terms of use (declining aborts the install; details: oceanagent.fi)
 echo "[3/4] Terms of Use"
 RC=0
 PACIFICA_ENV_FILE="$ENVF" "$UVX" --from "$OA_PKG" python -m ocean_agent.builder_consent </dev/tty || RC=$?

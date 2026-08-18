@@ -17,52 +17,52 @@ import os
 import sys
 
 MARKER = os.path.join(os.path.expanduser("~"), ".ocean_agent_builder_consent")
-MAX_FEE_RATE = "0.0001"          # 1 bps; published at oceanagent.vercel.app
+MAX_FEE_RATE = "0.0001"          # 1 bps; published at oceanagent.fi
 
 MESSAGES = {
     "en": {"q": "\nHave you agreed to the Terms of Use?"
-                " (oceanagent.vercel.app) [Y/n] ",
+                " (oceanagent.fi) [Y/n] ",
            "ok": "Thank you! Terms accepted.",
            "no": "No problem. Ocean Agent works the same without it.",
            "fail": "Could not record the acceptance ({err}); continuing.",
            "must": "The Terms of Use must be accepted to install. Installation cancelled."},
-    "ko": {"q": "\n이용약관(oceanagent.vercel.app)에 동의하셨습니까? [Y/n] ",
+    "ko": {"q": "\n이용약관(oceanagent.fi)에 동의하셨습니까? [Y/n] ",
            "ok": "감사합니다! 약관에 동의하셨습니다.",
            "no": "괜찮습니다. 동의 없이도 모든 기능이 동일하게 동작합니다.",
            "fail": "동의 기록에 실패했습니다({err}). 설치는 계속됩니다.",
            "must": "설치하려면 이용약관 동의가 필요합니다. 설치를 중단합니다."},
-    "ja": {"q": "\n利用規約(oceanagent.vercel.app)に同意しましたか? [Y/n] ",
+    "ja": {"q": "\n利用規約(oceanagent.fi)に同意しましたか? [Y/n] ",
            "ok": "ありがとうございます!規約に同意しました。",
            "no": "問題ありません。同意なしでも全機能は同じように動作します。",
            "fail": "同意の記録に失敗しました({err})。セットアップは続行します。",
            "must": "インストールには利用規約への同意が必要です。中止します。"},
-    "zh": {"q": "\n您是否已同意使用条款?(oceanagent.vercel.app) [Y/n] ",
+    "zh": {"q": "\n您是否已同意使用条款?(oceanagent.fi) [Y/n] ",
            "ok": "谢谢!您已同意条款。",
            "no": "没关系。不同意也不影响任何功能。",
            "fail": "无法记录同意({err}),安装将继续。",
            "must": "安装需要同意使用条款。已取消安装。"},
     "es": {"q": "\n¿Ha aceptado los Términos de Uso?"
-                " (oceanagent.vercel.app) [Y/n] ",
+                " (oceanagent.fi) [Y/n] ",
            "ok": "¡Gracias! Términos aceptados.",
            "no": "Sin problema. Ocean Agent funciona igual sin ello.",
            "fail": "No se pudo registrar la aceptación ({err}); continuando.",
            "must": "Para instalar es necesario aceptar los Términos de Uso. Instalación cancelada."},
     "fr": {"q": "\nAvez-vous accepté les Conditions d'Utilisation ?"
-                " (oceanagent.vercel.app) [Y/n] ",
+                " (oceanagent.fi) [Y/n] ",
            "ok": "Merci ! Conditions acceptées.",
            "no": "Pas de souci. Ocean Agent fonctionne pareil sans cela.",
            "fail": "Impossible d'enregistrer l'acceptation ({err});"
                    " on continue.",
            "must": "L'installation nécessite d'accepter les Conditions. Installation annulée."},
     "de": {"q": "\nHaben Sie den Nutzungsbedingungen zugestimmt?"
-                " (oceanagent.vercel.app) [Y/n] ",
+                " (oceanagent.fi) [Y/n] ",
            "ok": "Danke! Bedingungen akzeptiert.",
            "no": "Kein Problem. Ocean Agent funktioniert genauso ohne.",
            "fail": "Zustimmung konnte nicht gespeichert werden ({err});"
                    " weiter geht's.",
            "must": "Zur Installation müssen die Nutzungsbedingungen akzeptiert werden. Abgebrochen."},
     "pt": {"q": "\nVocê concordou com os Termos de Uso?"
-                " (oceanagent.vercel.app) [Y/n] ",
+                " (oceanagent.fi) [Y/n] ",
            "ok": "Obrigado! Termos aceitos.",
            "no": "Sem problema. O Ocean Agent funciona igual sem isso.",
            "fail": "Não foi possível registrar a aceitação ({err});"

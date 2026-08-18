@@ -20,6 +20,7 @@ policy.yaml이라는 '위임장'을 받아, 그 울타리 안에서 스스로:
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -211,6 +212,32 @@ def operating_capital(policy: dict, eq: float) -> float:
     return min(fx, max(float(eq or 0), 0.0))   # 지갑보다 크게 잡지 않음
 
 
+# Absolute outputs dir anchored to the package location, shared with the
+# bracket bot. The cross-bot guards used to glob a cwd-relative "outputs"
+# and silently found nothing when either process started from another
+# folder, voiding both guards at once. (review N1)
+_PKG_OUTPUTS = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "outputs")
+
+
+def _bracket_owned_syms() -> set:
+    """Symbols the bracket bot currently holds, per its own state files.
+
+    Reads bracket_state*.json (base and hard modes) under the package's
+    outputs dir. Unreadable files are skipped: better to close one position
+    too many during a real emergency than to crash the defense line on a
+    corrupt ledger."""
+    import glob as _glob
+    syms: set = set()
+    for path in _glob.glob(os.path.join(_PKG_OUTPUTS, "bracket_state*.json")):
+        try:
+            with open(path, encoding="utf-8") as f:
+                syms |= set((json.load(f).get("positions") or {}).keys())
+        except (OSError, json.JSONDecodeError, AttributeError):
+            pass
+    return syms
+
+
 def close_all(client: PacificaClient, builder: str, reason: str,
               dry: bool = False, failed: list | None = None) -> int:
     """모든 perp 포지션을 시장가 reduce_only로 청산. 청산 건수 반환.
@@ -220,10 +247,20 @@ def close_all(client: PacificaClient, builder: str, reason: str,
     (2026-08-10 검토 B1).
 
     failed: if given, symbols whose close order failed are appended, so the
-    caller can tell whether positions remain open (review H8)."""
+    caller can tell whether positions remain open (review H8).
+
+    Positions owned by the bracket bot (listed in its own state files) are
+    never touched: closing them here would realize their losses at the worst
+    moment while that bot grades the wound as its own and re-enters (review
+    H5)."""
     n = 0
+    bracket_syms = _bracket_owned_syms()
     for p in client.get_positions():
         try:
+            if p.get("symbol") in bracket_syms:
+                log(f"청산 건너뜀 {p.get('symbol')}: 브래킷 봇 소유 포지션 "
+                    f"(bracket_state 장부에 있음)")
+                continue
             opp = "ask" if p.get("side") == "bid" else "bid"
             if dry:
                 log(f"[DRY] 청산 생략: {p['symbol']} {p.get('amount')}")
@@ -325,6 +362,34 @@ def final_stop_check(client: PacificaClient, policy: dict, st: dict,
     if eq <= 0:
         log("잔고 조회 실패(일시적), 이번 사이클 쉼")
         return True
+    # Bracket-owned positions are excluded from the drawdown basis: close_all
+    # deliberately skips them (review H5), so their unrealized pnl must not
+    # be able to trigger a liquidation of THIS bot's own book while the
+    # actual cause stays open (review N7). Unrealized pnl is computed from
+    # entry vs mark, the same way aftercare does. If any read fails the raw
+    # equity stands, which can only fire the stop earlier, never later.
+    _bsyms = _bracket_owned_syms()
+    if _bsyms:
+        _bpnl = 0.0
+        try:
+            _prices = {p["symbol"]: p for p in client.get_prices()}
+            for _p in client.get_positions():
+                _s = _p.get("symbol")
+                if _s not in _bsyms:
+                    continue
+                _amt = abs(float(_p.get("amount") or 0))
+                _ent = float(_p.get("entry_price") or 0)
+                _mk = float(_prices.get(_s, {}).get("mark")
+                            or _prices.get(_s, {}).get("mid") or 0)
+                if _amt > 0 and _ent > 0 and _mk > 0:
+                    _bpnl += (_mk - _ent) * _amt \
+                        * (1 if _p.get("side") == "bid" else -1)
+        except (PacificaError, TypeError, ValueError, KeyError):
+            _bpnl = 0.0
+        if abs(_bpnl) >= 0.01:
+            eq -= _bpnl
+            log(f"방어선 판정: 브래킷 소유 포지션 미실현 손익 ${_bpnl:+,.2f} "
+                f"제외 (판정 자본 ${eq:,.2f})")
     # Deposits/withdrawals are not trading results, shift the baselines before
     # any drawdown is judged (flat-only, see the helper).
     _xfer = _reconcile_balance_change(client, st, eq)
@@ -908,10 +973,43 @@ def manage_positions(client: PacificaClient, policy: dict, st: dict) -> None:
             if limit_h and held_h > limit_h:
                 try:
                     amt = abs(float(p["amount"]))
+                    close_side = "ask" if p.get("side") == "bid" else "bid"
                     client.create_market_order(
-                        sym, "ask" if p.get("side") == "bid" else "bid",
-                        str(amt), "0.5", reduce_only=True,
+                        sym, close_side, str(amt), "0.5", reduce_only=True,
                         builder_code=policy.get("builder_code", ""))
+                    # Confirm the close actually filled instead of trusting
+                    # the order response: a rejected/partial close would
+                    # otherwise leave the position live while this loop
+                    # believes it is gone. Re-read once and retry once;
+                    # if it still shows, say so loudly and let the next
+                    # cycle try again (the expiry condition re-fires).
+                    time.sleep(2)
+                    try:
+                        still = next(
+                            (q for q in client.get_positions()
+                             if q.get("symbol") == sym), None)
+                    except PacificaError:
+                        still = None       # cannot check; next cycle will
+                    if still is not None:
+                        log(f"시간 만료 청산 미체결 확인: {sym}, 1회 재시도")
+                        client.create_market_order(
+                            sym, close_side,
+                            str(abs(float(still.get("amount") or amt))),
+                            "0.5", reduce_only=True,
+                            builder_code=policy.get("builder_code", ""))
+                        time.sleep(2)
+                        try:
+                            still = next(
+                                (q for q in client.get_positions()
+                                 if q.get("symbol") == sym), None)
+                        except PacificaError:
+                            still = None
+                        if still is not None:
+                            log(f"⚠️ 시간 만료 청산 재시도에도 포지션 잔존: "
+                                f"{sym}, 다음 사이클에 다시 시도")
+                            notify.send(f"⚠️ 시간 만료 청산 미완료: {sym}, "
+                                        f"포지션이 아직 열려 있습니다")
+                            continue
                     log(f"시간 만료 청산: {sym}, 신호 지평 {limit_h:.0f}시간 경과"
                         f"(보유 {held_h:.0f}시간), 우위 소멸로 정리")
                     notify.send(f"⏰ 시간 만료 청산: {sym} (지평 {limit_h:.0f}h 경과)")
@@ -1299,6 +1397,17 @@ def run_cycle(client: PacificaClient, policy: dict, st: dict, dry: bool) -> None
                 log(f"진입 스킵: {best.symbol} {best.side} 손절가가 반올림 후 "
                     f"{sl_px} (진입가 {entry})로 방향이 어긋남")
                 continue
+            # The TP leg gets the same post-rounding validation as the stop.
+            # A coarse tick can collapse a tight target onto or past the
+            # entry; a TP at/below entry (long) triggers immediately, closing
+            # the position for a fee-only loss. Same rule as the bracket
+            # bot's bracket_prices(): an invalid leg skips the entry.
+            if best.tp_move:
+                tp_f = float(tp_px)
+                if not (tp_f > entry if best.side == "long" else tp_f < entry):
+                    log(f"진입 스킵: {best.symbol} {best.side} 익절가가 반올림 "
+                        f"후 {tp_px} (진입가 {entry})로 방향이 어긋남")
+                    continue
             amount = _round_down_to_lot(max(notional / entry, 0), lot)
             if amount * entry < min_usd:
                 log(f"진입 스킵: {best.symbol} 수량이 최소 주문(${min_usd}) 미달")
@@ -1306,6 +1415,38 @@ def run_cycle(client: PacificaClient, policy: dict, st: dict, dry: bool) -> None
             log(f"진입 판단: {best.symbol} {best.side} ~${notional:.0f} "
                 f"(승률 {best.win_rate:.0%}, 신호 {best.signal})")
             if not dry:
+                # The sizing above assumed margin = notional / lev, but that
+                # only holds if the exchange actually applies lev to this
+                # market; the account may carry a different stored leverage
+                # from an earlier session or the exchange default. Set it,
+                # and on failure read it back (an "already set" rejection and
+                # a 429 raise the same error). Unconfirmed means the margin
+                # math is unknown: skip the entry, never guess. Same pattern
+                # as bracket_trader's H2 fix.
+                lev_ok = True
+                try:
+                    client.update_leverage(best.symbol, lev)
+                except PacificaError:
+                    lev_ok = False
+                if not lev_ok:
+                    confirmed_lev = False
+                    try:
+                        resp = client.get_account_settings()
+                        rows = resp.get("margin_settings") \
+                            if isinstance(resp, dict) else resp
+                        for s2 in rows or []:
+                            if isinstance(s2, dict) \
+                                    and s2.get("symbol") == best.symbol:
+                                confirmed_lev = int(float(
+                                    s2.get("leverage") or 0)) == lev
+                                break
+                    except Exception:
+                        confirmed_lev = False
+                    if not confirmed_lev:
+                        log(f"진입 스킵: {best.symbol}, 레버리지 {lev}배 설정 "
+                            f"실패 후 확인 불가 (증거금 계산이 어긋난 채로 "
+                            f"열지 않음)")
+                        continue
                 try:
                     client.create_market_order(
                         best.symbol, entry_side, str(amount), "0.5",
@@ -1514,7 +1655,30 @@ def _policy_mtime():
         return None
 
 
+def _warn_duplicate_keys(path: str) -> None:
+    """YAML silently keeps the LAST duplicate key; that once left the live
+    account running on values the file's comments contradicted. Warn loudly
+    so a stale block can never lie again.
+
+    Top-level keys only: the pattern matches at column zero, so duplicates
+    inside nested blocks are not detected. This warning staying silent does
+    not guarantee the file is free of duplicates everywhere."""
+    try:
+        seen = set()
+        for ln in open(path, encoding="utf-8", errors="replace"):
+            m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*:", ln)
+            if not m:
+                continue
+            k = m.group(1)
+            if k in seen:
+                log(f"경고: policy 중복 키 '{k}' — 마지막 값이 적용됩니다")
+            seen.add(k)
+    except OSError:
+        pass
+
+
 def load_policy() -> dict:
+    _warn_duplicate_keys(policy_path())
     with open(policy_path(), encoding="utf-8") as f:
         pol = yaml.safe_load(f)
     mode = pol.get("mode", "careful")
@@ -1625,6 +1789,21 @@ def main():
         return
     if args.report:
         print(report(client, st, policy)); return
+
+    # Mirror of the bracket bot's X1 guard (review H4): one account, one
+    # margin pool. A fresh bracket heartbeat means that bot holds the
+    # account, so this one refuses to start beside it.
+    import glob as _glob
+    for _hb in _glob.glob(os.path.join(_PKG_OUTPUTS, "bracket_alive_*.json")):
+        _age_min = (time.time() - os.path.getmtime(_hb)) / 60
+        if _age_min < 10:
+            _msg = (f"브래킷 봇이 {_age_min:.0f}분 전까지 살아있어 시작을 "
+                    "거부합니다. 같은 계좌 증거금을 두 봇이 나눠 쓰면 안 "
+                    "됩니다. 브래킷 봇을 끄고 다시 실행하세요 "
+                    "(꺼진 봇의 흔적이면 10분 뒤 자동 해제).")
+            log(_msg)
+            notify.send(f"{agent_name()}: " + _msg)
+            return
 
     net = "테스트넷" if "test-api" in policy["base_url"] else "메인넷"
     # 자본 표시: 고정값이면 숫자, live면 현재 지갑 잔고 연동임을 표시

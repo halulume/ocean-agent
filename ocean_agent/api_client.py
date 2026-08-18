@@ -83,6 +83,13 @@ class PacificaClient:
     def get_positions(self) -> list[dict]:
         return self._get("positions", {"account": self.address})
 
+    def get_open_orders(self) -> list[dict]:
+        """Open orders for this account, including TP/SL stop orders that
+        were attached to an entry. Read-only; used to verify that a bracket
+        the entry order asked for actually exists on the exchange."""
+        r = self._get("orders", {"account": self.address})
+        return r if isinstance(r, list) else []
+
     # ---------- 빌더 코드 (수수료 동의) ----------
 
     def get_builder_approvals(self) -> list:

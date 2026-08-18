@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ocean-agent"
-version = "0.4.1"
+version = "0.4.2"
 description = "Pacifica trading MCP server, measured-edge setups, exchange-native brackets, funding carry, and a policy-governed autonomous trading entity"
 readme = "README.md"
 license = { text = "MIT" }
@@ -21,6 +21,10 @@ dependencies = [
     # 등 배선이 크게 바뀐다. 상한이 없으면 uvx 설치 시 조용히 깨질 수 있다.
     "mcp>=1.0,<2",
 ]
+
+[project.optional-dependencies]
+# Paid telebot tier: pip install ocean-agent[llm] + ANTHROPIC_API_KEY in .env
+llm = ["anthropic>=0.40.0"]
 
 [project.scripts]
 ocean-agent = "ocean_agent.mcp_server:main"

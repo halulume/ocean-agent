@@ -64,22 +64,51 @@ def _release_lock() -> None:
     except OSError:
         pass
 
-# Measured universe. The first 12 have a Binance spot mapping, so with
-# use_extended their backtest reaches back to 2017 (bull, bear and chop) instead
-# of the ~62 days Pacifica can serve. HYPE and PUMP have no mapping and stay
-# Pacifica-only, kept because they are actively traded, but their rows carry
-# far thinner evidence.
-# Was 6 coins, of which only 4 could use the deep history at all; the bot trades
-# 47 markets, so most entries were being judged on one market mood.
-COINS = ["BTC", "ETH", "SOL", "XRP", "DOGE", "BNB",
-         "AVAX", "LINK", "LTC", "ADA", "SUI", "AAVE",
-         # 2026-08-06 추가, 바이낸스 매핑이 생겨 2017년까지 표본이 늘어난다.
-         "PAXG", "PUMP", "ZEC", "UNI", "JUP", "ENA",
-         "HYPE"]
-TFS = ["5m", "15m", "30m", "1h", "2h", "4h", "8h", "12h", "1d"]
+# 측정 대상 = 바이낸스 현물 매핑이 있는 파시피카 종목 전부.
+#
+# 목록을 손으로 적어두는 방식이었고, 그래서 매트릭스가 19종목으로 돌았다.
+# 봇은 75개 시장을 거래하는데 표본의 71%를 상위 10종목이 냈고, 요즘 실제로
+# 뽑히는 종목(KAITO·MEGA·LDO·kBONK·WLFI 등)은 매트릭스에 아예 없어서
+# 그 신호들이 BTC·ETH·LTC 에서 통한 값으로 판정되고 있었다.
+# 이제 historical_data.BINANCE_SYMBOL(2026-08-12에 exchangeInfo 전수 대조로
+# 43종까지 넓힘)에서 직접 끌어온다, 표를 한 군데만 고치면 된다.
+#
+# 매핑이 없는 종목(HYPE·주식·원자재·SP500 등)은 넣지 않는다. 파시피카 보관분
+# 3,000봉만으로는 8시간봉·일봉에서 표본이 한 자릿수라, 매트릭스에 들어와도
+# 근거가 되기보다 잡음이 된다. run_measurement 가 제외 목록과 사유를 찍는다.
+from .historical_data import BINANCE_SYMBOL
+
+COINS = sorted(BINANCE_SYMBOL)
+# 5분봉은 안 쓴다 (사용자 지시 2026-08-12·08-13). 라이브 채점 경로가 읽지
+# 않는데 캐시만 298MB 차지하고 매트릭스 계산 시간도 먹었다.
+TFS = ["15m", "30m", "1h", "2h", "4h", "8h", "12h", "1d"]
 FEE_RT = 0.0008
 MIN_N = 20              # 이 미만 표본은 판단 근거로 쓰지 않음
 DEFAULT_HORIZONS = {"단타": "4h", "스윙": "8h", "장타": "12h"}
+
+# ---------- 표본 구간의 앞 경계 ----------
+# 2021-01-01 부터 잰다. 2017~2020 국면은 이 봇이 거래하는 시장이 아니고
+# (상장 종목도, 유동성도, 참여자도 다르다), 그것 없이도 표본은 이미 충분하다.
+# 9년치를 끌어오는 건 비용만 크고 판단을 낡은 국면 쪽으로 끌어당긴다.
+MATRIX_START_MS = 1_609_459_200_000        # 2021-01-01 00:00 UTC
+
+# 짧은 봉은 같은 기간에 봉이 12배씩 더 쌓인다. 5분·15분·30분봉은 최근 60일만
+# 쓴다. 필요한 만큼만 받는다는 원칙 그대로다:
+#  · 60일이면 5분봉 17,280봉 · 15분봉 5,760봉 · 30분봉 2,880봉이라, 신호가 자주
+#    켜지는 짧은 봉에서 MIN_N(20)은 여유 있게 넘는다.
+#  · 봇의 실전 채점 경로는 1h·4h·8h·12h 를 쓴다. 5분봉 행을 읽는 라이브 경로는
+#    없으므로, 여기서 잃는 것은 '필요 없는 정밀도'지 '필요한 범위'가 아니다.
+#  · 5분봉을 2021까지 끌면 종목당 59만 봉이다. 실측으로 34종목에서 평균
+#    385,909봉을 받았고, 그 다운로드가 이 작업 시간의 대부분이었다.
+CAPPED_TFS = {"15m": 60, "30m": 60}   # 시간봉 → 최근 며칠만
+
+
+def _tf_start_ms(tf: str) -> int:
+    """이 시간봉에 쓸 과거 구간의 앞 경계(ms)."""
+    days = CAPPED_TFS.get(tf)
+    if days:
+        return int(time.time() * 1000) - days * 86_400_000
+    return MATRIX_START_MS
 
 
 # ---------- 측정 ----------
@@ -135,20 +164,46 @@ def _fetch(client, symbol, interval, max_bars=3000, use_extended=False,
         return pacifica_closes
 
 
-def _fetch_ohlc(client, symbol, interval, use_extended=False, log=print):
+def _fetch_ohlc(client, symbol, interval, use_extended=False, log=print,
+                start_ms=None, use_underlying=False):
     """봉 전체(o/h/l/c)를 과거→현재로. 손절 도달 판정에 고가·저가가 필요하다.
 
     종가만으로는 '봉 안에서 손절을 스치고 회복한' 경우를 못 봐 손절률이
     과소평가된다(실측: 55% vs 실제 68%). extended_ohlc 가 겹침 검증·안전
-    폴백을 모두 처리하므로 여기서는 호출만 한다."""
+    폴백을 모두 처리하므로 여기서는 호출만 한다.
+
+    start_ms=None 이면 이 시간봉의 기본 경계(_tf_start_ms)를 쓴다.
+
+    use_underlying=True: 주식·RWA 토큰만 해당. 접합본(ub_ 캐시)이 있으면 원본
+        시장 과거를 앞에 붙인 시계열을 쓴다. 접합본이 없으면 아래 기존 경로로
+        그대로 떨어진다. 바이낸스 증강과 겹치는 종목은 없다(주식·원자재는
+        바이낸스 매핑 자체가 없다). 기본값 False 라 이 인자를 안 주면 동작은
+        예전과 한 바이트도 다르지 않다."""
     from .historical_data import extended_ohlc, _pacifica_ohlc
     try:
+        st = _tf_start_ms(interval) if start_ms is None else start_ms
+        if use_underlying:
+            from .historical_data import (has_underlying_cache,
+                                          underlying_ohlc)
+            if has_underlying_cache(symbol, interval):
+                return underlying_ohlc(client, symbol, interval, log=log,
+                                       start_ms=st)
         if use_extended:
-            return extended_ohlc(client, symbol, interval, log=log)
+            return extended_ohlc(client, symbol, interval, log=log,
+                                 start_ms=st)
         return _pacifica_ohlc(client, symbol, interval, log=log)
     except Exception as e:
         log(f"  OHLC 조회 실패({symbol} {interval}): {e}")
         return []
+
+
+def _is_underlying_augmented(bars) -> bool:
+    """이 시계열에 원본시장 유래 봉이 실제로 섞였는가.
+
+    캐시 파일이 있는지가 아니라 '무엇이 돌아왔는지'로 판단한다. 파시피카가 이미
+    그 구간을 덮으면 접합본이 있어도 붙는 원본 봉은 0개인데, 그런 행까지
+    원본 유래로 태깅하면 태그가 거짓말을 하게 된다."""
+    return any(b.get("source") not in ("pacifica", "binance") for b in bars)
 
 
 def _path_result(bars, closes, i, side, sl, tp, fwd):
@@ -205,7 +260,12 @@ def _measure_series(closes, fwd, bars=None):
         ev = ev_end
         if bars:
             # 기준선도 같은 방식으로 재야 신호와 공정하게 비교된다.
-            sl_b = max(al, 0.005)
+            # The signal side widens its stop by SL_WIDTH_MULT to match the
+            # live order; the baseline must use the exact same line or the
+            # ev-vs-base gate compares two different games and zero-edge
+            # signals pass it (review P5).
+            from .signal_scanner import SL_WIDTH_MULT as _slw_b
+            sl_b = max(al, 0.005) * _slw_b
             tot = cnt = 0
             for i in range(220, n - fwd, 3):      # 3봉 간격 표본 (속도)
                 r = _path_result(bars, closes, i, side, sl_b, aw, fwd)
@@ -242,7 +302,12 @@ def _measure_series(closes, fwd, bars=None):
         # 두 판정이 어긋나는지 확인할 때만 쓴다.
         ev = ev_end
         if bars:
-            sl = max(al, 0.005)
+            # stop width must match the live order exactly: the scanner
+            # sends max(avg_loss, 0.5%) x SL_WIDTH_MULT, so the gate is
+            # measured with the same line or it approves a different trade
+            # than the one that goes out (review S5)
+            from .signal_scanner import SL_WIDTH_MULT as _slw
+            sl = max(al, 0.005) * _slw
             tot = cnt = 0
             for i in fired:
                 r = _path_result(bars, closes, i, side, sl, aw, fwd)
@@ -256,21 +321,67 @@ def _measure_series(closes, fwd, bars=None):
     return res, base
 
 
+def _has_any_underlying(symbol: str) -> bool:
+    from .historical_data import has_underlying_cache
+    return any(has_underlying_cache(symbol, tf) for tf in TFS)
+
+
+def _universe(client, log=print, use_underlying=False) -> list[str]:
+    """실제로 잴 종목 목록. 파시피카 상장 × 바이낸스 매핑의 교집합.
+
+    use_underlying=True 면 원본시장 접합본(ub_)이 있는 주식·RWA 토큰도 넣는다.
+    이게 없으면 옵트인 플래그를 켜도 아무 일이 안 일어난다, 그 종목들은 여기서
+    먼저 걸러져 _fetch_ohlc 까지 가지도 못하기 때문이다.
+
+    제외된 종목과 사유를 반드시 찍는다. 조용히 빠지면 '왜 이 종목 신호는
+    남의 종목 값으로 판정되나'를 다음 사람이 또 처음부터 찾아야 한다."""
+    try:
+        markets = sorted({m["symbol"] for m in client.get_markets()})
+    except Exception as e:
+        log(f"파시피카 종목 조회 실패({e}), 내장 목록 {len(COINS)}종으로 진행")
+        return list(COINS)
+
+    def ok(s):
+        return s in BINANCE_SYMBOL or (use_underlying and _has_any_underlying(s))
+    keep = [s for s in markets if ok(s)]
+    drop = [s for s in markets if not ok(s)]
+    if use_underlying:
+        ub = [s for s in keep if s not in BINANCE_SYMBOL]
+        log(f"원본시장 접합본으로 추가된 종목 {len(ub)}종: " + ", ".join(ub))
+    log(f"측정 대상 {len(keep)}종목 / 파시피카 전체 {len(markets)}종목")
+    if drop:
+        log(f"제외 {len(drop)}종목 (바이낸스 현물 미상장 → 파시피카 보관분 "
+            f"3,000봉뿐이라 상위 시간봉 표본이 한 자릿수, 근거가 되기보다 "
+            f"잡음이 된다): " + ", ".join(drop))
+    return keep or list(COINS)
+
+
 def run_measurement(base_url="https://api.pacifica.fi", fwd=24,
-                    log=print, use_extended=False) -> dict:
+                    log=print, use_extended=False, symbols=None,
+                    use_underlying=False, out_path=None) -> dict:
     """전 조합 재측정 후 결과 저장. 오래 걸린다(약 20분), 백그라운드 권장.
 
     use_extended=False(기본): 파시피카 데이터만 (기존과 동일).
     use_extended=True: 바이낸스 과거 종가로 백테스트 표본을 두껍게 한다
-        (가격 전용). 결과에 그 사실을 기록한다."""
+        (가격 전용). 결과에 그 사실을 기록한다.
+    use_underlying=True: 주식·RWA 토큰에 한해 원본시장(야후) 과거로 앞을 채운
+        접합본을 쓴다. 접합본이 없는 종목·시간봉은 영향 없음. 이 경로로 잰 행에는
+        src="underlying" 이 붙고, 파일 머리에도 어느 종목이 그랬는지 남는다.
+        순수 토큰 측정과 섞어 읽는 사고를 막기 위한 것이니 지우지 말 것.
+    symbols=None: 파시피카 상장 × 바이낸스 매핑 교집합을 자동으로 쓴다.
+    out_path=None: 기본은 라이브 매트릭스(MATRIX_FILE). 실험용 측정은 여기에
+        다른 경로를 줘서 라이브를 덮지 않고 따로 받을 수 있다."""
     from .api_client import PacificaClient
     client = PacificaClient(base_url)
+    syms = list(symbols) if symbols else _universe(
+        client, log=log, use_underlying=use_underlying)
     rows, bases = [], []
-    for sym in COINS:
+    aug_pairs = []
+    for sym in syms:
         for tf in TFS:
             try:
                 bars = _fetch_ohlc(client, sym, tf, use_extended=use_extended,
-                                   log=log)
+                                   log=log, use_underlying=use_underlying)
                 closes = [x["c"] for x in bars]
             except Exception as e:
                 log(f"  {sym} {tf}: 조회실패 {e}")
@@ -280,18 +391,43 @@ def run_measurement(base_url="https://api.pacifica.fi", fwd=24,
             if not r:
                 time.sleep(2)
                 continue
+            # 파일이 아니라 실제로 돌아온 봉으로 판단한다.
+            aug = use_underlying and _is_underlying_augmented(bars)
+            if aug:
+                aug_pairs.append(f"{sym}|{tf}")
             for name, d in r.items():
-                rows.append({"sym": sym, "tf": tf, "sig": name, **d})
+                row = {"sym": sym, "tf": tf, "sig": name, **d}
+                if aug:
+                    row["src"] = "underlying"
+                rows.append(row)
             for side, d in b.items():
-                bases.append({"sym": sym, "tf": tf, "side": side, **d})
+                bs = {"sym": sym, "tf": tf, "side": side, **d}
+                if aug:
+                    bs["src"] = "underlying"
+                bases.append(bs)
             time.sleep(3)
+    from .signal_scanner import SL_WIDTH_MULT as _slw_tag
     out = {"measured_at": int(time.time() * 1000), "fwd": fwd,
-           "rows": rows, "bases": bases, "extended": use_extended}
-    tmp = MATRIX_FILE + ".tmp"
+           # which stop-width convention measured this file: without the tag
+           # a 1x-measured matrix is indistinguishable from a 2x one and the
+           # two get mixed silently for up to rematrix_every_days (review P5)
+           "sl_width_mult": _slw_tag,
+           "rows": rows, "bases": bases, "extended": use_extended,
+           # 어떤 구간·어떤 종목으로 잰 값인지 파일에 남긴다. 나중에 두 매트릭스를
+           # 비교할 때 "표본이 왜 줄었나"를 파일만 보고 알 수 있어야 한다.
+           "symbols": syms,
+           # 원본시장 유래 구간이 실제로 섞인 곳. 행의 src 태그와 같은 사실을
+           # 파일 머리에서도 한 번에 볼 수 있게 남긴다.
+           "underlying": sorted({p.split("|")[0] for p in aug_pairs}),
+           "underlying_pairs": sorted(aug_pairs),
+           "start_ms": {tf: _tf_start_ms(tf) for tf in TFS}}
+    path = out_path or MATRIX_FILE
+    tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False)
-    os.replace(tmp, MATRIX_FILE)
-    log(f"재측정 완료: {len(rows)}조합 → {MATRIX_FILE}")
+    os.replace(tmp, path)
+    log(f"재측정 완료: {len(rows)}조합 → {path}"
+        + (f" (원본증강 {len(aug_pairs)}칸)" if aug_pairs else ""))
     return out
 
 
@@ -426,7 +562,14 @@ def signal_ev(sig: str, tf: str) -> tuple[float, int] | None:
         return memo[key]
     g = [r for r in m.get("rows", [])
          if r["sig"] == sig and r["tf"] == tf and r.get("n", 0) >= MIN_N]
-    out = (sum(r["ev"] for r in g) / len(g), sum(r["n"] for r in g)) if g else None
+    # The EV must be pooled by sample count, not averaged per symbol.
+    # An unweighted mean paired with a summed n described two different
+    # populations: ten thin symbols (20 firings each) could clear the
+    # caller's n >= 200 gate while their noisy EVs outvoted a symbol with
+    # 3,000 firings. Weighting by n makes the returned (ev, n) pair one
+    # population, the same pooling best_horizons() already uses.
+    tot_n = sum(r["n"] for r in g)
+    out = (sum(r["ev"] * r["n"] for r in g) / tot_n, tot_n) if tot_n > 0 else None
     memo[key] = out
     return out
 
@@ -526,6 +669,10 @@ def summary() -> str:
         return "측정 기록 없음, python -m ocean_agent.rematrix 로 최초 측정"
     rows = [r for r in m["rows"] if r.get("n", 0) >= MIN_N]
     src = "바이낸스 증강" if m.get("extended") else "파시피카만"
+    if m.get("underlying"):
+        # 원본시장 유래 구간이 섞인 종목이 있으면 요약에서 먼저 말한다.
+        # 순수 토큰 측정으로 오해하는 것이 이 태그를 만든 이유다.
+        src += f" + 원본증강 {len(m['underlying'])}종목"
     lines = [f"마지막 측정: {age_days(m):.1f}일 전 · {len(m['rows'])}조합 · 데이터 {src}",
              f"현재 선택 시간봉: {best_horizons()}"]
     agg = {}
@@ -550,17 +697,35 @@ def main():
     # --extended: 바이낸스 과거 종가로 백테스트 표본을 두껍게 (가격 전용).
     # 기본은 파시피카만 (안전). 이 플래그를 줄 때만 다국면 데이터를 섞는다.
     ext = "--extended" in sys.argv
+    # --underlying: 주식·RWA 토큰에 한해 원본시장 접합본을 쓴다(옵트인).
+    # --out=경로: 라이브 매트릭스 대신 그 파일로 받는다(실험용).
+    und = "--underlying" in sys.argv
+    out_path = None
+    for a in sys.argv[1:]:
+        if a.startswith("--out="):
+            out_path = a[len("--out="):]
     if ext:
         print("전 조합 재측정 시작, 증강 모드(바이낸스 과거 종가 포함, 가격 전용)...")
     else:
         print("전 코인 × 전 시간봉 × 전 신호 재측정 시작 (약 20분, 파시피카만)...")
+    if und:
+        print("  + 원본시장 증강: 접합본(ub_)이 있는 주식·RWA 토큰만, "
+              "해당 행에 src=underlying 태깅")
+    if out_path:
+        print(f"  + 출력 경로: {out_path} (라이브 매트릭스는 건드리지 않는다)")
     try:
-        run_measurement(use_extended=ext)
+        run_measurement(use_extended=ext, use_underlying=und,
+                        out_path=out_path)
     finally:
         # Release even when the measurement raises, otherwise the lock file
         # lingers and blocks re-measurement for the whole stale window.
         _release_lock()
-    print(summary())
+    if out_path:
+        # summary() 는 라이브 매트릭스를 읽는다. --out 으로 다른 파일에 받았는데
+        # 여기서 요약을 찍으면 방금 잰 것이 아닌 예전 값을 보여주게 된다.
+        print(f"결과는 {out_path} 에 있다 (라이브 매트릭스 미변경)")
+    else:
+        print(summary())
 
 
 if __name__ == "__main__":

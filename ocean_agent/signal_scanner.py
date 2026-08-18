@@ -111,6 +111,12 @@ VOL_GATE_MULT = 2.0
 # 위쪽(300)으로 잡아봤더니 표본 50~80건짜리가 0.15~0.22배로 눌려 순위에서
 # 사실상 사라졌다, 신규 상장을 '진입 금지'한 것과 같아져 B안의 취지에 어긋난다.
 EV_SHRINK_PRIOR_N = 100
+# Warm-up for the causal path EV: an occurrence is scored only once this
+# many earlier occurrences have already resolved (see the path block in
+# top_setups). Below this the expanding avg_win/avg_loss is too thin to
+# form a target at all, and a zero avg_win would make the take-profit
+# trigger on the first bar.
+EV_CAUSAL_MIN_PRIOR = 20
 PREDICTIONS_FILE = os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "predictions.json")
 
@@ -488,8 +494,12 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 continue
             s = _series(closes)
             sigs = _signals(s)
-            ups = sum(1 for i in range(n - FWD) if closes[i + FWD] > closes[i])
-            base_up = ups / (n - FWD)
+            # same warm-up cut as the signal sample below: bars before 220
+            # are indicator warm-up and early-listing drift, and a baseline
+            # measured on a different sample skews every pass/fail (S2)
+            ups = sum(1 for i in range(220, n - FWD)
+                      if closes[i + FWD] > closes[i])
+            base_up = ups / max(1, n - FWD - 220)
 
             # 지금 동시에 켜진 신호 집합 (조합 학습 참조용)
             co_active = []
@@ -521,7 +531,15 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                     m = closes[i + FWD] / closes[i] - 1
                     moves.append(m if side == "long" else -m)
                     fires.append(i)
-                if len(moves) < MIN_N:
+                _ni = 0
+                if fires:
+                    _ni = 1
+                    _lf = fires[0]
+                    for _f in fires[1:]:
+                        if _f - _lf >= FWD:
+                            _ni += 1
+                            _lf = _f
+                if _ni < MIN_N:      # gate on independent observations (S3)
                     continue
                 wins = [m for m in moves if m > 0]
                 losses = [-m for m in moves if m <= 0]
@@ -572,7 +590,7 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                         pwin = pwin * (1 - w) + lw * w
                     # 조합 부스트: 지금 이 신호가 다른 신호들과 동시 점등이고,
                     # 그 조합이 이 신호와 방향이 같고, 학습된 조합 승률이 더 높으면 상향
-                    if len(co_active) >= 2:
+                    if name in co_active and len(co_active) >= 2:
                         from .market_context import fear_greed
                         fg = fear_greed()
                         reg = ("fear" if fg and fg[0] <= 25 else
@@ -625,7 +643,10 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 # 오차 0.0%). 진짜 위험 신호는 표본이 아니라 예측의 극단성이고,
                 # 그건 보정표가 직접 잰다. 수축은 보정표가 없을 때의 대비책으로 남긴다.
                 if not calibrated_ok:
-                    n_eff = len(moves) + live_n * LIVE_SAMPLE_WEIGHT
+                    # overlapping fires within one forward horizon are one
+                    # observation, not many: thin them to FWD spacing before
+                    # they feed shrinkage and the MIN_N gate (S3)
+                    n_eff = _ni + live_n * LIVE_SAMPLE_WEIGHT
                     pwin = target + (pwin - target) * (n_eff / (n_eff + EVIDENCE_PRIOR))
                 if pwin - base < MIN_EDGE:
                     continue
@@ -641,6 +662,10 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 # 손실이 커서, 통과 당시 플러스였던 EV가 실전에선 마이너스가 됐다.
                 # (2026-08-05 실측: BTC 5m 볼린저 하단이탈, 목표 +0.392% 인데
                 #  손절이 바닥값 0.5%로 올라가 실제 EV -0.088%. 그 상태로 진입했다.)
+                # These two are the LIVE bracket for the entry we may open
+                # now, and they are what Setup reports. The historical path
+                # EV below no longer uses them, it rebuilds the same formula
+                # per occurrence from data available at that occurrence.
                 sl = max(avg_loss, 0.005) * SL_WIDTH_MULT
                 tp = avg_win
                 horizon_h = INTERVAL_MS[tf] * FWD / 3_600_000
@@ -680,8 +705,44 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 # 실측(1시간봉 4.4만건): 손절율 55%(종가) vs 68%(고저),
                 # EV +0.298% vs -0.148% 로 부호까지 뒤집혔다.
                 # 한 봉에서 양쪽 다 닿으면 손절을 먼저 적용한다(보수적).
+                # ── The path EV is computed causally ──
+                # The tp/sl above are the whole-sample avg_win/avg_loss.
+                # They are the right numbers for the live entry we are
+                # about to size (everything in the sample is past relative
+                # to now), but they are NOT available to a 2019 occurrence:
+                # using them to score that occurrence is lookahead, the
+                # target is fitted on bars that had not printed yet.
+                # So each occurrence is scored with an expanding window of
+                # only the occurrences that had already resolved when it
+                # fired. An occurrence at index fk is known at fk + FWD,
+                # so the usable set is {k: fires[k] + FWD <= fi}, the same
+                # rule harness._advance applies (f[p][0] + FWD <= i).
+                # fires is ascending, so that set is a prefix and one
+                # moving pointer with running sums keeps this O(n).
                 path = []
+                w_sum = l_sum = 0.0
+                w_cnt = l_cnt = 0
+                ptr = 0
                 for fi in fires:
+                    while ptr < len(fires) and fires[ptr] + FWD <= fi:
+                        mv_p = moves[ptr]
+                        if mv_p > 0:
+                            w_sum += mv_p
+                            w_cnt += 1
+                        else:
+                            l_sum += -mv_p
+                            l_cnt += 1
+                        ptr += 1
+                    # Warm-up: no target can be formed without resolved
+                    # winners, and a thin window makes a meaningless one.
+                    if w_cnt + l_cnt < EV_CAUSAL_MIN_PRIOR or w_cnt == 0:
+                        continue
+                    a_win = w_sum / w_cnt
+                    # Same fallbacks as the whole-sample branch above, so
+                    # only the data window differs, not the formula.
+                    a_loss = l_sum / l_cnt if l_cnt else max(a_win, 0.005)
+                    tp_i = a_win
+                    sl_i = max(a_loss, 0.005) * SL_WIDTH_MULT
                     e0 = closes[fi]
                     if e0 <= 0:
                         continue
@@ -691,18 +752,22 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                         lo = ohlc[fi + k][3] / e0 - 1.0
                         adverse = -lo if side == "long" else hi
                         favor = hi if side == "long" else -lo
-                        if adverse >= sl:
-                            r = -sl
+                        if adverse >= sl_i:
+                            r = -sl_i
                             break
-                        if favor >= tp:
-                            r = tp
+                        if favor >= tp_i:
+                            r = tp_i
                             break
                     if r is None:
                         mv = closes[fi + FWD] / e0 - 1.0
                         r = mv if side == "long" else -mv
                     path.append(r)
-                # 경로 평가가 가능한 표본이 위 관문과 같아야 한다, 위에서
-                # 통과시킨 것을 여기서 다른 기준으로 또 자르면 어긋난다.
+                # The path sample is now necessarily smaller than the moves
+                # sample: the warm-up prefix has no history to be scored
+                # against. That prefix is dropped, not scored with future
+                # numbers, so the MIN_N floor is applied to what actually
+                # got scored. A signal that only ever fires MIN_N times has
+                # no causally measurable EV and is skipped.
                 if len(path) < MIN_N:
                     continue
                 raw_ev = sum(path) / len(path)

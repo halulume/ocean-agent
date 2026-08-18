@@ -22,6 +22,23 @@ import time
 import urllib.request
 
 # 파시피카 심볼 → 바이낸스 심볼. 양쪽에 다 있는 것만. RWA/파시피카전용 제외.
+# 무기한 선물에서만 이름이 다른 것들. 파시피카가 1,000개 묶음으로 부르는
+# 종목을 선물도 같은 묶음으로 부르므로, 현물에서 배율 1,000으로 거부되던
+# kPEPE·kBONK·kSHIB 가 선물에서는 그냥 붙는다.
+BINANCE_FUT_OVERRIDE = {
+    "kBONK": "1000BONKUSDT",
+    "kPEPE": "1000PEPEUSDT",
+    "kSHIB": "1000SHIBUSDT",
+}
+
+
+def binance_symbol(sym: str) -> str | None:
+    """이 종목의 바이낸스 심볼. 선물 모드면 선물 이름을 준다."""
+    if os.environ.get("BINANCE_FUTURES") == "1" and sym in BINANCE_FUT_OVERRIDE:
+        return BINANCE_FUT_OVERRIDE[sym]
+    return BINANCE_SYMBOL.get(sym)
+
+
 BINANCE_SYMBOL = {
     "BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT",
     "XRP": "XRPUSDT", "DOGE": "DOGEUSDT", "BNB": "BNBUSDT",
@@ -34,6 +51,24 @@ BINANCE_SYMBOL = {
     # 되어 '표본 부족'이라는 문제 자체가 사라진다.
     "PAXG": "PAXGUSDT", "PUMP": "PUMPUSDT", "ZEC": "ZECUSDT",
     "UNI": "UNIUSDT", "JUP": "JUPUSDT", "ENA": "ENAUSDT",
+    # 2026-08-12 추가 25종. 표에 18종뿐이라 매트릭스가 19종목으로 돌고 있었고,
+    # 봇이 실제로 뽑는 종목(KAITO·LDO·kBONK·WLFI 등)이 거의 다 빠져 있었다.
+    # 그날 exchangeInfo(TRADING) 전수 대조로 확인했다, 파시피카 75종 중 43종이
+    # 바이낸스 현물에 있다. 후보는 SYM·기초자산·1000기초자산 + USDT 순으로 보고
+    # 처음 맞는 것을 쓴다(파시피카의 앞 소문자 k = 1000단위, 기초자산은 나머지).
+    "2Z": "2ZUSDT", "ARB": "ARBUSDT", "ASTER": "ASTERUSDT",
+    "BCH": "BCHUSDT", "CHIP": "CHIPUSDT", "CRV": "CRVUSDT",
+    "ICP": "ICPUSDT", "KAITO": "KAITOUSDT", "LDO": "LDOUSDT",
+    "MEGA": "MEGAUSDT", "NEAR": "NEARUSDT", "PENGU": "PENGUUSDT",
+    "STRK": "STRKUSDT", "TAO": "TAOUSDT", "TRUMP": "TRUMPUSDT",
+    "VIRTUAL": "VIRTUALUSDT", "WIF": "WIFUSDT", "WLD": "WLDUSDT",
+    "WLFI": "WLFIUSDT", "XPL": "XPLUSDT", "ZK": "ZKUSDT",
+    "ZRO": "ZROUSDT",
+    # ⚠️ k 종목은 호가 단위가 1000배다(kBONK 0.002282 vs BONKUSDT 0.00000228).
+    # 그래서 겹침 검증이 반드시 실패하고, 이어붙이기는 자동으로 취소된다
+    # (파시피카 보관분만 쓴다). 스케일을 맞춰 붙이는 건 별도 작업이다,
+    # 지금 억지로 붙이면 이음매에 -99.9% 짜리 가짜 봉이 생긴다.
+    "kBONK": "BONKUSDT", "kPEPE": "PEPEUSDT", "kSHIB": "SHIBUSDT",
     # 아직 없는 것: HYPE(바이낸스 현물 없음) · 주식(SKHYNIX·NVDA·SAMSUNG 등)
     # · 원자재(XAU·XAG·CL) · SP500. 억지 매핑은 오염이므로 넣지 않는다.
 }
@@ -63,8 +98,16 @@ def _cache_path(bsym: str, binterval: str) -> str:
     짧게만 보관해서(5분봉 ≈ 10일) 그 값이 실행할 때마다 밀린다. 결과적으로 매번
     캐시가 빗나가 같은 2017~현재 구간을 통째로 다시 받고, 파일만 쌓였다
     (BTC 5분봉 3MB짜리가 실행 횟수만큼). 캐시의 존재 이유가 사라진 셈이다.
-    이제 구간 끝은 파일 안에 기록하고, 모자란 부분만 이어받는다."""
-    return os.path.join(CACHE_DIR, f"{bsym}_{binterval}.json.gz")
+    이제 구간 끝은 파일 안에 기록하고, 모자란 부분만 이어받는다.
+
+    현물과 선물은 자리를 나눈다. 이 경로에는 접미사가 없어서, 선물 모드로 받은
+    종가가 현물 이름 파일에 들어갈 수 있었다 — 43종목 중 40개가 심볼까지 같아서
+    (BTCUSDT) 어느 쪽인지 구분이 안 된다. 08-13 점검에서 실제 오염은 없었지만
+    (현물 파일 140개 전부 전환 전 기록), 구멍은 열려 있었다.
+    현물은 `spot/` 아래로, 선물은 `_fut` 접미사로 간다."""
+    if os.environ.get("BINANCE_FUTURES") == "1":
+        return os.path.join(CACHE_DIR, f"{bsym}_{binterval}_fut.json.gz")
+    return os.path.join(CACHE_DIR, "spot", f"{bsym}_{binterval}.json.gz")
 
 
 def _cached_closes(bsym: str, binterval: str, end_ms: int):
@@ -96,8 +139,9 @@ def _store_closes(bsym: str, binterval: str, end_ms: int,
     if not closes:
         return
     try:
-        os.makedirs(CACHE_DIR, exist_ok=True)
         path = _cache_path(bsym, binterval)
+        # 현물은 spot/ 아래라 CACHE_DIR 만 만들면 안 된다.
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = path + ".tmp"
         with gzip.open(tmp, "wt", encoding="utf-8") as f:
             json.dump({"end_ms": int(end_ms), "closes": closes}, f)
@@ -114,7 +158,9 @@ def _binance_klines(bsym: str, binterval: str, start_ms: int,
     cur = start_ms
     guard = 0
     fails = 0
-    base = "https://api.binance.com/api/v3/klines"
+    base = ("https://fapi.binance.com/fapi/v1/klines"
+            if os.environ.get("BINANCE_FUTURES") == "1"
+            else "https://api.binance.com/api/v3/klines")
     # 5분봉 2017~현재는 약 1,000페이지다. 500에서 끊으면 앞부분만 받고 최근이
     # 비어, 파시피카 종가와 이어붙일 때 가격이 순간이동하는 시계열이 된다
     # (가짜 신호의 원인). 구간을 온전히 받도록 상한을 넉넉히 둔다, 어차피
@@ -199,7 +245,10 @@ def validate_overlap(client, symbol: str, interval: str,
     같은 자산이라도 거래소가 다르면 미세하게 다를 수 있다. 크게 벌어지면
     두 시계열을 잇는 것 자체가 오염이므로, blind stitch 대신 보고한다.
     """
-    bsym = BINANCE_SYMBOL.get(symbol)
+    # binance_symbol() (not the raw table) so futures mode picks up the
+    # 1000-bundle overrides (kBONK -> 1000BONKUSDT); the raw spot name is
+    # scale-mismatched 1000x for the k symbols and always fails this check.
+    bsym = binance_symbol(symbol)
     binterval = BINANCE_INTERVAL.get(interval)
     if not bsym or not binterval:
         return False
@@ -248,7 +297,7 @@ def extended_closes(client, symbol: str, interval: str,
     - 겹침 검증 실패 시 파시피카 종가를 그대로 반환(증강 안 함, 안전).
     - 바이낸스에 없는 심볼(HYPE 등)도 그대로 파시피카만 반환.
     """
-    bsym = BINANCE_SYMBOL.get(symbol)
+    bsym = binance_symbol(symbol)    # futures-aware mapping (same as overlap)
     binterval = BINANCE_INTERVAL.get(interval)
     if not bsym or not binterval:
         return pacifica_closes   # 매칭 없음 → 파시피카만
@@ -283,8 +332,12 @@ def extended_closes(client, symbol: str, interval: str,
         _store_closes(bsym, binterval, pac_start, binance_closes)
     elif resume is not None:
         add = _binance_klines(bsym, binterval, resume, pac_start - 1, log=log)
+        # The cached closes carry no timestamps, so overlap cannot be deduped
+        # after the fact: keep only bars at/after the resume point, which is
+        # exactly where the cached coverage ends. Anything earlier would be
+        # appended a second time.
         binance_closes = binance_closes + [h["c"] for h in add
-                                           if h["t"] < pac_start]
+                                           if resume <= h["t"] < pac_start]
         covered = (add[-1]["t"] + step) if add else resume
         if covered < pac_start - step:        # top-up failed or stopped short
             if add:
@@ -324,42 +377,65 @@ if __name__ == "__main__":
 
 def _ohlc_cache_path(bsym: str, binterval: str) -> str:
     """OHLC 캐시는 종가 캐시와 파일을 분리한다, 같은 이름을 쓰면 서로
-    덮어써서 한쪽이 상대 형식을 읽고 조용히 깨진다."""
-    return os.path.join(CACHE_DIR, f"{bsym}_{binterval}_ohlc.json.gz")
+    덮어써서 한쪽이 상대 형식을 읽고 조용히 깨진다.
+
+    선물도 같은 이유로 파일을 나눈다. 43종목 중 40개는 현물과 선물의 심볼이
+    글자까지 같아서(BTCUSDT), 접미사가 없으면 선물 데이터가 현물 캐시를
+    덮어쓰고 어느 쪽인지 알 수 없게 된다. 가격은 비슷해도 거래량과 델타는
+    다른 시장이라 섞이면 조용히 틀린 값이 된다.
+    """
+    if os.environ.get("BINANCE_FUTURES") == "1":
+        return os.path.join(CACHE_DIR, f"{bsym}_{binterval}_fut_ohlc.json.gz")
+    return os.path.join(CACHE_DIR, "spot", f"{bsym}_{binterval}_ohlc.json.gz")
 
 
-def _cached_ohlc(bsym: str, binterval: str, end_ms: int):
-    """(bars, resume_from). _cached_closes 와 같은 규약."""
+def _cached_ohlc(bsym: str, binterval: str, end_ms: int,
+                 start_ms: int = EARLIEST_MS):
+    """(bars, resume_from, covered_start). _cached_closes 와 같은 규약에
+    '앞쪽 경계'가 하나 붙었다.
+
+    캐시는 [covered_start, end_ms) 를 덮는다. 예전 파일에는 start_ms 가 없는데,
+    그때는 언제나 EARLIEST_MS 부터 받았으므로 그 값으로 본다(기존 캐시 그대로 유효).
+    요청한 start_ms 가 캐시 시작보다 앞이면 앞부분이 비어 있다는 뜻이라 캐시를
+    쓰지 않는다(조용한 빈틈 금지). 반대로 요청이 캐시 안쪽이면 그대로 쓰고,
+    자르는 일은 호출부가 반환 직전에 한다. 여기서 잘라 돌려주면 그 잘린 결과가
+    다시 캐시에 저장돼 이미 받아둔 과거가 사라진다."""
     try:
         path = _ohlc_cache_path(bsym, binterval)
         if not os.path.exists(path):
-            return None, None
+            return None, None, None
         with gzip.open(path, "rt", encoding="utf-8") as f:
             d = json.load(f)
         bars, covered = d.get("bars"), float(d.get("end_ms") or 0)
+        cov_start = int(d.get("start_ms") or EARLIEST_MS)
         if not isinstance(bars, list) or not bars:
-            return None, None
+            return None, None, None
         # 2026-08-06에 거래량(v)을 추가했다. 그 이전 캐시는 v가 없어 거래량
         # 분석에 쓸 수 없으므로 통째로 다시 받는다(부분 이어받기로는 앞부분에
         # v 없는 봉이 남아 조용히 반쪽짜리가 된다).
         if "v" not in bars[0]:
-            return None, None
+            return None, None, None
+        if cov_start > start_ms:
+            return None, None, None      # 요청 구간의 앞이 캐시에 없다
         if covered >= end_ms:
-            return bars, None
-        return bars, int(covered)
+            return bars, None, cov_start
+        return bars, int(covered), cov_start
     except Exception:
-        return None, None
+        return None, None, None
 
 
-def _store_ohlc(bsym: str, binterval: str, end_ms: int, bars: list) -> None:
+def _store_ohlc(bsym: str, binterval: str, end_ms: int, bars: list,
+                start_ms: int = EARLIEST_MS) -> None:
     if not bars:
         return
     try:
-        os.makedirs(CACHE_DIR, exist_ok=True)
         path = _ohlc_cache_path(bsym, binterval)
+        # 현물은 spot/ 아래라 CACHE_DIR 만 만들면 안 된다.
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = path + ".tmp"
         with gzip.open(tmp, "wt", encoding="utf-8") as f:
-            json.dump({"end_ms": int(end_ms), "bars": bars}, f)
+            json.dump({"start_ms": int(start_ms), "end_ms": int(end_ms),
+                       "bars": bars}, f)
         os.replace(tmp, path)
     except Exception:
         pass
@@ -368,12 +444,20 @@ def _store_ohlc(bsym: str, binterval: str, end_ms: int, bars: list) -> None:
 def _binance_ohlc(bsym: str, binterval: str, start_ms: int,
                   end_ms: int, log=print) -> list[dict]:
     """_binance_klines 와 같은 페이징이되 O/H/L/C 를 모두 태깅한다.
-    반환: [{"t","o","h","l","c","source":"binance"}, ...] 과거→현재."""
+    반환: [{"t","o","h","l","c","source":"binance"}, ...] 과거→현재.
+
+    BINANCE_FUTURES=1 이면 무기한 선물(fapi)에서 받는다. 우리가 파시피카에서
+    거래하는 것이 무기한 선물인데 5년치를 현물에서 받아왔던 것을 08-13에
+    바로잡았다. 가격은 겹침 검증을 통과할 만큼 비슷하지만 거래량·델타·청산은
+    다른 시장이고, 델타를 쓰려면 그 차이가 곧바로 결과에 들어온다.
+    """
     out = []
     cur = start_ms
     guard = 0
     fails = 0
-    base = "https://api.binance.com/api/v3/klines"
+    base = ("https://fapi.binance.com/fapi/v1/klines"
+            if os.environ.get("BINANCE_FUTURES") == "1"
+            else "https://api.binance.com/api/v3/klines")
     while cur < end_ms and guard < 3000:
         guard += 1
         url = (f"{base}?symbol={bsym}&interval={binterval}"
@@ -392,9 +476,18 @@ def _binance_ohlc(bsym: str, binterval: str, start_ms: int,
         if not d:
             break
         for k in d:
-            # [openTime, O, H, L, C, V, closeTime, ...]
+            # [openTime, O, H, L, C, V, closeTime, quoteV, trades,
+            #  takerBuyBaseV, takerBuyQuoteV, ignore]
+            #
+            # tb 는 그 봉에서 '사는 쪽이 급해서' 체결된 물량이다. 총 거래량에서
+            # 빼면 파는 쪽이 급했던 물량이 나오고, 그 차이가 델타다. 거래량은
+            # 크기만 알려주지만 델타는 어느 쪽이 밀었는지를 알려준다 — 08-13
+            # 실측에서 거래량 문턱이 0.5%p 안쪽으로 무효였던 이유가 그것이다.
+            # 이 값은 처음부터 kline 응답에 있었는데 버리고 있었다.
             out.append({"t": int(k[0]), "o": float(k[1]), "h": float(k[2]),
                         "l": float(k[3]), "c": float(k[4]), "v": float(k[5]),
+                        "tb": float(k[9]) if len(k) > 9 else None,
+                        "n": int(k[8]) if len(k) > 8 else None,
                         "source": "binance"})
         last_open = int(d[-1][0])
         if last_open <= cur:
@@ -483,24 +576,29 @@ def _pacifica_ohlc(client, symbol: str, interval: str, log=print) -> list[dict]:
     if out[-1]["t"] < now - step * 2:
         log(f"  {symbol} {interval}: 캐시가 낡았다(마지막 봉 "
             f"{(now - out[-1]['t']) // 60000}분 전), 통째로 다시 받는다")
-        try:
-            os.remove(_pac_cache_path(symbol, interval))
-        except OSError:
-            pass
+        # Fetch first, replace only on success. Deleting the cache before the
+        # refetch turned one transient API failure into a permanent loss of
+        # everything already collected; now a failed refetch returns nothing
+        # for this call but keeps the cache on disk for the next attempt
+        # (the successful path overwrites it via _store_pac_cache below).
         d = _pac_kline(client, symbol, interval, start, end, log=log)
-        out = []
+        refreshed = []
         for c in d or []:
             try:
-                out.append({"t": int(c["t"]), "o": float(c.get("o") or c["c"]),
-                            "h": float(c.get("h") or c["c"]),
-                            "l": float(c.get("l") or c["c"]),
-                            "c": float(c["c"]), "v": float(c.get("v") or 0),
-                            "source": "pacifica"})
+                refreshed.append(
+                    {"t": int(c["t"]), "o": float(c.get("o") or c["c"]),
+                     "h": float(c.get("h") or c["c"]),
+                     "l": float(c.get("l") or c["c"]),
+                     "c": float(c["c"]), "v": float(c.get("v") or 0),
+                     "source": "pacifica"})
             except (KeyError, TypeError, ValueError):
                 continue
-        out.sort(key=lambda b: b["t"])
-        if not out:
+        refreshed.sort(key=lambda b: b["t"])
+        if not refreshed:
+            log(f"  {symbol} {interval}: 재수집 실패, 낡은 캐시는 보존하고 "
+                f"이번 호출은 빈 결과")
             return []
+        out = refreshed
 
     # 현재 진행 중인 봉은 캐시에서 뺀다. 반환값에는 남겨 둔다 (호출부가
     # 예전과 같은 데이터를 보도록; 미완성 봉 처리는 호출부 규약이다).
@@ -509,7 +607,8 @@ def _pacifica_ohlc(client, symbol: str, interval: str, log=print) -> list[dict]:
     return out
 
 
-def extended_ohlc(client, symbol: str, interval: str, log=print) -> list[dict]:
+def extended_ohlc(client, symbol: str, interval: str, log=print,
+                  start_ms: int | None = None) -> list[dict]:
     """[바이낸스 과거] + [파시피카 최근] OHLC 를 이어붙여 반환.
 
     extended_closes 와 같은 안전장치를 그대로 따른다:
@@ -517,10 +616,17 @@ def extended_ohlc(client, symbol: str, interval: str, log=print) -> list[dict]:
       · 겹침 검증(validate_overlap) 실패 → 파시피카 OHLC 만 (증강 안 함)
       · 바이낸스에 매칭 없는 심볼(HYPE 등) → 파시피카 OHLC 만
 
+    start_ms: 과거 구간의 앞 경계. 기본값(None)은 EARLIEST_MS(2017-01-01)이라
+        기존 호출부(harness 등)의 동작은 한 바이트도 바뀌지 않는다. 재측정처럼
+        '이 봇이 거래하는 국면만' 필요한 쪽이 2021 같은 값을 넘겨 쓴다.
+        캐시는 요청 구간을 좁혀도 줄어들지 않는다, 이미 받아둔 과거는 그대로
+        두고 반환값만 자른다.
+
     반환: 과거→현재 정렬된 [{"t","o","h","l","c","source"}, ...]
     """
+    start_ms = EARLIEST_MS if start_ms is None else int(start_ms)
     pac = _pacifica_ohlc(client, symbol, interval, log=log)
-    bsym = BINANCE_SYMBOL.get(symbol)
+    bsym = binance_symbol(symbol)    # futures-aware mapping (same as overlap)
     binterval = BINANCE_INTERVAL.get(interval)
     if not bsym or not binterval:
         log(f"  {symbol} {interval}: 바이낸스 매칭 없음, 파시피카 {len(pac)}봉만")
@@ -529,6 +635,12 @@ def extended_ohlc(client, symbol: str, interval: str, log=print) -> list[dict]:
     if not pac_start:
         log(f"  {symbol} {interval}: 파시피카 시작 시각 불명, 증강 건너뜀")
         return pac
+    if start_ms >= pac_start:
+        # 요청 경계가 파시피카 시작보다 뒤다, 바이낸스로 채울 앞 구간이 없다.
+        cut = [b for b in pac if b["t"] >= start_ms]
+        log(f"  {symbol} {interval}: 파시피카가 요청 구간을 이미 덮는다, "
+            f"{len(cut)}봉")
+        return cut if cut else pac
     if not validate_overlap(client, symbol, interval, pac_start, log=log):
         log(f"  {symbol} {interval}: 겹침 검증 실패, 파시피카 {len(pac)}봉만")
         return pac
@@ -538,31 +650,124 @@ def extended_ohlc(client, symbol: str, interval: str, log=print) -> list[dict]:
     # the cache would be stamped "complete" over a silent gap.
     from .indicators import INTERVAL_MS
     step = INTERVAL_MS[interval]
-    bars, resume = _cached_ohlc(bsym, binterval, pac_start)
+    bars, resume, cov_start = _cached_ohlc(bsym, binterval, pac_start, start_ms)
     if bars is None:
-        hist = _binance_ohlc(bsym, binterval, EARLIEST_MS, pac_start - 1, log=log)
+        hist = _binance_ohlc(bsym, binterval, start_ms, pac_start - 1, log=log)
         if not hist:
             return pac
         bars = [b for b in hist if b["t"] < pac_start]
+        cov_start = start_ms
         covered = hist[-1]["t"] + step
         if covered < pac_start - step:        # more than one bar missing
-            _store_ohlc(bsym, binterval, covered, bars)
+            _store_ohlc(bsym, binterval, covered, bars, cov_start)
             log(f"  {symbol} {interval}: 바이낸스 OHLC 구간 미완성"
                 f"(빈틈 {(pac_start - covered) / 3_600_000:.1f}시간), 증강 건너뜀")
             return pac
-        _store_ohlc(bsym, binterval, pac_start, bars)
+        _store_ohlc(bsym, binterval, pac_start, bars, cov_start)
     elif resume is not None:
         add = _binance_ohlc(bsym, binterval, resume, pac_start - 1, log=log)
-        bars = bars + [b for b in add if b["t"] < pac_start]
+        # Merge by timestamp instead of appending: a bar already in the cache
+        # that comes back in the top-up would otherwise be stored twice, and
+        # a doubled bar silently skews every indicator computed over it.
+        merged = {b["t"]: b for b in bars}
+        merged.update({b["t"]: b for b in add if b["t"] < pac_start})
+        bars = [merged[k] for k in sorted(merged)]
         covered = (add[-1]["t"] + step) if add else resume
         if covered < pac_start - step:        # top-up failed or stopped short
             if add:
-                _store_ohlc(bsym, binterval, covered, bars)
+                _store_ohlc(bsym, binterval, covered, bars, cov_start)
             log(f"  {symbol} {interval}: 바이낸스 OHLC 이어받기 미완성"
                 f"(빈틈 {(pac_start - covered) / 3_600_000:.1f}시간), 증강 건너뜀")
             return pac
-        _store_ohlc(bsym, binterval, pac_start, bars)
-    bars = [b for b in bars if b["t"] < pac_start]
+        _store_ohlc(bsym, binterval, pac_start, bars, cov_start)
+    # 캐시에는 받아둔 전 구간을 남기고, 반환값만 요청 경계로 자른다.
+    bars = [b for b in bars if start_ms <= b["t"] < pac_start]
     log(f"  {symbol} {interval}: 바이낸스 {len(bars)}봉 + 파시피카 {len(pac)}봉 "
         f"= {len(bars) + len(pac)}봉")
     return bars + pac
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# 원본시장 증강 (주식·RWA 토큰), 옵트인 전용. 읽기만 한다.
+#
+# 무엇인가. 파시피카의 주식·상품 토큰은 보관분이 13~125일뿐이라 상위 시간봉
+# 표본이 한 자릿수다. 그 토큰이 물고 있는 원본(야후)의 과거로 앞을 채운 시계열이
+# ub_ 캐시이고, 이 함수들이 그것을 읽는다. 만드는 쪽은 research/ 이다
+# (underlying_splice.py · kr_splice.py). ocean_agent 는 야후를 부르지 않는다.
+#
+# Why this holds: these tokens print the underlying's value at the same hour,
+# not with a lag; pre-listing underlying history therefore stands in for what
+# the token would have printed then.
+# 여전히 대역이므로 바이낸스 접합과 같은 겹침 관문을 통과해야 하고(관문은 만드는
+# 쪽에서 돈다, validate_overlap 과 같은 허용치), 이 경로로 만든 매트릭스 행은
+# 호출부가 src="underlying" 으로 태깅한다.
+#
+# ⚠️ 파일명 규칙은 ub_{TOKEN}_{TF}_ohlc.json.gz 하나뿐이다. 두 규칙을 동시에
+# 지원하지 않는다, 그러면 어느 쪽이 읽히는지가 파일 존재 여부에 달리게 된다.
+#
+# ⚠️ pac_ 캐시는 절대 건드리지 않는다. 덮어썼다면 원본 유래 봉이 재생과 라이브
+# 봉인 경로로 조용히 흘러들어간다. 그쪽은 토큰 데이터만 읽어야 한다.
+# ─────────────────────────────────────────────────────────────────────────
+
+def _underlying_cache_path(symbol: str, interval: str) -> str:
+    return os.path.join(CACHE_DIR, f"ub_{symbol}_{interval}_ohlc.json.gz")
+
+
+def has_underlying_cache(symbol: str, interval: str) -> bool:
+    """이 종목·시간봉에 접합본이 있는가. 있다고 해서 원본 봉이 실제로 붙는다는
+    뜻은 아니다(파시피카가 이미 그 구간을 덮으면 앞에 붙을 것이 없다).
+    '실제로 증강됐는가'는 반환된 봉의 source 로 판단할 것."""
+    return os.path.exists(_underlying_cache_path(symbol, interval))
+
+
+def _load_underlying(symbol: str, interval: str) -> dict:
+    try:
+        path = _underlying_cache_path(symbol, interval)
+        if not os.path.exists(path):
+            return {}
+        with gzip.open(path, "rt", encoding="utf-8") as f:
+            d = json.load(f)
+        if not isinstance(d, dict) or not isinstance(d.get("bars"), list):
+            return {}
+        # 미완성으로 표시된 시계열은 측정에 쓰지 않는다. 구멍 난 시계열은
+        # 에러 없이 그럴듯한 틀린 값을 낸다, 그게 이 규약의 존재 이유다.
+        if d.get("incomplete"):
+            return {}
+        return d
+    except Exception:
+        return {}
+
+
+def underlying_ohlc(client, symbol: str, interval: str, log=print,
+                    start_ms: int | None = None) -> list[dict]:
+    """[원본시장 과거] + [파시피카 현재] OHLC. 접합본이 없으면 파시피카만.
+
+    순서는 이것 하나뿐이다: 파시피카 첫 봉보다 '엄격히 이전'만 원본에서 가져오고,
+    거기서부터는 파시피카다. 겹치면 파시피카가 이긴다, 토큰 가격이 진짜다.
+
+    파시피카 구간은 ub_ 파일이 아니라 _pacifica_ohlc 로 매번 새로 읽는다.
+    현재는 토큰의 것이고 최신이어야 하기 때문이다. ub_ 파일 안의 파시피카 봉은
+    만들 때의 스냅샷이라 쓰지 않는다.
+
+    원본 구간의 봉 태그는 만든 쪽에 따라 다르다(예: 'underlying', 환율 보정된
+    한국 종목은 'yahoo_fx'). 그래서 태그 이름으로 고르지 않고 '파시피카가 아닌
+    것'으로 고른다. 새 보정 방식이 생겨도 여기를 고칠 필요가 없다.
+
+    start_ms: 원본 구간의 앞 경계(파시피카 구간은 자르지 않는다, extended_ohlc
+        와 같은 규약).
+    """
+    pac = _pacifica_ohlc(client, symbol, interval, log=log)
+    blob = _load_underlying(symbol, interval)
+    if not blob:
+        return pac
+    cut = pac[0]["t"] if pac else int(blob.get("pac_start_ms") or 0)
+    lo = EARLIEST_MS if start_ms is None else int(start_ms)
+    head = [b for b in blob["bars"]
+            if b.get("source") != "pacifica" and lo <= b["t"] < cut]
+    if not head:
+        log(f"  {symbol} {interval}: 접합본에 파시피카 이전 구간이 없다, "
+            f"파시피카 {len(pac)}봉만")
+        return pac
+    log(f"  {symbol} {interval}: 원본({blob.get('ticker') or blob.get('source')})"
+        f" {len(head)}봉 + 파시피카 {len(pac)}봉 = {len(head) + len(pac)}봉")
+    return head + pac

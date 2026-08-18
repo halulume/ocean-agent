@@ -214,8 +214,28 @@ def grade(client: PacificaClient) -> dict:
     obs_path = _obs_file()
     if not os.path.exists(obs_path):
         return {}
+    # One corrupt line (torn write, disk hiccup) must not stop win-rate
+    # learning forever: parse per line, skip what cannot be read, keep going.
+    # Skipped lines are dropped on the rewrite below; they could never be
+    # graded anyway. Lines missing required grading keys are corrupt too.
+    obs = []
+    bad = 0
     with open(obs_path, encoding="utf-8") as f:
-        obs = [json.loads(line) for line in f if line.strip()]
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                o = json.loads(line)
+            except ValueError:
+                bad += 1
+                continue
+            if not isinstance(o, dict) or not all(
+                    k in o for k in ("due", "sym", "tf", "entry", "side")):
+                bad += 1
+                continue
+            obs.append(o)
+    if bad:
+        print(f"[관측] 깨진 관측 줄 {bad}건 건너뜀 (채점은 계속)")
     now_ms = int(time.time() * 1000)
     due = [o for o in obs if o["due"] <= now_ms]
     pending = [o for o in obs if o["due"] > now_ms]
@@ -259,14 +279,19 @@ def grade(client: PacificaClient) -> dict:
         e["first_ms"] = min(float(e.get("first_ms") or obs_ms), obs_ms)
         e["last_ms"] = max(float(e.get("last_ms") or obs_ms), obs_ms)
         graded_now += 1
-    _save_stats(stats)
 
-    # 남은(미만기) 관측 + 채점을 미룬 관측만 다시 기록
+    # 남은(미만기) 관측 + 채점을 미룬 관측만 다시 기록.
+    # Order matters: prune the observation file BEFORE saving the stats. The
+    # two writes cannot be one atomic step, so a crash between them must pick
+    # its failure: this order loses the just-graded samples (they are pruned
+    # but not yet counted), the old order counted them twice on the next
+    # pass. A lost sample is the cheaper failure, same policy as _close_near.
     tmp = obs_path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         for o in pending + retry:
             f.write(json.dumps(o, ensure_ascii=False) + "\n")
     os.replace(tmp, obs_path)
+    _save_stats(stats)
     return {"graded": graded_now, "pending": len(pending) + len(retry),
             "signals_tracked": len(stats)}
 

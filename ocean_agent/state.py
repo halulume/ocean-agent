@@ -3,8 +3,10 @@
 state.json이 포지션의 source of truth다. 봇이 연 것만 봇이 닫는다.
 """
 
+import contextlib
 import json
 import os
+import time
 
 # Legacy default. mcp_server overrides this with an absolute, network-tagged
 # path at import time; only the funding CLI (main.py) uses the default.
@@ -34,6 +36,43 @@ def _path() -> str:
     if os.path.isdir(out_dir):
         return os.path.join(out_dir, f"state_{data_tag()}.json")
     return data_file("state.json")
+
+
+@contextlib.contextmanager
+def locked(timeout: float = 10.0):
+    """Advisory inter-process lock for load-modify-save sequences.
+
+    Two processes (MCP server, funding CLI) can interleave load() and save()
+    and silently drop each other's position record. O_CREAT|O_EXCL is atomic
+    on every platform. A lock file older than 60s is treated as left by a
+    crashed holder and broken; on timeout this raises instead of proceeding
+    unlocked (fail closed)."""
+    lock_path = _path() + ".lock"
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            break
+        except FileExistsError:
+            try:
+                if time.time() - os.path.getmtime(lock_path) > 60:
+                    os.unlink(lock_path)
+                    continue
+            except OSError:
+                pass
+            if time.monotonic() >= deadline:
+                raise TimeoutError(
+                    f"state file lock busy: {lock_path}. Another process is "
+                    f"mid-update; retry in a moment.")
+            time.sleep(0.05)
+    try:
+        yield
+    finally:
+        try:
+            os.unlink(lock_path)
+        except OSError:
+            pass
 
 
 def load() -> dict:

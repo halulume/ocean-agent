@@ -6,6 +6,23 @@
 <title>Ocean Agent · the trading brain that measures</title>
 <meta name="description" content="Ocean Agent is an AI native trading layer for Pacifica. It measures its own edge, then studies its own results. Built on Pacifica.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='none' stroke='%230aa2d9' stroke-width='9'/%3E%3Ccircle cx='50' cy='50' r='24' fill='none' stroke='%230aa2d9' stroke-width='9'/%3E%3C/svg%3E">
+<link rel="canonical" href="https://oceanagent.fi/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ocean Agent">
+<meta property="og:url" content="https://oceanagent.fi/">
+<meta property="og:title" content="Ocean Agent · the trading brain that measures">
+<meta property="og:description" content="An AI native trading layer for Pacifica. It measures its own edge, then studies its own results.">
+<meta property="og:image" content="https://oceanagent.fi/og-v2.png">
+<meta property="og:image:secure_url" content="https://oceanagent.fi/og-v2.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Ocean Agent, the trading brain that measures">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Ocean Agent · the trading brain that measures">
+<meta name="twitter:description" content="An AI native trading layer for Pacifica. It measures its own edge, then studies its own results.">
+<meta name="twitter:image" content="https://oceanagent.fi/og-v2.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -70,7 +87,7 @@
   @media(max-width:520px){.brand b{font-size:14px}.navtrig{padding:0 6px;font-size:11px}}
 
   /* ---- content ---- */
-  .content{max-width:1000px;margin:0 auto;padding:0 30px}
+  .content{max-width:1180px;margin:0 auto;padding:0 30px}
   /* page navigation: only one .page shows at a time (home by default) */
   .page{display:none}
   .page.active{display:block;animation:fade .3s ease}
@@ -114,48 +131,52 @@
   .btn-ghost{border:1px solid var(--line);color:var(--ink);background:var(--panel)}
   .btn-ghost:hover{border-color:var(--accent);color:var(--accent-deep)}
   /* hero 2-column layout (55 / 45) */
-  .hero-grid{display:grid;grid-template-columns:55% 45%;gap:44px;align-items:center;width:100%}
+  .hero-grid{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);gap:52px;align-items:center;width:100%}
   @media(max-width:820px){.hero-grid{grid-template-columns:1fr;gap:34px}}
-  .hero-right{display:flex;justify-content:center;min-width:0}
+  .hero-right{display:flex;flex-direction:column;align-items:center;min-width:0}
+  /* supported clients card (under the terminal) */
+  .clients{width:100%;max-width:480px;margin-top:14px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .clients-row{display:flex;gap:9px;align-items:center}
+  .cl{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--line);background:var(--panel-2);color:#b3c0cb;opacity:.7}
+  .cl svg{width:17px;height:17px;display:block}
+  .cl.on{background:#fff;border-color:#ecd2c6;color:#d97757;opacity:1;
+    box-shadow:0 2px 12px rgba(217,119,87,.18)}
+  .clients-cap{margin-top:12px;font-size:13.5px;font-weight:650;color:var(--ink);letter-spacing:-.01em}
+  .clients-sub{margin-top:3px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)}
+  .clients-sub .soon{color:var(--accent-deep);font-weight:600}
   /* trust strip under the buttons */
   .trust-strip{font-family:'JetBrains Mono',monospace;font-size:11px;color:#7A8FA3;
     margin-top:22px;display:flex;flex-wrap:wrap;gap:6px 9px;align-items:center;line-height:1.7}
   .trust-strip .dot{color:var(--accent-2)}
-  /* terminal card */
-  .term{width:100%;max-width:440px;background:#0D1B26;border-radius:12px;overflow:hidden;
-    border:1px solid rgba(255,255,255,.06);box-shadow:0 30px 60px rgba(13,27,38,0.25)}
-  .term-top{display:flex;align-items:center;gap:10px;padding:11px 15px;border-bottom:1px solid rgba(255,255,255,.07)}
-  .term-top .lights{display:flex;gap:7px}
-  .term-top .lights i{width:11px;height:11px;border-radius:50%;display:block}
-  .term-top .lights i:nth-child(1){background:#ff5f57}
-  .term-top .lights i:nth-child(2){background:#febc2e}
-  .term-top .lights i:nth-child(3){background:#28c840}
-  .term-title{font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(255,255,255,.45);margin-left:2px}
-  .term-body{padding:18px 18px 22px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.95}
-  .term-line{display:flex;align-items:center;gap:9px;color:rgba(233,238,245,.72);
-    opacity:0;transform:translateY(4px);animation:termln .45s ease-out forwards}
-  .term-line.prompt{color:#eaf1f8}
-  .term-line .chev{color:var(--accent-2)}
-  .term-line.ok::before{content:'✓';color:#28c840;font-weight:700}
-  .term-line.res{color:var(--accent-2);font-weight:600}
-  .term-line.res::before{content:'→';color:var(--accent-2)}
-  @keyframes termln{to{opacity:1;transform:none}}
-  .term-line:nth-child(1){animation-delay:.2s}
-  .term-line:nth-child(2){animation-delay:.6s}
-  .term-line:nth-child(3){animation-delay:1s}
-  .term-line:nth-child(4){animation-delay:1.4s}
-  .term-line:nth-child(5){animation-delay:1.8s}
-  .term-line:nth-child(6){animation-delay:2.2s}
-  /* looping demo terminal */
-  .term-body{min-height:142px}
-  .term-step{font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(255,255,255,.34);
-    letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
-  .tl{display:flex;align-items:flex-start;gap:8px;color:rgba(233,238,245,.72);
-    opacity:0;transform:translateY(4px);animation:tlin .3s ease-out forwards}
-  .tl.cmd{color:#eaf1f8;margin-bottom:2px}
-  .tl.cmd .p{color:var(--accent-2);font-weight:700}
-  .tl.ok::before{content:'✓';color:#28c840;font-weight:700}
-  @keyframes tlin{to{opacity:1;transform:none}}
+  /* claude chat card */
+  .chat{width:100%;max-width:480px;background:#fff;border:1px solid var(--line);border-radius:14px;
+    box-shadow:0 30px 60px rgba(13,27,38,.13);overflow:hidden}
+  .chat-brand{display:flex;align-items:center;gap:9px;padding:15px 18px;border-bottom:1px solid var(--line-2)}
+  .chat-brand svg{width:19px;height:19px;color:#d97757;flex:none}
+  .chat-brand b{font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-.012em}
+  .chat-brand .step{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+  .chat-body{padding:18px 18px 6px;min-height:250px;display:flex;flex-direction:column;gap:11px}
+  .chat-msg{align-self:flex-end;background:var(--accent-wash);color:var(--ink);font-size:13.8px;
+    border-radius:14px 14px 5px 14px;padding:9px 14px;max-width:88%;line-height:1.5;
+    opacity:0;animation:chin .28s ease-out forwards}
+  .chat-res{display:flex;gap:9px;align-items:flex-start;font-size:13.4px;color:var(--ink-2);
+    line-height:1.55;opacity:0;animation:chin .3s ease-out forwards}
+  .chat-res::before{content:'✓';color:#1aa06d;font-weight:700;line-height:1.45}
+  @keyframes chin{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  .chat-in{margin:10px 14px 14px;display:flex;align-items:center;gap:11px;background:#f4f7f9;
+    border:1px solid var(--line);border-radius:26px;padding:11px 11px 11px 17px}
+  .chat-in .ph{flex:1;min-width:0;font-size:13.6px;color:var(--ink);white-space:nowrap;overflow:hidden}
+  .chat-in .ph .hint{color:var(--faint)}
+  .chat-caret{display:inline-block;width:1.5px;height:14px;background:var(--accent);
+    vertical-align:-3px;margin-left:1px;animation:chcar 1.05s steps(1) infinite}
+  @keyframes chcar{50%{opacity:0}}
+  .chat-send{width:33px;height:33px;border-radius:50%;background:#d97757;color:#fff;flex:none;
+    display:flex;align-items:center;justify-content:center}
+  .chat-send svg{width:15px;height:15px}
+
   .comm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:8px}
   @media(max-width:520px){.comm-grid{grid-template-columns:1fr}}
   @media(max-width:640px){.comm-card{padding:20px}.comm-card h4{font-size:16px}.comm-card p{font-size:13px}}
@@ -422,6 +443,9 @@
         <button class="navtrig solo" data-goto="installation">Install</button>
       </div>
       <div class="navgroup">
+        <button class="navtrig solo" data-goto="funding-carry">Funding Carry</button>
+      </div>
+      <div class="navgroup">
         <button class="navtrig solo" data-goto="updates">Updates</button>
       </div>
       <div class="navgroup">
@@ -477,12 +501,36 @@
         <div class="trust-strip">Ed25519 API key<span class="dot">·</span>633 measured configurations<span class="dot">·</span>Live on PyPI<span class="dot">·</span>Built on Pacifica</div>
       </div>
       <div class="hero-right">
-        <div class="term">
-          <div class="term-top">
-            <span class="lights"><i></i><i></i><i></i></span>
-            <span class="term-title">ocean-agent</span>
+        <div class="chat">
+          <div class="chat-brand">
+            <svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z"/></svg>
+            <b>Claude</b><span class="step" id="chatStep"></span>
           </div>
-          <div class="term-body" id="termBody"></div>
+          <div class="chat-body" id="chatBody"></div>
+          <div class="chat-in">
+            <span class="ph" id="chatPh"></span>
+            <span class="chat-send" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </span>
+          </div>
+        </div>
+        <div class="clients">
+          <div class="clients-row">
+            <span class="cl on" title="Claude">
+              <svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z"/></svg>
+            </span>
+            <span class="cl" title="ChatGPT">
+              <svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M9.205 8.658v-2.26c0-.19.072-.333.238-.428l4.543-2.616c.619-.357 1.356-.523 2.117-.523 2.854 0 4.662 2.212 4.662 4.566 0 .167 0 .357-.024.547l-4.71-2.759a.797.797 0 00-.856 0l-5.97 3.473zm10.609 8.8V12.06c0-.333-.143-.57-.429-.737l-5.97-3.473 1.95-1.118a.433.433 0 01.476 0l4.543 2.617c1.309.76 2.189 2.378 2.189 3.948 0 1.808-1.07 3.473-2.76 4.163zM7.802 12.703l-1.95-1.142c-.167-.095-.239-.238-.239-.428V5.899c0-2.545 1.95-4.472 4.591-4.472 1 0 1.927.333 2.712.928L8.23 5.067c-.285.166-.428.404-.428.737v6.898zM12 15.128l-2.795-1.57v-3.33L12 8.658l2.795 1.57v3.33L12 15.128zm1.796 7.23c-1 0-1.927-.332-2.712-.927l4.686-2.712c.285-.166.428-.404.428-.737v-6.898l1.974 1.142c.167.095.238.238.238.428v5.233c0 2.545-1.974 4.472-4.614 4.472zm-5.637-5.303l-4.544-2.617c-1.308-.761-2.188-2.378-2.188-3.948A4.482 4.482 0 014.21 6.327v5.423c0 .333.143.571.428.738l5.947 3.449-1.95 1.118a.432.432 0 01-.476 0zm-.262 3.9c-2.688 0-4.662-2.021-4.662-4.519 0-.19.024-.38.047-.57l4.686 2.71c.286.167.571.167.856 0l5.97-3.448v2.26c0 .19-.07.333-.237.428l-4.543 2.616c-.619.357-1.356.523-2.117.523zm5.899 2.83a5.947 5.947 0 005.827-4.756C22.287 18.339 24 15.84 24 13.296c0-1.665-.713-3.282-1.998-4.448.119-.5.19-.999.19-1.498 0-3.401-2.759-5.947-5.946-5.947-.642 0-1.26.095-1.88.31A5.962 5.962 0 0010.205 0a5.947 5.947 0 00-5.827 4.757C1.713 5.447 0 7.945 0 10.49c0 1.666.713 3.283 1.998 4.448-.119.5-.19 1-.19 1.499 0 3.401 2.759 5.946 5.946 5.946.642 0 1.26-.095 1.88-.309a5.96 5.96 0 004.162 1.713z"/></svg>
+            </span>
+            <span class="cl" title="Gemini">
+              <svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z"/></svg>
+            </span>
+            <span class="cl" title="Grok">
+              <svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815"/></svg>
+            </span>
+          </div>
+          <div class="clients-cap">Claude connected</div>
+          <div class="clients-sub">ChatGPT, Gemini, Grok <span class="soon">coming soon</span></div>
         </div>
       </div>
     </div>
@@ -591,11 +639,11 @@
     </div>
     <div class="istep">
       <div class="ihead">Windows: paste into PowerShell</div>
-      <div class="iwrap gated"><pre><code>powershell -ExecutionPolicy ByPass -c "irm https://oceanagent.vercel.app/install.ps1 | iex"</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+      <div class="iwrap gated"><pre><code>powershell -ExecutionPolicy ByPass -c "irm https://oceanagent.fi/install.ps1 | iex"</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
     </div>
     <div class="istep">
       <div class="ihead">macOS / Linux: paste into Terminal</div>
-      <div class="iwrap gated"><pre><code>sh -c "$(curl -LsSf https://oceanagent.vercel.app/install.sh)"</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+      <div class="iwrap gated"><pre><code>sh -c "$(curl -LsSf https://oceanagent.fi/install.sh)"</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
       <p class="body" style="margin-top:8px">It asks for your wallet public address and an agent key from <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a> (trade-only, cannot withdraw, revocable any time). When it finishes, restart Claude, the trading tools appear in chat. <b>No bot required.</b></p>
       <p class="body" style="margin-top:8px"><b>Works in your language.</b> You chat with your AI in any language: Korean, Japanese, Spanish, anything. It drives the tools and explains every result in your language, and new-version notices arrive in it too.</p>
     </div>
@@ -608,22 +656,298 @@
       <summary style="cursor:pointer;color:var(--ink-2);font-size:13.5px">Manual setup (any MCP client)</summary>
       <div class="istep" style="margin-top:14px">
         <div class="ihead">Create a <code>.env</code> file with your keys</div>
-        <div class="iwrap"><pre><code>ADDRESS=your_wallet_address
+        <div class="iwrap gated"><pre><code>ADDRESS=your_wallet_address
 PACIFICA_API_KEY=your_agent_key
 PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
       </div>
       <div class="istep">
         <div class="ihead">Add to your client's MCP config (needs <a href="https://docs.astral.sh/uv/">uv</a>)</div>
-        <div class="iwrap"><pre><code>{ "mcpServers": { "ocean-agent": {
+        <div class="iwrap gated"><pre><code>{ "mcpServers": { "ocean-agent": {
     "command": "uvx", "args": ["ocean-agent@latest"],
     "env": { "PACIFICA_ENV_FILE": "/absolute/path/to/.env" } } } }</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
         <p class="body" style="margin-top:8px"><code>@latest</code> means every client restart checks PyPI and picks up new releases automatically. Your local data and keys are never touched by updates.</p>
       </div>
       <div class="istep">
         <div class="ihead">Check everything is wired</div>
-        <div class="iwrap"><pre><code>uv run --with ocean-agent python -m ocean_agent.doctor</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+        <div class="iwrap gated"><pre><code>uv run --with ocean-agent python -m ocean_agent.doctor</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
       </div>
     </details>
+  </section>
+
+  <section class="page" id="funding-carry">
+    <style>
+      #funding-carry .fc-how{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:6px 0 4px}
+      @media(max-width:820px){#funding-carry .fc-how{grid-template-columns:1fr 1fr}}
+      @media(max-width:520px){#funding-carry .fc-how{grid-template-columns:1fr}}
+      #funding-carry .fc-how>div{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:13px;color:var(--ink-2);line-height:1.55}
+      #funding-carry .fc-how b{display:block;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-deep);margin-bottom:5px}
+      /* Stacked by default. When the viewport leaves a real left gutter beside the
+         1180px content column, the venue list moves out into that gutter and sticks
+         while the guide scrolls. */
+      #funding-carry .fc-cols{display:grid;grid-template-columns:1fr;gap:16px;margin-top:14px;align-items:start}
+      #funding-carry .fc-side{display:flex;flex-direction:row;flex-wrap:wrap;gap:5px}
+      @media(min-width:1520px){
+        /* Page-level sidebar: pinned in the left gutter, top-aligned with the
+           section heading, staying put while the whole section scrolls. */
+        #funding-carry .fc-side{flex-direction:column;flex-wrap:nowrap;position:fixed;
+          left:calc((100vw - 1180px)/2 - 166px);top:151px;width:168px;
+          max-height:calc(100vh - 175px);overflow:auto}
+      }
+      /* The shared page fade animates transform, which would turn this section
+         into the containing block for the fixed sidebar. Fade opacity only. */
+      #funding-carry.page.active{animation:fcFade .3s ease}
+      @keyframes fcFade{from{opacity:0}to{opacity:1}}
+      #funding-carry .fc-status{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin:6px 0 0}
+      #funding-carry .fc-status::before{content:'\25CF  ';font-size:8px;vertical-align:1px}
+      #funding-carry .fc-status.live{color:var(--accent-deep)}
+      #funding-carry .fc-steps{margin:10px 0 0 20px;font-size:14px;color:var(--ink-2);line-height:1.7;max-width:72ch}
+      #funding-carry .fc-steps li{margin-bottom:6px}
+      #funding-carry .fc-env{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.75;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:10px 0 0;overflow-x:auto}
+      #funding-carry .fc-side button{font-family:'Inter',sans-serif;font-size:13px;text-align:left;padding:9px 13px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink-2);cursor:pointer;transition:all .15s}
+      #funding-carry .fc-side button:hover{border-color:var(--accent-2);color:var(--accent-deep)}
+      #funding-carry .fc-side button.on{background:var(--accent-wash);border-color:var(--accent-2);color:var(--accent-deep);font-weight:600}
+      #funding-carry .fc-pane{display:none;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow-sm)}
+      #funding-carry .fc-pane.on{display:block}
+      /* Two views, one section: bare #funding-carry shows the intro and hides
+         the guides; #funding-carry/<venue> hides the intro and shows only that
+         venue's guide, a page flip rather than a scroll. */
+      #funding-carry:not(.venue-view) .fc-panes{display:none}
+      #funding-carry.venue-view .fc-intro{display:none}
+      #funding-carry .fc-back{display:none;font-size:13px;font-weight:600;color:var(--accent-deep);text-decoration:none;margin:0 0 14px}
+      #funding-carry .fc-back:hover{text-decoration:underline}
+      #funding-carry.venue-view .fc-back{display:inline-block}
+      #funding-carry .fc-side .fc-overview{font-weight:600}
+      #funding-carry .fc-pane h4{font-family:'Space Grotesk',sans-serif;font-size:16.5px;font-weight:600;margin:0 0 2px}
+      #funding-carry .fc-pane .vt{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-deep);background:var(--accent-wash);border-radius:999px;padding:2px 9px;margin-left:8px;vertical-align:middle}
+      #funding-carry .fc-pane p{font-size:14px;color:var(--ink-2);line-height:1.7;margin:8px 0 0;max-width:74ch}
+      #funding-carry .fc-pane a{color:var(--accent-deep)}
+      #funding-carry .fc-warn{border:1px solid rgba(217,139,60,.45);background:rgba(217,139,60,.07);border-radius:14px;padding:18px 22px;margin-top:24px;font-size:14px;color:var(--ink-2);line-height:1.7;max-width:860px}
+      #funding-carry .fc-warn b{color:var(--warn)}
+    </style>
+    <div class="eyebrow">Funding Carry</div>
+    <div class="fc-intro">
+    <h2>Collect funding, cancel the price</h2>
+    <p class="sec-lede">Perpetual futures settle funding every hour, with one side of the market paying the other. A carry holds opposite positions on two venues: the price moves cancel out, and the funding spread is what you collect.</p>
+    <p class="body"><b>Delta neutral is not risk free.</b> Spreads decay, often within hours of appearing. Fees and slippage on two venues eat thin edges. If one leg is underfunded it can be liquidated while the other stays open, which turns a neutral position into a directional one. And every venue you touch adds its own platform risk.</p>
+    <div class="fc-how">
+      <div><b>1 · Find the spread</b>The funding scan ranks every market by the gap between what venues pay per hour.</div>
+      <div><b>2 · Open both legs</b>Short where funding is high, long where it is low, same notional size on each side.</div>
+      <div><b>3 · Collect</b>Price gains on one leg offset losses on the other; the hourly funding difference is the income.</div>
+      <div><b>4 · Rotate out</b>When the net rate no longer covers costs, close both legs together and move on.</div>
+    </div>
+    <div class="exp">
+      <h3>What works out of the box</h3>
+      <p><code style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--accent-deep);background:var(--accent-wash);padding:1px 6px;border-radius:5px">scan_funding</code> and <code style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--accent-deep);background:var(--accent-wash);padding:1px 6px;border-radius:5px">funding_alerts</code> read funding across venues with no extra keys, and the hedged open places the Pacifica leg with the agent key you already have. Nothing new to set up, nothing to trust.</p>
+      <h3>What automating the second leg needs</h3>
+      <p>To have the bot place the hedge on another venue, that venue needs its <b>own API key</b>, created by you, with <b>trade-only permission</b> and <b>withdrawals off</b>. Keys live in your local <b>.env</b> file and are never transmitted anywhere by Ocean Agent. Never share a key with anyone, including us. The guides below cover each venue the funding watcher tracks.</p>
+    </div>
+    <div class="exp"><h3>Per venue: creating a trade-only key</h3></div>
+    </div><!-- /fc-intro -->
+    <a class="fc-back" href="#funding-carry">&#8249; Funding Carry</a>
+    <div class="fc-cols">
+      <div class="fc-side" id="fcSide">
+        <button class="fc-overview on">Overview</button>
+        <button data-fc="pacifica">Pacifica</button>
+        <button data-fc="aster">Aster</button>
+        <button data-fc="backpack">Backpack</button>
+        <button data-fc="binance">Binance</button>
+        <button data-fc="bitget">Bitget</button>
+        <button data-fc="bybit">Bybit</button>
+        <button data-fc="coinbase">Coinbase</button>
+        <button data-fc="extended">Extended</button>
+        <button data-fc="hyperliquid">Hyperliquid</button>
+        <button data-fc="lighter">Lighter</button>
+        <button data-fc="okx">OKX</button>
+        <button data-fc="paradex">Paradex</button>
+        <button data-fc="variational">Variational</button>
+      </div>
+      <div class="fc-panes">
+        <div class="fc-pane on" data-fc="pacifica">
+          <h4>Pacifica<span class="vt">home venue</span></h4>
+          <p class="fc-status live">Ocean Agent places this leg today.</p>
+          <p>The leg Ocean Agent already trades.</p>
+          <ol class="fc-steps">
+            <li>Open <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener">app.pacifica.fi/apikey</a> and connect your Solana wallet.</li>
+            <li>Generate an agent key. There are no permission checkboxes to get wrong: the key can trade and cannot withdraw, by design.</li>
+            <li>Copy the key. You can revoke it on the same page at any time.</li>
+          </ol>
+          <p>You get one agent key, used together with your wallet's public address. The installer already wrote both into your local .env, the only place Ocean Agent reads keys from:</p>
+          <pre class="fc-env"><code>ADDRESS=your_wallet_address
+PACIFICA_API_KEY=your_agent_key</code></pre>
+          <p><a href="https://docs.pacifica.fi" target="_blank" rel="noopener">Pacifica docs</a></p>
+        </div>
+        <div class="fc-pane" data-fc="aster">
+          <h4>Aster<span class="vt">perp dex</span></h4>
+          <p class="fc-status">Key guide ready; automated leg support coming.</p>
+          <p>A Binance-style perpetuals DEX.</p>
+          <ol class="fc-steps">
+            <li>Open asterdex.com, connect your wallet, and go to the <a href="https://www.asterdex.com/en/api-management" target="_blank" rel="noopener">API Management page</a>.</li>
+            <li>Click Create API and give the key a label. Note: since March 25, 2026 new classic API keys are discontinued, and new keys go through the Pro API path described in the docs.</li>
+            <li>In the key's settings, keep permissions to read and trade, and bind an IP whitelist.</li>
+          </ol>
+          <p>You get an API key and a secret. They belong in your local .env, the only place Ocean Agent reads keys from:</p>
+          <pre class="fc-env"><code>ASTER_API_KEY=...
+ASTER_API_SECRET=...</code></pre>
+          <p><a href="https://github.com/asterdex/api-docs" target="_blank" rel="noopener">Aster API docs</a></p>
+        </div>
+        <div class="fc-pane" data-fc="backpack">
+          <h4>Backpack<span class="vt">exchange</span></h4>
+          <p class="fc-status">Key guide ready; automated leg support coming.</p>
+          <p>A centralized exchange with spot and perpetual futures.</p>
+          <ol class="fc-steps">
+            <li>Log in at backpack.exchange and open Settings, then <a href="https://backpack.exchange/portfolio/settings/api-keys" target="_blank" rel="noopener">API Keys</a>, inside your portfolio.</li>
+            <li>Generate a new key. The Read Only toggle is for view keys; a trading key on Backpack is account-wide, so protect the secret accordingly and start with small balances.</li>
+            <li>Save both values when shown: the base64 public key is your API key, the base64 seed is your secret.</li>
+          </ol>
+          <p>Both values belong in your local .env, the only place Ocean Agent reads keys from:</p>
+          <pre class="fc-env"><code>BACKPACK_API_KEY=...
+BACKPACK_API_SECRET=...</code></pre>
+          <p><a href="https://docs.backpack.exchange" target="_blank" rel="noopener">Backpack API docs</a></p>
+        </div>
+        <div class="fc-pane" data-fc="binance">
+          <h4>Binance<span class="vt">exchange</span></h4>
+          <p class="fc-status live">Ocean Agent places this leg today.</p>
+          <p>The deepest perp books, a natural hedge leg for majors.</p>
+          <ol class="fc-steps">
+            <li>Log in, open Profile, then Account, then <a href="https://www.binance.com/en/my/settings/api-management" target="_blank" rel="noopener">API Management</a>, and click Create API.</li>
+            <li>Choose the system-generated key type (HMAC) unless you already manage your own Ed25519 pair.</li>
+            <li>Tick Enable Futures (your futures account must be activated first). Leave Enable Withdrawals unchecked.</li>
+            <li>Under IP access restrictions, add the IP of the machine that runs the bot.</li>
+          </ol>
+          <p>You get an API key and a secret; the secret is shown once. They belong in your local .env, the only place Ocean Agent reads keys from:</p>
+          <pre class="fc-env"><code>BINANCE_API_KEY=...
+BINANCE_API_SECRET=...</code></pre>
+          <p><a href="https://developers.binance.com" target="_blank" rel="noopener">Binance developer center</a></p>
+        </div>
+        <div class="fc-pane" data-fc="bitget">
+          <h4>Bitget<span class="vt">exchange</span></h4>
+          <p class="fc-status live">Ocean Agent places this leg today.</p>
+          <p>A centralized derivatives exchange.</p>
+          <ol class="fc-steps">
+            <li>Log in, open <a href="https://www.bitget.com/account/newapi" target="_blank" rel="noopener">API Management</a> from your account menu, and click Create New API.</li>
+            <li>Choose the system-generated key, write a note, and set the passphrase. It cannot be recovered later, only recreated.</li>
+            <li>Grant read-write on Futures only, nothing else, and bind your IP address.</li>
+          </ol>
+          <p>You get a key, a secret, and your passphrase; all three belong in your local .env, the only place Ocean Agent reads keys from:</p>
+          <pre class="fc-env"><code>BITGET_API_KEY=...
+BITGET_API_SECRET=...
+BITGET_API_PASSPHRASE=...</code></pre>
+          <p><a href="https://www.bitget.com/api-doc/common/intro" target="_blank" rel="noopener">Bitget API docs</a></p>
+        </div>
+        <div class="fc-pane" data-fc="bybit">
+          <h4>Bybit<span class="vt">exchange</span></h4>
+          <p class="fc-status live">Ocean Agent places this leg today.</p>
+          <p>A centralized exchange with liquid perps, and the first supported hedge leg.</p>
+          <ol class="fc-steps">
+            <li>Log in, click the profile icon top right, choose <a href="https://www.bybit.com/app/user/api-management" target="_blank" rel="noopener">API</a>, then Create New Key.</li>
+            <li>Pick System-generated API Keys. That is the HMAC type Ocean Agent signs with.</li>
+            <li>Grant read-write for orders and positions only. There is a withdrawal permission on the same form: leave it off. Confirm with 2FA.</li>
+            <li>Bind an IP allowlist. Bybit expires keys that have no IP restriction after about three months.</li>
+          </ol>
+          <p>You get an API key and a secret; the secret is shown once. They belong in your local .env, the only place Ocean Agent reads keys from:</p>
+          <pre class="fc-env"><code>BYBIT_API_KEY=...
+BYBIT_API_SECRET=...</code></pre>
+          <p><a href="https://bybit-exchange.github.io/docs/v5/intro" target="_blank" rel="noopener">Bybit V5 API docs</a></p>
+        </div>
+        <div class="fc-pane" data-fc="coinbase">
+          <h4>Coinbase<span class="vt">exchange</span></h4>
+          <p class="fc-status">Key guide ready; automated leg support coming.</p>
+          <p>Perpetual futures at Coinbase are region-gated, so check availability before creating keys.</p>
+          <ol class="fc-steps">
+            <li>Log in to the Coinbase Developer Platform at <a href="https://portal.cdp.coinbase.com" target="_blank" rel="noopener">portal.cdp.coinbase.com</a> and open Access, then API keys.</li>
+            <li>Create a key: pick the portfolio and set the permission level to Trade. Do not grant Transfer. Confirm 2FA.</li>
+            <li>The key downloads as a JSON file holding a key name and a private key, shown once.</li>
+          </ol>
+          <p>Both values belong in your local .env, the only place Ocean Agent reads keys from:</p>
+          <pre class="fc-env"><code>COINBASE_API_KEY=...
+COINBASE_API_SECRET=...</code></pre>
+          <p><a href="https://docs.cdp.coinbase.com" target="_blank" rel="noopener">Coinbase Developer Platform docs</a></p>
+        </div>
+        <div class="fc-pane" data-fc="extended">
+          <h4>Extended<span class="vt">perp dex · wallet</span></h4>
+          <p class="fc-status">Key guide ready; automated leg support coming.</p>
+          <p>A perpetuals DEX built by ex-Revolut engineers, settling on Starknet.</p>
+          <ol class="fc-steps">
+            <li>Open <a href="https://extended.exchange" target="_blank" rel="noopener">extended.exchange</a> and onboard by signing with your wallet; the account and its keys are derived from that signature.</li>
+            <li>From your account, note the API key used for read calls and the private Stark key that signs orders. The Stark key is the account: never share it.</li>
+            <li>There is no withdrawal permission to disable, because funds move only through your own wallet on Starknet.</li>
+          </ol>
+          <p>The Stark key takes the place of an API secret. Both values belong in your local .env, the only place Ocean Agent reads keys from:</p>
+          <pre class="fc-env"><code>EXTENDED_API_KEY=...
+EXTENDED_STARK_PRIVATE_KEY=...</code></pre>
+          <p><a href="https://docs.extended.exchange" target="_blank" rel="noopener">Extended docs</a></p>
+        </div>
+        <div class="fc-pane" data-fc="hyperliquid">
+          <h4>Hyperliquid<span class="vt">perp dex · wallet</span></h4>
+          <p class="fc-status">Key guide ready; automated leg support coming.</p>
+          <p>A perpetuals DEX with a wallet model instead of classic API keys.</p>
+          <ol class="fc-steps">
+            <li>Open app.hyperliquid.xyz, connect your wallet, and go to the API page at <a href="https://app.hyperliquid.xyz/API" target="_blank" rel="noopener">app.hyperliquid.xyz/API</a>.</li>
+            <li>Create an agent wallet (also called an API wallet) and name it, then approve it with one signature from your main wallet.</li>
+            <li>Save the agent's address and private key; the private key is shown once. The agent can sign orders and can never withdraw, and you can deauthorize it in the same UI.</li>
+            <li>Give the bot only the agent's private key, never your main wallet's seed.</li>
+          </ol>
+          <p>The agent-wallet key replaces a key and secret pair. It belongs in your local .env, the only place Ocean Agent reads keys from:</p>
+          <pre class="fc-env"><code>HYPERLIQUID_AGENT_KEY=...</code></pre>
+          <p><a href="https://hyperliquid.gitbook.io/hyperliquid-docs" target="_blank" rel="noopener">Hyperliquid docs</a></p>
+        </div>
+        <div class="fc-pane" data-fc="lighter">
+          <h4>Lighter<span class="vt">perp dex · wallet</span></h4>
+          <p class="fc-status">Key guide ready; automated leg support coming.</p>
+          <p>A zk-rollup perpetuals DEX with zero-fee trading.</p>
+          <ol class="fc-steps">
+            <li>Log in at app.lighter.xyz with your wallet, then open the API Keys page at <a href="https://app.lighter.xyz/apikeys" target="_blank" rel="noopener">app.lighter.xyz/apikeys</a>.</li>
+            <li>Generate a key. Every key gets an index; the low indexes are reserved for the official interfaces, so yours starts from 3.</li>
+            <li>Save the key index and the private key it generates. The key signs orders only; funds stay under your wallet's control.</li>
+          </ol>
+          <p>The index and signing key replace a key and secret pair. They belong in your local .env, the only place Ocean Agent reads keys from:</p>
+          <pre class="fc-env"><code>LIGHTER_KEY_INDEX=...
+LIGHTER_PRIVATE_KEY=...</code></pre>
+          <p><a href="https://docs.lighter.xyz" target="_blank" rel="noopener">Lighter docs</a></p>
+        </div>
+        <div class="fc-pane" data-fc="okx">
+          <h4>OKX<span class="vt">exchange</span></h4>
+          <p class="fc-status live">Ocean Agent places this leg today.</p>
+          <p>A centralized exchange with deep perp liquidity.</p>
+          <ol class="fc-steps">
+            <li>Log in, click the profile icon, choose <a href="https://www.okx.com/account/my-api" target="_blank" rel="noopener">API keys</a>, then Create V5 API key.</li>
+            <li>Name the key and set the passphrase. It cannot be viewed again after creation.</li>
+            <li>Grant Read and Trade only. Withdrawal is a separate permission on the same form: leave it off. Confirm 2FA.</li>
+            <li>Bind an IP allowlist; each key accepts up to 20 addresses.</li>
+          </ol>
+          <p>You get a key, a secret, and your passphrase; all three belong in your local .env, the only place Ocean Agent reads keys from:</p>
+          <pre class="fc-env"><code>OKX_API_KEY=...
+OKX_API_SECRET=...
+OKX_API_PASSPHRASE=...</code></pre>
+          <p><a href="https://www.okx.com/docs-v5/en/" target="_blank" rel="noopener">OKX V5 API docs</a></p>
+        </div>
+        <div class="fc-pane" data-fc="paradex">
+          <h4>Paradex<span class="vt">perp dex · wallet</span></h4>
+          <p class="fc-status">Key guide ready; automated leg support coming.</p>
+          <p>A perpetuals exchange on Starknet.</p>
+          <ol class="fc-steps">
+            <li>Open <a href="https://app.paradex.trade" target="_blank" rel="noopener">the Paradex app</a> and sign the onboarding message. Your Paradex keys are derived from that wallet signature and stay in your browser; they are never sent to Paradex servers.</li>
+            <li>For a bot, create a subkey from the Key Management dashboard rather than exporting your main key. The subkey signs orders and can be revoked or rotated there.</li>
+            <li>Requests authenticate with a short-lived JWT obtained from the subkey; the SDK handles that from the private key.</li>
+          </ol>
+          <p>The subkey private key replaces a key and secret pair. It belongs in your local .env, the only place Ocean Agent reads keys from:</p>
+          <pre class="fc-env"><code>PARADEX_PRIVATE_KEY=...</code></pre>
+          <p><a href="https://docs.paradex.trade" target="_blank" rel="noopener">Paradex docs</a></p>
+        </div>
+        <div class="fc-pane" data-fc="variational">
+          <h4>Variational<span class="vt">perp dex · wallet</span></h4>
+          <p class="fc-status">No trading API yet; nothing to configure.</p>
+          <p>The protocol behind Omni, a zero-fee perpetuals app.</p>
+          <ol class="fc-steps">
+            <li><a href="https://omni.variational.io" target="_blank" rel="noopener">Omni</a> is used through a wallet; there are no exchange API keys to create.</li>
+            <li>A public read API exists, but per the docs the trading API is not yet available; the docs offer a sign-up to be notified when it is.</li>
+            <li>Nothing goes in your .env yet. The funding watcher already tracks Omni's rates read-only.</li>
+          </ol>
+          <p><a href="https://docs.variational.io" target="_blank" rel="noopener">Variational docs</a></p>
+        </div>
+      </div>
+    </div>
+    <div class="fc-warn"><b>Before you wire a second venue.</b> Use trade-only keys with withdrawals disabled. Bind an IP allowlist wherever the venue offers one. Keep keys out of chat messages and version control. And run the first carries at small size: a funding spread pays by the hour, and it cannot pay back a leaked key.</div>
   </section>
 
   <section class="page" id="landscape">
@@ -889,6 +1213,12 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
       regimes, not forecasts.</p>
 
     <div class="upd-list">
+        <a class="upd-row" href="#u-crash-recovery-and-telebot" data-date="2026-08-18">
+          <span class="d">AUG 18</span>
+          <span class="t">0.4.2: Crash recovery that checks its facts, and a Telegram bot in 11 languages</span>
+          <span class="tg fix">fix</span>
+          <span class="chev">&#8250;</span>
+        </a>
         <a class="upd-row" href="#u-review-fixes-hardening" data-date="2026-08-11">
           <span class="d">AUG 11</span>
           <span class="t">0.4.1: Twenty-eight review findings, fixed and verified</span>
@@ -940,6 +1270,26 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
     </div>
     <div class="upd-pager" id="updPager"></div>
     <div class="upd-count" id="updCount"></div>
+  </section>
+
+  <section class="page" id="u-crash-recovery-and-telebot">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 18</div>
+    <h2>0.4.2: Crash recovery that checks its facts, and a Telegram bot in 11 languages</h2>
+    <div class="upd-meta"><span class="tg fix">fix</span><span class="st">2026-08-18</span></div>
+    <div class="upd-article">
+          <p class="lede">A second independent review pass focused on what happens when
+            things go wrong mid-trade. Recovery after a crash now verifies direction and
+            size against the exchange before adopting any position, records trades that
+            finished while the bot was down, and a failed entry pass cools down instead
+            of retrying in a tight loop.</p>
+
+          <p>Also in 0.4.2: chat orders no longer carry a fixed dollar cap, since account
+            sizes differ; a cap applies only if you set one in your own policy file.
+            Grading now measures exactly the stated 24-hour horizon. And the new Telegram
+            bot answers in 11 languages: add it, pick your language, paste a public
+            wallet address, and ask about your balance, trades, or the day's setups.</p>
+    </div>
   </section>
 
   <section class="page" id="u-review-fixes-hardening">
@@ -1409,9 +1759,9 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
     <div id="tdone" style="display:none">
       <p style="font-size:13.5px;margin:0 0 14px">You're set. Copy the command for your system and paste it into a terminal:</p>
       <div class="ihead" style="font-weight:600;font-size:13.5px;margin-bottom:6px">Windows (PowerShell)</div>
-      <div class="iwrap" style="position:relative;margin-bottom:14px"><pre style="font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;margin:0"><code>powershell -ExecutionPolicy ByPass -c "irm https://oceanagent.vercel.app/install.ps1 | iex"</code></pre><button class="cbtn" style="position:absolute;top:6px;right:6px;font-family:'Inter',sans-serif;font-size:11px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink-2);cursor:pointer" onclick="copyCode(this)">Copy</button></div>
+      <div class="iwrap" style="position:relative;margin-bottom:14px"><pre style="font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;margin:0"><code>powershell -ExecutionPolicy ByPass -c "irm https://oceanagent.fi/install.ps1 | iex"</code></pre><button class="cbtn" style="position:absolute;top:6px;right:6px;font-family:'Inter',sans-serif;font-size:11px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink-2);cursor:pointer" onclick="copyCode(this)">Copy</button></div>
       <div class="ihead" style="font-weight:600;font-size:13.5px;margin-bottom:6px">macOS / Linux (Terminal)</div>
-      <div class="iwrap" style="position:relative"><pre style="font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;margin:0"><code>sh -c "$(curl -LsSf https://oceanagent.vercel.app/install.sh)"</code></pre><button class="cbtn" style="position:absolute;top:6px;right:6px;font-family:'Inter',sans-serif;font-size:11px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink-2);cursor:pointer" onclick="copyCode(this)">Copy</button></div>
+      <div class="iwrap" style="position:relative"><pre style="font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;margin:0"><code>sh -c "$(curl -LsSf https://oceanagent.fi/install.sh)"</code></pre><button class="cbtn" style="position:absolute;top:6px;right:6px;font-family:'Inter',sans-serif;font-size:11px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink-2);cursor:pointer" onclick="copyCode(this)">Copy</button></div>
       <div class="tbtns"><button class="tno" onclick="declineTerms()">Close</button></div>
     </div>
   </div>
@@ -1565,6 +1915,7 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
       g.querySelectorAll('.dropdown a[href^="#"]').forEach(function(a){ trigs[a.getAttribute('href').slice(1)] = t; });
     });
     function show(id){
+      id = id.split('/')[0];   // "#funding-carry/bybit": the page id, then page state
       var found = false;
       pages.forEach(function(p){ var on = (p.id === id); p.classList.toggle('active', on); if(on) found = true; });
       if(!found){ document.getElementById('home').classList.add('active'); id = 'home'; }
@@ -1577,48 +1928,169 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
     fromHash();
   })();
 
-  // looping demo terminal (auto-plays all 10 feature steps, repeats forever)
+  // looping Claude chat demo (types a request, then shows what it did)
   (function(){
-    var body=document.getElementById('termBody'); if(!body) return;
+    var ph=document.getElementById('chatPh'), body=document.getElementById('chatBody'),
+        step=document.getElementById('chatStep');
+    if(!ph||!body) return;
     var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
     var steps=[
-      {name:'funding scan',       cmd:'scan --funding',    out:['ranking Pacifica markets by APR','delta neutral candidates flagged']},
-      {name:'chart analysis',     cmd:'analyze BTC 4h',    out:['RSI · MACD · Bollinger · fractals','measured hit rate per signal']},
-      {name:'top setups',         cmd:'setups --top',      out:['ranked by EV, win rate, samples','entry · stop · target · leverage']},
-      {name:'market regime',      cmd:'regime',            out:['Fear and Greed read','known bad trades blocked']},
-      {name:'bracket entry',      cmd:'open BTC --bracket',out:['entry placed','native TP and SL attached']},
-      {name:'funding carry',      cmd:'carry --open',      out:['spot buy plus perp short','filled in one atomic batch']},
-      {name:'OI hedge',           cmd:'hedge --oi',        out:['cross exchange hedge sized','fees and funding included']},
-      {name:'learned win rates',  cmd:'winrates',          out:['self built win rate database','grown from live observation']},
-      {name:'prediction grading', cmd:'review',            out:['past calls vs what happened','skill or luck attributed']},
-      {name:'autonomous entity',  cmd:'run --policy',      out:['24/7, measured edge only','re measures and adapts']}
+      {name:'funding scan',       ask:'scan Pacifica funding rates',      out:['ranked every market by APR','delta neutral candidates flagged']},
+      {name:'chart analysis',     ask:'analyze BTC on the 4h chart',      out:['RSI, MACD, Bollinger, fractals','measured hit rate per signal']},
+      {name:'top setups',         ask:'show me the top setups',           out:['ranked by EV, win rate, samples','entry, stop, target, leverage']},
+      {name:'market regime',      ask:"what's the market regime?",        out:['Fear and Greed read','known bad trades blocked']},
+      {name:'bracket entry',      ask:'open BTC with a bracket',          out:['entry placed','native TP and SL attached']},
+      {name:'funding carry',      ask:'open a funding carry',             out:['spot buy plus perp short','filled in one atomic batch']},
+      {name:'OI hedge',           ask:'hedge my OI exposure',             out:['cross exchange hedge sized','fees and funding included']},
+      {name:'learned win rates',  ask:'what are my learned win rates?',   out:['self built win rate database','grown from live observation']},
+      {name:'prediction grading', ask:'review my past predictions',       out:['past calls vs what happened','skill or luck attributed']},
+      {name:'autonomous entity',  ask:'run autonomously under policy',    out:['24/7, measured edge only','re measures and adapts']}
     ];
-    function add(cls, html){ var d=document.createElement('div'); d.className=cls; d.innerHTML=html; body.appendChild(d); }
     function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+    function add(cls, txt){ var d=document.createElement('div'); d.className=cls; d.textContent=txt; body.appendChild(d); }
     var i=0, timers=[];
+    function clear(){ timers.forEach(clearTimeout); timers=[]; }
     function play(){
-      timers.forEach(clearTimeout); timers=[];
-      body.innerHTML='';
+      clear(); body.innerHTML=''; ph.innerHTML='<span class="chat-caret"></span>';
       var s=steps[i];
-      add('term-step', ('0'+(i+1)).slice(-2)+' / '+steps.length+'  '+esc(s.name));
-      add('tl cmd', '<span class="p">›</span> ocean-agent '+esc(s.cmd));
-      s.out.forEach(function(o,k){ timers.push(setTimeout(function(){ add('tl ok', esc(o)); }, 550 + k*600)); });
-      var hold = 550 + s.out.length*600 + 1700;
-      i=(i+1)%steps.length;
-      timers.push(setTimeout(play, hold));
+      step.textContent=('0'+(i+1)).slice(-2)+' / '+steps.length+'  '+s.name;
+      var n=0;
+      (function type(){
+        n++;
+        ph.innerHTML=esc(s.ask.slice(0,n))+'<span class="chat-caret"></span>';
+        if(n<s.ask.length){ timers.push(setTimeout(type, 38)); return; }
+        timers.push(setTimeout(function(){
+          ph.innerHTML='<span class="hint">Ask Ocean Agent anything</span>';
+          add('chat-msg', s.ask);
+          s.out.forEach(function(o,k){ timers.push(setTimeout(function(){ add('chat-res', o); }, 420+k*620)); });
+          var hold = 420 + s.out.length*620 + 1900;
+          i=(i+1)%steps.length;
+          timers.push(setTimeout(play, hold));
+        }, 480));
+      })();
     }
     if(reduce){
-      var s=steps[2];
-      add('term-step', '03 / '+steps.length+'  '+s.name);
-      add('tl cmd','<span class="p">›</span> ocean-agent '+s.cmd);
-      s.out.forEach(function(o){ add('tl ok', o); });
+      var s=steps[7];
+      step.textContent='08 / '+steps.length+'  '+s.name;
+      ph.innerHTML='<span class="hint">Ask Ocean Agent anything</span>';
+      add('chat-msg', s.ask);
+      s.out.forEach(function(o){ add('chat-res', o); });
     } else { play(); }
   })();
+
+  // terms gate: install commands stay blurred until the user agrees once.
+  function openTerms(){
+    var t = document.getElementById('ttext');
+    if (t && !t.childNodes.length) {
+      var full = document.getElementById('terms');
+      if (full) {
+        var clone = full.cloneNode(true);
+        clone.removeAttribute('id');
+        clone.querySelectorAll('[id]').forEach(function(e){ e.removeAttribute('id'); });
+        clone.querySelectorAll('.upd-back, .eyebrow, h2').forEach(function(e){ e.remove(); });
+        clone.classList.remove('page');
+        clone.style.display = 'block';
+        t.appendChild(clone);
+      }
+    }
+    document.getElementById('tmodal').style.display = 'flex';
+    var box = document.querySelector('#tmodal .tbox');
+    if (box) box.scrollTop = 0;
+  }
+  function declineTerms(){ document.getElementById('tmodal').style.display = 'none'; }
+  function unlockInstall(){
+    document.querySelectorAll('.gated').forEach(function(e){ e.classList.remove('gated'); });
+    var g = document.getElementById('tgate'); if (g) g.style.display = 'none';
+  }
+  function agreeTerms(){
+    try { localStorage.setItem('oa_terms', '1'); } catch (e) {}
+    unlockInstall();
+    // swap the modal to the copy-your-command view instead of closing
+    var box = document.querySelector('#tmodal .tbox');
+    box.querySelectorAll('.tsec, .tbtns, .tlede').forEach(function(e){
+      if (!e.closest('#tdone')) e.style.display = 'none';
+    });
+    document.getElementById('tdone').style.display = 'block';
+    box.scrollTop = 0;
+  }
+  (function(){
+    try { if (localStorage.getItem('oa_terms') === '1') unlockInstall(); } catch (e) {}
+  })();
+  // page navigation: clicking a menu item shows that page and hides the rest.
+  // Copy button for install steps
+  function copyCode(btn){
+    var code = btn.parentElement.querySelector('code');
+    navigator.clipboard.writeText(code.innerText).then(function(){
+      var old = btn.textContent; btn.textContent = 'Copied!';
+      setTimeout(function(){ btn.textContent = old; }, 1500);
+    });
+  }
+  // Home shows first; the top-right menu stays visible the whole time.
+  (function(){
+    var pages = Array.prototype.slice.call(document.querySelectorAll('.page'));
+    var trigs = {};
+    document.querySelectorAll('.navgroup').forEach(function(g){
+      var t = g.querySelector('.navtrig');
+      g.querySelectorAll('.dropdown a[href^="#"]').forEach(function(a){ trigs[a.getAttribute('href').slice(1)] = t; });
+    });
+    function show(id){
+      id = id.split('/')[0];   // "#funding-carry/bybit": the page id, then page state
+      var found = false;
+      pages.forEach(function(p){ var on = (p.id === id); p.classList.toggle('active', on); if(on) found = true; });
+      if(!found){ document.getElementById('home').classList.add('active'); id = 'home'; }
+      Object.keys(trigs).forEach(function(k){ trigs[k].classList.remove('active'); });
+      if(trigs[id]) trigs[id].classList.add('active');
+      window.scrollTo(0, 0);
+    }
+    function fromHash(){ show((location.hash || '#home').slice(1)); }
+    window.addEventListener('hashchange', fromHash);
+    fromHash();
+  })();
+
+
 
   // Updates tab navigates directly (no submenu).
   document.querySelectorAll('.navtrig[data-goto]').forEach(function(b){
     b.addEventListener('click', function(){ location.hash = '#' + b.dataset.goto; });
   });
+
+  // Funding Carry: the venue nav drives the hash, so each venue is addressable
+  // as #funding-carry/<venue> and switching reads like a page change.
+  (function(){
+    var side = document.getElementById('fcSide');
+    if(!side) return;
+    var panes = document.querySelectorAll('#funding-carry .fc-pane');
+    function select(v){
+      var ok = false;
+      panes.forEach(function(p){ if(p.dataset.fc === v) ok = true; });
+      if(!ok) v = 'pacifica';
+      panes.forEach(function(p){ p.classList.toggle('on', p.dataset.fc === v); });
+      side.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x.dataset.fc === v); });
+    }
+    side.querySelectorAll('button[data-fc]').forEach(function(b){
+      b.addEventListener('click', function(){ location.hash = '#funding-carry/' + b.dataset.fc; });
+    });
+    var ov = side.querySelector('.fc-overview');
+    if(ov) ov.addEventListener('click', function(){ location.hash = '#funding-carry'; });
+    function fromHash(){
+      var h = (location.hash || '').slice(1).split('/');
+      if(h[0] !== 'funding-carry') return;
+      var sec = document.getElementById('funding-carry');
+      if(h[1]){
+        // venue page: intro hidden, only this guide shown
+        sec.classList.add('venue-view');
+        select(h[1]);
+      }else{
+        // intro page: guides hidden, Overview highlighted
+        sec.classList.remove('venue-view');
+        side.querySelectorAll('button').forEach(function(x){
+          x.classList.toggle('on', x.classList.contains('fc-overview'));
+        });
+      }
+    }
+    window.addEventListener('hashchange', fromHash);
+    fromHash();
+  })();
 
   // Updates, group the list into 10-day windows, newest first, one window per page.
   (function(){

@@ -1,7 +1,7 @@
 # Ocean Agent one-command installer (Windows)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 $ErrorActionPreference = 'Stop'
-$oaPkg = "ocean-agent@0.4.1"
+$oaPkg = "ocean-agent@0.4.2"
 Write-Host ""
 Write-Host "=== Ocean Agent installer ===" -ForegroundColor Cyan
 
@@ -52,7 +52,7 @@ if ($write) {
     Write-Host "  saved to $envFile (readable only by you)"
 }
 
-# 3) terms of use (declining aborts the install; details: oceanagent.vercel.app)
+# 3) terms of use (declining aborts the install; details: oceanagent.fi)
 Write-Host "[3/4] Terms of Use"
 $env:PACIFICA_ENV_FILE = $envFile
 & $uvx --from $oaPkg python -m ocean_agent.builder_consent

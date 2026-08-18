@@ -1,0 +1,522 @@
+# -*- coding: utf-8 -*-
+"""Telegram interface with zero LLM calls, for users without Claude credits.
+
+The product's functions are plain Python already - the MCP server merely wraps
+them for Claude, and Claude is a conversational skin, not a dependency. What a
+credit-less user lacks is an entrance. This is that entrance: fixed commands
+long-polling the Telegram API with nothing but the standard library and the
+same functions the MCP tools call.
+
+Commands are deliberately fixed rather than free-form. No model means no
+interpretation, so each command maps to exactly one function and its output
+is the function's own text. That also makes the surface auditable - there is
+nothing this bot can be talked into.
+
+No orders. Reading balances, positions, funding tables and alerts is safe to
+expose to a chat app; placing trades is not, and stays with the local
+launcher scripts where the user's own hands are on it.
+
+Setup for a user: make a bot with @BotFather, put TELEGRAM_BOT_TOKEN and
+TELEGRAM_CHAT_ID in .env (the chat id gates who the bot answers), run
+`python -m ocean_agent.telebot`. Alerts raised by the hourly watchers are
+forwarded through the existing notify channel, which reads the same token.
+"""
+import json
+import os
+import time
+import urllib.parse
+import urllib.request
+
+API = "https://api.telegram.org/bot{token}/{method}"
+
+# All user-facing text lives in telebot_i18n.T (11 languages, static
+# tables, no LLM). Personal mode keeps today's Korean via lang="ko"
+# defaults; central mode passes each member's stored language down.
+
+
+def _env():
+    out = dict(os.environ)
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    p = os.path.join(root, ".env")
+    if os.path.exists(p):
+        for ln in open(p, encoding="utf-8", errors="replace"):
+            ln = ln.strip()
+            if ln and not ln.startswith("#") and "=" in ln:
+                k, v = ln.split("=", 1)
+                out.setdefault(k.strip(), v.strip())
+    return out
+
+
+def _call(token, method, **params):
+    data = urllib.parse.urlencode(params).encode()
+    req = urllib.request.Request(API.format(token=token, method=method),
+                                 data=data)
+    with urllib.request.urlopen(req, timeout=35) as r:
+        return json.loads(r.read())
+
+
+def _send(token, chat, text, kb=None):
+    for i in range(0, len(text), 3800):
+        if kb and i == 0:
+            _call(token, "sendMessage", chat_id=chat,
+                  text=text[:3800], reply_markup=kb)
+        else:
+            _call(token, "sendMessage", chat_id=chat, text=text[i:i + 3800])
+
+
+def _read_tail(root, rel, lines=25, lang="ko"):
+    from .telebot_i18n import tr
+    p = os.path.join(root, rel)
+    if not os.path.exists(p):
+        return tr("file_missing", lang).format(rel)
+    with open(p, encoding="utf-8", errors="replace") as f:
+        rows = f.read().splitlines()
+    return "\n".join(rows[:lines]) if rel.endswith(".md") \
+        else "\n".join(rows[-lines:])
+
+
+# Read-only twins of mcp_server.scan_funding / funding_alerts. The telebot
+# must NOT import mcp_server: that module repoints state.STATE_FILE and the
+# predictions file at the live trading ledgers at import time, and a chat
+# frontend has no business touching trading state files. These helpers read
+# the same public API and log files with zero side effects.
+
+def _funding_table(cl, top=10):
+    from .scanner import scan
+    candidates = scan(cl, 8760, require_spot=False)
+    if not candidates:
+        return "No candidate markets found."
+    lines = [f"{'symbol':<10}{'funding/hr':>12}{'APR':>10}"
+             f"{'collect side':>14}{'mid price':>14}"]
+    for c in candidates[:max(1, top)]:
+        lines.append(f"{c.symbol:<10}{c.funding_hourly:>12.7f}{c.apr:>9.1%}"
+                     f"{c.farm_side:>14}{c.mid_price:>14,.4f}")
+    return "\n".join(lines)
+
+
+def _carry_alerts(root, hours=24):
+    out = []
+    log_p = os.path.join(root, "outputs", "alarm.log")
+    if os.path.exists(log_p):
+        cut = time.time() - hours * 3600
+        rows = []
+        with open(log_p, encoding="utf-8", errors="replace") as f:
+            for ln in f:
+                parts = [x.strip() for x in ln.split("|")]
+                if len(parts) < 4:
+                    continue
+                try:
+                    ts = time.mktime(time.strptime(parts[0], "%Y-%m-%d %H:%M"))
+                except ValueError:
+                    continue
+                if ts >= cut:
+                    rows.append(parts)
+        if rows:
+            out.append(f"# Alerts in the last {hours}h ({len(rows)})")
+            out += [f"- {p[0]} · {p[2]} · {p[3]}" for p in reversed(rows[-20:])]
+        else:
+            out.append(f"# No alerts in the last {hours}h")
+    else:
+        out.append("# The watcher has not raised anything yet")
+    rank = os.path.join(root, "outputs", "arb_rank.md")
+    if os.path.exists(rank):
+        with open(rank, encoding="utf-8", errors="replace") as f:
+            txt = f.read()
+        for blk in txt.split("## ")[1:]:
+            if blk.lstrip().startswith("통과"):
+                out += ["", "## " + blk.strip()[:900]]
+                break
+    return "\n".join(out) if out else "No data."
+
+
+def handle(cmd, env, root, lang="ko"):
+    from .api_client import PacificaClient
+    from .telebot_i18n import tr
+    cl = PacificaClient(env.get("PACIFICA_BASE_URL",
+                                "https://api.pacifica.fi"),
+                        address=env.get("ADDRESS", ""))
+    if cmd == "/pick":
+        return _read_tail(root, os.path.join("outputs", "pick_table.md"),
+                          30, lang)
+    if cmd == "/funding":
+        return _funding_table(cl, top=10)
+    if cmd == "/carry":
+        return _carry_alerts(root, hours=24)
+    if cmd == "/bot":
+        tail = _read_tail(root,
+                          os.path.join("outputs", "bracket_dry_weekend.log"),
+                          12, lang)
+        return tr("bot_header", lang) + "\n" + tail
+    if cmd == "/balance":
+        a = cl.get_account()
+        return tr("balance", lang).format(
+            f"{float(a.get('balance') or 0):,.2f}",
+            f"{float(a.get('account_equity') or 0):,.2f}",
+            f"{float(a.get('available_to_spend') or 0):,.2f}")
+    if cmd == "/trades":
+        d = cl._get("positions/history",
+                    {"account": env.get("ADDRESS", ""), "limit": 10})
+        rows = []
+        for x in d if isinstance(d, list) else []:
+            rows.append(tr("trade_row", lang).format(
+                x["symbol"], x.get("side", ""),
+                f"{float(x['amount']):,.2f}",
+                f"{float(x['price']):,.4f}",
+                f"{float(x.get('pnl') or 0):+.4f}"))
+        return (tr("trades_header", lang) + "\n"
+                + ("\n".join(rows) or tr("trades_none", lang)))
+    return tr("menu", lang)
+
+
+# ── 규칙 기반 대화 (LLM 없음) ──────────────────────────────────────────
+# 문장을 이해하는 것이 아니다. 종목명과 의도 단어를 잡아 실데이터로 답을
+# 조립한다. 유저 질문의 대부분은 조회라 이것으로 충분하고, 못 알아들으면
+# 메뉴를 보여준다. 새로운 표현을 배우지는 못한다 - 그것이 LLM 과의 경계다.
+ALIAS = {"카이토": "KAITO", "하이닉스": "SKHYNIX", "삼성": "SAMSUNG",
+         "비트": "BTC", "비트코인": "BTC", "이더": "ETH", "이더리움": "ETH",
+         "솔라나": "SOL", "도지": "DOGE", "테슬라": "TSLA",
+         "엔비디아": "NVDA", "구글": "GOOGL", "마이크론": "MU",
+         "샌디스크": "SNDK", "펌프": "PUMP", "펭구": "PENGU"}
+
+
+def _sym_in(text, symbols, lang="ko"):
+    from .telebot_i18n import alias_map
+    up = text.upper()
+    low = text.lower()
+    for kr, s in ALIAS.items():
+        if kr in text:
+            return s
+    for name, s in alias_map(lang).items():
+        if name in low:
+            return s
+    hits = [s for s in symbols if s in up]
+    return max(hits, key=len) if hits else None
+
+
+def _fmt_apr(f):
+    return f"{f * 24 * 365 * 100:+.0f}%"
+
+
+def _sym_info(cl, sym, lang="ko"):
+    from .telebot_i18n import tr
+    q = next((p for p in cl.get_prices() if p["symbol"] == sym), None)
+    if not q:
+        return tr("sym_none", lang).format(sym)
+    m = float(q.get("mark") or 0)
+    y = float(q.get("yesterday_price") or 0)
+    chg = (m / y - 1) * 100 if y > 0 else 0.0
+    f = float(q.get("funding") or 0)
+    side = tr("fund_long" if f < 0 else "fund_short", lang)
+    return tr("sym_info", lang).format(
+        sym, f"{m:,.4f}", f"{chg:+.2f}", _fmt_apr(f), side,
+        f"{float(q.get('open_interest') or 0):,.0f}",
+        f"{float(q.get('volume_24h') or 0):,.0f}")
+
+
+def _why(cl, env, sym, lang="ko"):
+    from .telebot_i18n import tr
+    d = cl._get("positions/history",
+                {"account": env.get("ADDRESS", ""), "limit": 30})
+    rows = [x for x in (d if isinstance(d, list) else [])
+            if x.get("symbol") == sym]
+    if not rows:
+        return tr("why_none", lang).format(sym)
+    close = next((x for x in rows if str(x.get("side", ""))
+                  .startswith("close")), None)
+    if not close:
+        return tr("why_noclose", lang).format(sym)
+    op = next((x for x in rows if str(x.get("side", "")).startswith("open")),
+              None)
+    e = float(op["price"]) if op else float(close.get("entry_price") or 0)
+    x = float(close["price"])
+    pnl = float(close.get("pnl") or 0)
+    pct = (x / e - 1) * 100 if e > 0 else 0
+    line = tr("why_line", lang).format(
+        sym, f"{e:,.4f}", f"{x:,.4f}", f"{pct:+.2f}", f"{pnl:+.4f}")
+    verdict = tr("why_won" if pnl > 0 else "why_lost", lang)
+    return f"{line}\n{verdict}. {tr('why_coin', lang)}"
+
+
+def _cli_answer(question, data):
+    """Paid tier, the simple way: mirror the user's own Claude through
+    Telegram. If Claude Code is installed and logged in on this machine,
+    `claude -p` answers on the user's existing subscription - no API key,
+    no extra bill. The telebot is then just a remote screen for the Claude
+    the user already pays for."""
+    import shutil
+    import subprocess
+    exe = shutil.which("claude")
+    if not exe:
+        return None
+    try:
+        r = subprocess.run(
+            [exe, "-p",
+             "아래 실데이터만 근거로 한국어로 짧게 답해라. 데이터에 없는 것은 "
+             "모른다고 하고, 숫자를 지어내지 말고, 투자 조언은 하지 마라.\n"
+             f"[실데이터]\n{data}\n\n[질문]\n{question}"],
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=120)
+        out = (r.stdout or "").strip()
+        return out if r.returncode == 0 and out else None
+    except Exception:
+        return None
+
+
+_MODEL_CACHE = {}
+
+
+def _pick_model(client, env):
+    """Auto-match the model to the user's key. Lists the models the key can
+    actually reach and takes the most capable one, so a paid user only puts
+    the key in .env and gets the best of what they pay for. Setting
+    ANTHROPIC_MODEL by hand still wins for anyone who wants to choose.
+    Cached per key so the lookup happens once per bot process."""
+    manual = env.get("ANTHROPIC_MODEL", "")
+    if manual:
+        return manual
+    key = env.get("ANTHROPIC_API_KEY", "")
+    if key in _MODEL_CACHE:
+        return _MODEL_CACHE[key]
+    pick = "claude-opus-5"
+    try:
+        have = {m.id for m in client.models.list()}
+        for want in ("claude-opus-5", "claude-sonnet-5", "claude-sonnet-4-6",
+                     "claude-haiku-4-5"):
+            if want in have:
+                pick = want
+                break
+    except Exception:
+        pass                     # 조회 실패 시 기본값으로 그냥 간다
+    _MODEL_CACHE[key] = pick
+    return pick
+
+
+def _llm_answer(env, question, data, lang="ko"):
+    """Paid tier: the telebot becomes a Claude interface. Same commands, same
+    data in and out as the free tier - the difference is that free returns the
+    raw data and paid has Claude read that data and answer in conversation.
+    Claude never invents numbers because the only facts it sees are `data`.
+    Activates when the user has put ANTHROPIC_API_KEY in .env and installed
+    the `anthropic` package; otherwise returns None and the free tier answers.
+    Pay-as-you-go on the user's own key."""
+    key = env.get("ANTHROPIC_API_KEY", "")
+    if not key:
+        return None
+    try:
+        import anthropic
+    except ImportError:
+        return None
+    try:
+        client = anthropic.Anthropic(api_key=key)
+        r = client.messages.create(
+            model=_pick_model(client, env),
+            max_tokens=1000,
+            system=(
+                "너는 오션 에이전트(파시피카 트레이딩 도구)의 안내원이다. "
+                "Answer briefly, ONLY from the data below, in the "
+                f"user's language (code: {lang}). "
+                "데이터에 없는 것은 모른다고 말한다. 숫자를 지어내지 않는다. "
+                "투자 조언·매수 권유는 하지 않는다."),
+            messages=[{"role": "user", "content":
+                       f"[실데이터]\n{data}\n\n[질문]\n{question}"}],
+        )
+        out = "".join(b.text for b in r.content if b.type == "text").strip()
+        return out or None
+    except Exception:
+        return None          # 어떤 실패든 무료 동작으로 조용히 복귀
+
+
+def chat(text, env, root, lang="ko"):
+    """자유 문장 → 의도 추정 → 실데이터 답. 모르면 메뉴.
+    ANTHROPIC_API_KEY 가 있으면(유료 버전) 같은 데이터를 하이쿠가 문장으로
+    풀어서 답한다. 입출력 인터페이스는 무료 버전과 동일하다."""
+    if text.startswith("/"):
+        return handle(text, env, root, lang)
+    base = _rule_answer(text, env, root, lang)
+    cli_ok = env.get("TELEBOT_CLI_MIRROR", "") == "1"   # 옵트인 전엔 봉인
+    return ((cli_ok and _cli_answer(text, base))
+            or _llm_answer(env, text, base)  # 2순위: API 키 있으면
+            or base)                         # 3순위: 무료 규칙 답변
+
+
+def _rule_answer(text, env, root, lang="ko"):
+    from .api_client import PacificaClient
+    from .telebot_i18n import tr, intent_words
+    cl = PacificaClient(env.get("PACIFICA_BASE_URL",
+                                "https://api.pacifica.fi"),
+                        address=env.get("ADDRESS", ""))
+    syms = [m["symbol"] for m in cl.get_markets()]
+    sym = _sym_in(text, syms, lang)
+    low = text.lower()
+    # Keyword match on the union of English + the user's language.
+    has = lambda intent: any(k in low for k in intent_words(intent, lang))
+    if sym and has("why"):
+        return _why(cl, env, sym, lang)
+    if sym:
+        return _sym_info(cl, sym, lang)
+    if has("pick"):
+        return handle("/pick", env, root, lang)
+    if has("carry"):
+        return handle("/carry", env, root, lang)
+    if has("funding"):
+        return handle("/funding", env, root, lang)
+    if has("balance"):
+        return handle("/balance", env, root, lang)
+    if has("trades"):
+        return handle("/trades", env, root, lang)
+    if has("bot"):
+        return handle("/bot", env, root, lang)
+    return tr("not_understood", lang) + "\n" + tr("menu", lang)
+
+
+# ── 중앙 운영 모드 ────────────────────────────────────────────────────
+# One bot for everyone, run by the operator, like the Claude app: a user
+# adds the bot on Telegram, registers a wallet address (Pacifica reads are
+# address-only, no key), and gets the free tier. Paying users are flagged by
+# the operator and get Claude answers on the operator's API key - they never
+# touch a key themselves. Single-user mode (TELEGRAM_CHAT_ID set, no user
+# file) still works exactly as before.
+USERS = "telebot_users.json"
+
+
+def _users_path(root):
+    return os.path.join(root, "outputs", USERS)
+
+
+def _load_users(root):
+    p = _users_path(root)
+    if os.path.exists(p):
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def _save_users(root, users):
+    p = _users_path(root)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(users, f, ensure_ascii=False, indent=1)
+
+
+def _handle_member(text, chat_id, env, root, admin):
+    """Route one message in central mode: registration, admin approval,
+    then the normal free/paid answer with the member's own address."""
+    users = _load_users(root)
+    u = users.get(chat_id)
+    if admin and chat_id == admin and text.startswith("/승인 "):
+        target = text.split()[1]
+        if target in users:
+            users[target]["paid"] = True
+            _save_users(root, users)
+            return f"{target} 유료 전환 완료"
+        return f"{target} 는 등록된 사용자가 아니다"
+    from .telebot_i18n import tr, lang_kb
+    if u is None or not u.get("lang"):
+        # 국기 키보드부터 (사용자 확정 순서). 언어가 정해질 때까지는
+        # 어떤 텍스트가 와도 같은 화면을 다시 보여준다.
+        if u is None:
+            users[chat_id] = {"lang": "", "address": "", "paid": False}
+            _save_users(root, users)
+        return ("KB", tr("pick_lang", "any"))
+    if not u.get("address"):
+        b58 = set("123456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+                  "abcdefghijkmnopqrstuvwxyz")
+        if 32 <= len(text) <= 44 and all(ch in b58 for ch in text):
+            u["address"] = text
+            _save_users(root, users)
+            return tr("done", u["lang"])
+        return tr("bad_addr", u["lang"])
+    e2 = dict(env)
+    e2["ADDRESS"] = u["address"]
+    lang = u.get("lang") or "en"
+    # Central mode never touches the operator's Claude CLI: member text must
+    # not become a local prompt (secret-exfiltration surface). Free members
+    # get rule answers; paid members get the operator's API key, once.
+    if text.startswith("/"):
+        return handle(text, e2, root, lang)
+    base = _rule_answer(text, e2, root, lang)
+    if u.get("paid"):
+        return _llm_answer(env, text, base,
+                           u.get("lang") or "en") or base
+    return base
+
+
+def main():
+    env = _env()
+    token = env.get("TELEGRAM_BOT_TOKEN", "")
+    gate = str(env.get("TELEGRAM_CHAT_ID", ""))
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if not token:
+        print("TELEGRAM_BOT_TOKEN 이 .env 에 없다. @BotFather 로 봇을 만들고 "
+              "토큰·챗ID 를 넣을 것.")
+        return
+    central = env.get("TELEBOT_CENTRAL", "") == "1"
+    if not central and not gate:
+        print("개인 모드에는 TELEGRAM_CHAT_ID 가 필수다. 없으면 아무나 "
+              "접근할 수 있어 기동을 거부한다.")
+        return
+    print("텔레봇 시작"
+          + (" (중앙 운영 모드)" if central else " (개인 모드)")
+          + ". 중지: Ctrl+C")
+    offset = 0
+    while True:
+        try:
+            d = _call(token, "getUpdates", offset=offset, timeout=30)
+        except Exception:
+            time.sleep(5)
+            continue
+        for u in d.get("result", []):
+            offset = u["update_id"] + 1
+            try:
+                _process_update(u, env, root, gate, central, token)
+            except Exception as ex:
+                print(f"업데이트 처리 오류(건너뜀): {type(ex).__name__}")
+
+
+def _process_update(u, env, root, gate, central, token):
+    cq = u.get("callback_query")
+    if cq and central:
+        # 국기 버튼 응답: 언어 저장 후 그 언어로 주소 요청
+        from .telebot_i18n import tr
+        cid = str((cq.get("message", {}).get("chat") or {})
+                  .get("id", ""))
+        data = str(cq.get("data") or "")
+        try:
+            _call(token, "answerCallbackQuery",
+                  callback_query_id=cq.get("id", ""))
+        except Exception:
+            pass
+        if data.startswith("lang:") and cid:
+            users = _load_users(root)
+            rec = users.get(cid) or {"address": "", "paid": False}
+            rec["lang"] = data.split(":", 1)[1]
+            users[cid] = rec
+            _save_users(root, users)
+            _send(token, cid, tr("ask_addr", rec["lang"]))
+        return
+    msg = u.get("message") or {}
+    cid = str((msg.get("chat") or {}).get("id", ""))
+    text = (msg.get("text") or "").strip().split("@")[0]
+    try:
+        if central:
+            out = _handle_member(text, cid, env, root, gate)
+        else:
+            if gate and cid != gate:
+                return        # 개인 모드: 등록된 챗만
+            out = chat(text, env, root)
+    except Exception as ex:
+        from .telebot_i18n import tr
+        lang = "ko"
+        if central:
+            lang = ((_load_users(root).get(cid) or {})
+                    .get("lang")) or "en"
+        out = tr("error", lang).format(type(ex).__name__)
+    if isinstance(out, tuple) and out and out[0] == "KB":
+        from .telebot_i18n import lang_kb
+        _send(token, cid, out[1], kb=lang_kb())
+    else:
+        _send(token, cid, out)
+
+
+if __name__ == "__main__":
+    main()

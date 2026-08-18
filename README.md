@@ -7,7 +7,7 @@
 
 > English · [한국어](README.ko.md)
 
-🌊 **Website:** [oceanagent.vercel.app](https://oceanagent.vercel.app) · **PyPI:** [ocean-agent](https://pypi.org/project/ocean-agent/)
+🌊 **Website:** [oceanagent.fi](https://oceanagent.fi) · **PyPI:** [ocean-agent](https://pypi.org/project/ocean-agent/)
 
 **Tell your AI to trade.** An MCP server for [Pacifica](https://app.pacifica.fi)
 that turns natural language into correct, risk-sized perpetual futures orders,
@@ -140,10 +140,10 @@ key.
 
 ```bash
 # Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://oceanagent.vercel.app/install.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://oceanagent.fi/install.ps1 | iex"
 
 # macOS / Linux
-sh -c "$(curl -LsSf https://oceanagent.vercel.app/install.sh)"
+sh -c "$(curl -LsSf https://oceanagent.fi/install.sh)"
 ```
 
 Or set up manually:

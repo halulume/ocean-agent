@@ -10,14 +10,15 @@ def data_tag() -> str:
 
     두 네트워크의 실매매 기록(상태·관측·승률·calibration·postmortem·예측·로그)이
     절대 섞이지 않도록 파일을 분리한다. 판단 기준은 PACIFICA_BASE_URL 환경변수
-    (MCP는 .mcp.json이, 자율 개체는 시작 시 policy의 base_url로 설정)이며,
-    알 수 없으면 안전하게 'testnet'으로 본다.
+    (MCP는 .mcp.json이, 자율 개체는 시작 시 policy의 base_url로 설정)이다.
+    Unset or unrecognized URLs count as 'mainnet': mainnet is the product
+    default, and only a URL containing test-api selects 'testnet'.
     MUSTACHE_DATA_TAG 로 강제 지정하면 그것이 최우선(멀티 인스턴스 격리용)."""
     override = os.environ.get("MUSTACHE_DATA_TAG")
     if override:
         return override
     base = os.environ.get("PACIFICA_BASE_URL", "")
-    return "mainnet" if (base and "test-api" not in base) else "testnet"
+    return "testnet" if (base and "test-api" in base) else "mainnet"
 
 
 def data_file(name: str) -> str:

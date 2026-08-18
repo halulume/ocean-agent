@@ -13,7 +13,7 @@
 # 값을 바꾸면 개체의 행동 경계가 바뀝니다. 넓힐 때는 신중히.
 
 # ── 네트워크 / 자금 ──
-base_url: https://test-api.pacifica.fi   # 검증은 테스트넷. 실전: https://api.pacifica.fi
+base_url: https://api.pacifica.fi   # 테스트넷은 명시할 때만: https://test-api.pacifica.fi
 capital_usd: live                         # live = 지갑 실잔고(USDC) 연동 사이징(권장).
                                           # 고정하려면 숫자로(예: 1000). 방어선은 '시작 잔고' 기준.
 
@@ -156,6 +156,12 @@ report_every_cycles: 8      # 8사이클(약 4시간)마다 성과 요약
 # 텔레그램 알림은 .env의 TELEGRAM_* 설정 시 자동 활성
 
 # ── 브래킷 트레이더 (일일 봉인 상위 3픽 매매) ──
+# 모드: base = 55일 실측으로 검증된 기본 계획 (거래 승률 약 80%, 수익 나는 날 약 60%)
+#       hard = 익절 3% 고정·큰 변동 노림 (거래 승률 약 56%, 총수익은 더 큼)
+# 모드마다 기록 파일이 따로다 (base=bracket_state.json, hard=bracket_state_hard.json).
+# 한 계좌를 둘이 나눠 쓸 수 없어, 한쪽이 돌고 있으면 다른 쪽은 시작을 거부한다.
+bracket_mode: base
+bracket_capital_pct: 100    # 가용 증거금 중 이만큼만 사용 (100 = 전부, 50 = 절반)
 bracket_slots: 3            # 매일 봉인의 trade_rank 상위 3픽만 거래
 bracket_leverage: 3         # 축소 검증 기본값. 전방 게이트 통과 후 8 권장
 bracket_deploy_pct: 0.97    # 가용 증거금의 97% 투입 (3%는 수수료·펀딩 버퍼)
@@ -163,3 +169,13 @@ bracket_tp_mult: 0.3        # 익절 = 예상변동폭 x 0.3
 bracket_sl_mult: 1.0        # 손절 = 예상변동폭 x 1.0
 bracket_vol_floor_pct: 0.8  # 예상변동 0.8% 미만 픽 제외
 bracket_horizon_h: 24       # 만기: 다음 봉인 전 시장가 청산
+
+# ── 하드 모드 기본값 (⚠️ 아직 전방 검증 안 됨) ──
+# 위 bracket_mode 를 hard 로 바꾸고 아래 주석을 풀어야 적용된다.
+# 근거는 55일 재생 실측뿐이고, 실시간(전방) 검증은 아직 통과하지 않았다.
+# 베이스와 성적이 다르니 반드시 소액으로 먼저 확인할 것.
+# bracket_tp_pct: 3.0        # 익절 3% 고정 (예상변동폭 배수가 아님)
+# bracket_sl_mult: 1.0       # 손절은 그대로 예상변동폭 x 1.0 (실측 관행)
+# bracket_vol_floor_pct: 1.5 # 3% 익절은 잔잔한 픽에선 하루 안에 안 닿는다
+# bracket_horizon_h: 24      # 만기는 베이스와 동일
+# bracket_leverage: 3        # 검증 전까지 축소 유지
