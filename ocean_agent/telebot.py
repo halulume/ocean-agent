@@ -418,6 +418,22 @@ def _handle_member(text, chat_id, env, root, admin):
             users[chat_id] = {"lang": "", "address": "", "paid": False}
             _save_users(root, users)
         return ("KB", tr("pick_lang", "any"))
+    lang0 = u.get("lang") or "en"
+    if text == "/mode":
+        return ("KB_TIER", tr("tier_pick", lang0))
+    if text == "/menu":
+        return handle("/menu", env, root, lang0) + "\n" + tr("menu_extra",
+                                                             lang0)
+    if u.get("await_token"):
+        tok = text.strip()
+        if tok.startswith("sk-ant-") and len(tok) > 30:
+            u["token"] = tok
+            u["paid"] = True
+            u["await_token"] = False
+            _save_users(root, users)
+            return tr("token_saved", lang0) + ("\n\n" + tr("ask_addr", lang0)
+                                               if not u.get("address") else "")
+        return tr("token_bad", lang0)
     if not u.get("address"):
         b58 = set("123456789ABCDEFGHJKLMNPQRSTUVWXYZ"
                   "abcdefghijkmnopqrstuvwxyz")
@@ -436,7 +452,12 @@ def _handle_member(text, chat_id, env, root, admin):
         return handle(text, e2, root, lang)
     base = _rule_answer(text, e2, root, lang)
     if u.get("paid"):
-        return _llm_answer(env, text, base,
+        # paid members bring their own Claude key; the operator's key is
+        # only the fallback for members the admin sponsored via /승인
+        e3 = dict(env)
+        if u.get("token"):
+            e3["ANTHROPIC_API_KEY"] = u["token"]
+        return _llm_answer(e3, text, base,
                            u.get("lang") or "en") or base
     return base
 
@@ -492,7 +513,30 @@ def _process_update(u, env, root, gate, central, token):
             rec["lang"] = data.split(":", 1)[1]
             users[cid] = rec
             _save_users(root, users)
-            _send(token, cid, tr("ask_addr", rec["lang"]))
+            # language chosen -> tier choice next, in that language
+            from .telebot_i18n import tier_kb
+            _send(token, cid, tr("tier_pick", rec["lang"]),
+                  kb=tier_kb(rec["lang"]))
+        elif data.startswith("tier:") and cid:
+            users = _load_users(root)
+            rec = users.get(cid) or {"lang": "en", "address": "",
+                                     "paid": False}
+            lang = rec.get("lang") or "en"
+            choice = data.split(":", 1)[1]
+            if choice == "paid":
+                rec["await_token"] = True
+                users[cid] = rec
+                _save_users(root, users)
+                _send(token, cid, tr("ask_token", lang))
+            else:
+                rec["paid"] = False
+                rec["token"] = ""
+                rec["await_token"] = False
+                users[cid] = rec
+                _save_users(root, users)
+                _send(token, cid, tr("mode_now_free", lang) + "\n\n"
+                      + (tr("ask_addr", lang) if not rec.get("address")
+                         else tr("menu_extra", lang)))
         return
     msg = u.get("message") or {}
     cid = str((msg.get("chat") or {}).get("id", ""))
@@ -514,6 +558,13 @@ def _process_update(u, env, root, gate, central, token):
     if isinstance(out, tuple) and out and out[0] == "KB":
         from .telebot_i18n import lang_kb
         _send(token, cid, out[1], kb=lang_kb())
+    elif isinstance(out, tuple) and out and out[0] == "KB_TIER":
+        from .telebot_i18n import tier_kb
+        lang = "en"
+        if central:
+            lang = ((_load_users(root).get(cid) or {})
+                    .get("lang")) or "en"
+        _send(token, cid, out[1], kb=tier_kb(lang))
     else:
         _send(token, cid, out)
 

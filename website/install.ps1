@@ -112,5 +112,11 @@ if ($bakPath) {
 }
 
 Write-Host ""
-Write-Host "Done. Restart Claude Desktop and the Ocean Agent tools appear in chat." -ForegroundColor Green
-Write-Host "Optional 24/7 bot:  `"$uvx`" --from ocean-agent python -m ocean_agent.autonomous --dry"
+Write-Host "==============================================" -ForegroundColor Green
+Write-Host "  INSTALL COMPLETE" -ForegroundColor Green
+Write-Host "==============================================" -ForegroundColor Green
+Write-Host "Next, in order:"
+Write-Host "  1. Restart Claude Desktop"
+Write-Host "  2. Say hello in any language - the setup interview runs in YOUR language"
+Write-Host "  3. To link your account, just ask: 'connect my Pacifica account'"
+Write-Host "  4. To trade automatically, ask: 'start auto trading'"

@@ -93,5 +93,11 @@ else:
 PY
 
 echo ""
-echo "Done. Restart Claude Desktop and the Ocean Agent tools appear in chat."
-echo "Optional 24/7 bot:  \"$UV\" run --with ocean-agent python -m ocean_agent.autonomous --dry"
+echo "=============================================="
+echo "  INSTALL COMPLETE"
+echo "=============================================="
+echo "Next, in order:"
+echo "  1. Restart Claude Desktop"
+echo "  2. Say hello in any language - the setup interview runs in YOUR language"
+echo "  3. To link your account, just ask: 'connect my Pacifica account'"
+echo "  4. To trade automatically, ask: 'start auto trading'"

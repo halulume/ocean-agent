@@ -503,8 +503,8 @@
       <div class="hero-right">
         <div class="chat">
           <div class="chat-brand">
-            <svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z"/></svg>
-            <b>Claude</b><span class="step" id="chatStep"></span>
+            <svg id="brandIcon" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z"/></svg>
+            <b id="brandName">Claude</b><span class="step" id="chatStep"></span>
           </div>
           <div class="chat-body" id="chatBody"></div>
           <div class="chat-in">
@@ -644,13 +644,13 @@
     <div class="istep">
       <div class="ihead">macOS / Linux: paste into Terminal</div>
       <div class="iwrap gated"><pre><code>sh -c "$(curl -LsSf https://oceanagent.fi/install.sh)"</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
-      <p class="body" style="margin-top:8px">It asks for your wallet public address and an agent key from <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a> (trade-only, cannot withdraw, revocable any time). When it finishes, restart Claude, the trading tools appear in chat. <b>No bot required.</b></p>
-      <p class="body" style="margin-top:8px"><b>Works in your language.</b> You chat with your AI in any language: Korean, Japanese, Spanish, anything. It drives the tools and explains every result in your language, and new-version notices arrive in it too.</p>
+      <p class="body" style="margin-top:8px">It asks for your wallet public address and an agent key from <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a> (trade only, cannot withdraw, revocable any time). When it finishes, restart Claude, the trading tools appear in chat. <b>No bot required.</b></p>
+      <p class="body" style="margin-top:8px"><b>Works in your language.</b> You chat with your AI in any language: English, 中文, 日本語, 한국어, Tiếng Việt, Español and more. It drives the tools and explains every result in your language, and new version notices arrive in it too.</p>
     </div>
     <div class="istep">
       <div class="ihead">Optional: run the autonomous bot</div>
       <div class="iwrap gated"><pre><code>uv run --with ocean-agent python -m ocean_agent.autonomous --dry</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
-      <p class="body" style="margin-top:8px">Only for hands-off trading. <code>--dry</code> decides but places no orders; drop it when you trust it.</p>
+      <p class="body" style="margin-top:8px">Only for hands off trading. <code>--dry</code> decides but places no orders; drop it when you trust it.</p>
     </div>
     <details style="margin-top:6px">
       <summary style="cursor:pointer;color:var(--ink-2);font-size:13.5px">Manual setup (any MCP client)</summary>
@@ -739,9 +739,9 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
       <h3>What works out of the box</h3>
       <p><code style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--accent-deep);background:var(--accent-wash);padding:1px 6px;border-radius:5px">scan_funding</code> and <code style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--accent-deep);background:var(--accent-wash);padding:1px 6px;border-radius:5px">funding_alerts</code> read funding across venues with no extra keys, and the hedged open places the Pacifica leg with the agent key you already have. Nothing new to set up, nothing to trust.</p>
       <h3>What automating the second leg needs</h3>
-      <p>To have the bot place the hedge on another venue, that venue needs its <b>own API key</b>, created by you, with <b>trade-only permission</b> and <b>withdrawals off</b>. Keys live in your local <b>.env</b> file and are never transmitted anywhere by Ocean Agent. Never share a key with anyone, including us. The guides below cover each venue the funding watcher tracks.</p>
+      <p>To have the bot place the hedge on another venue, that venue needs its <b>own API key</b>, created by you, with <b>trade only permission</b> and <b>withdrawals off</b>. Keys live in your local <b>.env</b> file and are never transmitted anywhere by Ocean Agent. Never share a key with anyone, including us. The guides below cover each venue the funding watcher tracks.</p>
     </div>
-    <div class="exp"><h3>Per venue: creating a trade-only key</h3></div>
+    <div class="exp"><h3>Per venue: creating a trade only key</h3></div>
     </div><!-- /fc-intro -->
     <a class="fc-back" href="#funding-carry">&#8249; Funding Carry</a>
     <div class="fc-cols">
@@ -779,7 +779,7 @@ PACIFICA_API_KEY=your_agent_key</code></pre>
         <div class="fc-pane" data-fc="aster">
           <h4>Aster<span class="vt">perp dex</span></h4>
           <p class="fc-status">Key guide ready; automated leg support coming.</p>
-          <p>A Binance-style perpetuals DEX.</p>
+          <p>A Binance style perpetuals DEX.</p>
           <ol class="fc-steps">
             <li>Open asterdex.com, connect your wallet, and go to the <a href="https://www.asterdex.com/en/api-management" target="_blank" rel="noopener">API Management page</a>.</li>
             <li>Click Create API and give the key a label. Note: since March 25, 2026 new classic API keys are discontinued, and new keys go through the Pro API path described in the docs.</li>
@@ -796,7 +796,7 @@ ASTER_API_SECRET=...</code></pre>
           <p>A centralized exchange with spot and perpetual futures.</p>
           <ol class="fc-steps">
             <li>Log in at backpack.exchange and open Settings, then <a href="https://backpack.exchange/portfolio/settings/api-keys" target="_blank" rel="noopener">API Keys</a>, inside your portfolio.</li>
-            <li>Generate a new key. The Read Only toggle is for view keys; a trading key on Backpack is account-wide, so protect the secret accordingly and start with small balances.</li>
+            <li>Generate a new key. The Read Only toggle is for view keys; a trading key on Backpack is account wide, so protect the secret accordingly and start with small balances.</li>
             <li>Save both values when shown: the base64 public key is your API key, the base64 seed is your secret.</li>
           </ol>
           <p>Both values belong in your local .env, the only place Ocean Agent reads keys from:</p>
@@ -810,7 +810,7 @@ BACKPACK_API_SECRET=...</code></pre>
           <p>The deepest perp books, a natural hedge leg for majors.</p>
           <ol class="fc-steps">
             <li>Log in, open Profile, then Account, then <a href="https://www.binance.com/en/my/settings/api-management" target="_blank" rel="noopener">API Management</a>, and click Create API.</li>
-            <li>Choose the system-generated key type (HMAC) unless you already manage your own Ed25519 pair.</li>
+            <li>Choose the system generated key type (HMAC) unless you already manage your own Ed25519 pair.</li>
             <li>Tick Enable Futures (your futures account must be activated first). Leave Enable Withdrawals unchecked.</li>
             <li>Under IP access restrictions, add the IP of the machine that runs the bot.</li>
           </ol>
@@ -825,8 +825,8 @@ BINANCE_API_SECRET=...</code></pre>
           <p>A centralized derivatives exchange.</p>
           <ol class="fc-steps">
             <li>Log in, open <a href="https://www.bitget.com/account/newapi" target="_blank" rel="noopener">API Management</a> from your account menu, and click Create New API.</li>
-            <li>Choose the system-generated key, write a note, and set the passphrase. It cannot be recovered later, only recreated.</li>
-            <li>Grant read-write on Futures only, nothing else, and bind your IP address.</li>
+            <li>Choose the system generated key, write a note, and set the passphrase. It cannot be recovered later, only recreated.</li>
+            <li>Grant read write on Futures only, nothing else, and bind your IP address.</li>
           </ol>
           <p>You get a key, a secret, and your passphrase; all three belong in your local .env, the only place Ocean Agent reads keys from:</p>
           <pre class="fc-env"><code>BITGET_API_KEY=...
@@ -840,8 +840,8 @@ BITGET_API_PASSPHRASE=...</code></pre>
           <p>A centralized exchange with liquid perps, and the first supported hedge leg.</p>
           <ol class="fc-steps">
             <li>Log in, click the profile icon top right, choose <a href="https://www.bybit.com/app/user/api-management" target="_blank" rel="noopener">API</a>, then Create New Key.</li>
-            <li>Pick System-generated API Keys. That is the HMAC type Ocean Agent signs with.</li>
-            <li>Grant read-write for orders and positions only. There is a withdrawal permission on the same form: leave it off. Confirm with 2FA.</li>
+            <li>Pick System generated API Keys. That is the HMAC type Ocean Agent signs with.</li>
+            <li>Grant read write for orders and positions only. There is a withdrawal permission on the same form: leave it off. Confirm with 2FA.</li>
             <li>Bind an IP allowlist. Bybit expires keys that have no IP restriction after about three months.</li>
           </ol>
           <p>You get an API key and a secret; the secret is shown once. They belong in your local .env, the only place Ocean Agent reads keys from:</p>
@@ -852,7 +852,7 @@ BYBIT_API_SECRET=...</code></pre>
         <div class="fc-pane" data-fc="coinbase">
           <h4>Coinbase<span class="vt">exchange</span></h4>
           <p class="fc-status">Key guide ready; automated leg support coming.</p>
-          <p>Perpetual futures at Coinbase are region-gated, so check availability before creating keys.</p>
+          <p>Perpetual futures at Coinbase are region gated, so check availability before creating keys.</p>
           <ol class="fc-steps">
             <li>Log in to the Coinbase Developer Platform at <a href="https://portal.cdp.coinbase.com" target="_blank" rel="noopener">portal.cdp.coinbase.com</a> and open Access, then API keys.</li>
             <li>Create a key: pick the portfolio and set the permission level to Trade. Do not grant Transfer. Confirm 2FA.</li>
@@ -866,7 +866,7 @@ COINBASE_API_SECRET=...</code></pre>
         <div class="fc-pane" data-fc="extended">
           <h4>Extended<span class="vt">perp dex · wallet</span></h4>
           <p class="fc-status">Key guide ready; automated leg support coming.</p>
-          <p>A perpetuals DEX built by ex-Revolut engineers, settling on Starknet.</p>
+          <p>A perpetuals DEX built by ex Revolut engineers, settling on Starknet.</p>
           <ol class="fc-steps">
             <li>Open <a href="https://extended.exchange" target="_blank" rel="noopener">extended.exchange</a> and onboard by signing with your wallet; the account and its keys are derived from that signature.</li>
             <li>From your account, note the API key used for read calls and the private Stark key that signs orders. The Stark key is the account: never share it.</li>
@@ -887,14 +887,14 @@ EXTENDED_STARK_PRIVATE_KEY=...</code></pre>
             <li>Save the agent's address and private key; the private key is shown once. The agent can sign orders and can never withdraw, and you can deauthorize it in the same UI.</li>
             <li>Give the bot only the agent's private key, never your main wallet's seed.</li>
           </ol>
-          <p>The agent-wallet key replaces a key and secret pair. It belongs in your local .env, the only place Ocean Agent reads keys from:</p>
+          <p>The agent wallet key replaces a key and secret pair. It belongs in your local .env, the only place Ocean Agent reads keys from:</p>
           <pre class="fc-env"><code>HYPERLIQUID_AGENT_KEY=...</code></pre>
           <p><a href="https://hyperliquid.gitbook.io/hyperliquid-docs" target="_blank" rel="noopener">Hyperliquid docs</a></p>
         </div>
         <div class="fc-pane" data-fc="lighter">
           <h4>Lighter<span class="vt">perp dex · wallet</span></h4>
           <p class="fc-status">Key guide ready; automated leg support coming.</p>
-          <p>A zk-rollup perpetuals DEX with zero-fee trading.</p>
+          <p>A zk rollup perpetuals DEX with zero fee trading.</p>
           <ol class="fc-steps">
             <li>Log in at app.lighter.xyz with your wallet, then open the API Keys page at <a href="https://app.lighter.xyz/apikeys" target="_blank" rel="noopener">app.lighter.xyz/apikeys</a>.</li>
             <li>Generate a key. Every key gets an index; the low indexes are reserved for the official interfaces, so yours starts from 3.</li>
@@ -928,7 +928,7 @@ OKX_API_PASSPHRASE=...</code></pre>
           <ol class="fc-steps">
             <li>Open <a href="https://app.paradex.trade" target="_blank" rel="noopener">the Paradex app</a> and sign the onboarding message. Your Paradex keys are derived from that wallet signature and stay in your browser; they are never sent to Paradex servers.</li>
             <li>For a bot, create a subkey from the Key Management dashboard rather than exporting your main key. The subkey signs orders and can be revoked or rotated there.</li>
-            <li>Requests authenticate with a short-lived JWT obtained from the subkey; the SDK handles that from the private key.</li>
+            <li>Requests authenticate with a short lived JWT obtained from the subkey; the SDK handles that from the private key.</li>
           </ol>
           <p>The subkey private key replaces a key and secret pair. It belongs in your local .env, the only place Ocean Agent reads keys from:</p>
           <pre class="fc-env"><code>PARADEX_PRIVATE_KEY=...</code></pre>
@@ -937,17 +937,17 @@ OKX_API_PASSPHRASE=...</code></pre>
         <div class="fc-pane" data-fc="variational">
           <h4>Variational<span class="vt">perp dex · wallet</span></h4>
           <p class="fc-status">No trading API yet; nothing to configure.</p>
-          <p>The protocol behind Omni, a zero-fee perpetuals app.</p>
+          <p>The protocol behind Omni, a zero fee perpetuals app.</p>
           <ol class="fc-steps">
             <li><a href="https://omni.variational.io" target="_blank" rel="noopener">Omni</a> is used through a wallet; there are no exchange API keys to create.</li>
-            <li>A public read API exists, but per the docs the trading API is not yet available; the docs offer a sign-up to be notified when it is.</li>
-            <li>Nothing goes in your .env yet. The funding watcher already tracks Omni's rates read-only.</li>
+            <li>A public read API exists, but per the docs the trading API is not yet available; the docs offer a sign up to be notified when it is.</li>
+            <li>Nothing goes in your .env yet. The funding watcher already tracks Omni's rates read only.</li>
           </ol>
           <p><a href="https://docs.variational.io" target="_blank" rel="noopener">Variational docs</a></p>
         </div>
       </div>
     </div>
-    <div class="fc-warn"><b>Before you wire a second venue.</b> Use trade-only keys with withdrawals disabled. Bind an IP allowlist wherever the venue offers one. Keep keys out of chat messages and version control. And run the first carries at small size: a funding spread pays by the hour, and it cannot pay back a leaked key.</div>
+    <div class="fc-warn"><b>Before you wire a second venue.</b> Use trade only keys with withdrawals disabled. Bind an IP allowlist wherever the venue offers one. Keep keys out of chat messages and version control. And run the first carries at small size: a funding spread pays by the hour, and it cannot pay back a leaked key.</div>
   </section>
 
   <section class="page" id="landscape">
@@ -1221,7 +1221,7 @@ OKX_API_PASSPHRASE=...</code></pre>
         </a>
         <a class="upd-row" href="#u-review-fixes-hardening" data-date="2026-08-11">
           <span class="d">AUG 11</span>
-          <span class="t">0.4.1: Twenty-eight review findings, fixed and verified</span>
+          <span class="t">0.4.1: Twenty eight review findings, fixed and verified</span>
           <span class="tg fix">fix</span>
           <span class="chev">&#8250;</span>
         </a>
@@ -1239,7 +1239,7 @@ OKX_API_PASSPHRASE=...</code></pre>
         </a>
         <a class="upd-row" href="#u-wider-stops-and-consent-fee" data-date="2026-08-09">
           <span class="d">AUG 9</span>
-          <span class="t">Wider stops, measured; and a consent-based developer fee</span>
+          <span class="t">Wider stops, measured; and a consent based developer fee</span>
           <span class="tg new">new</span>
           <span class="chev">&#8250;</span>
         </a>
@@ -1279,7 +1279,7 @@ OKX_API_PASSPHRASE=...</code></pre>
     <div class="upd-meta"><span class="tg fix">fix</span><span class="st">2026-08-18</span></div>
     <div class="upd-article">
           <p class="lede">A second independent review pass focused on what happens when
-            things go wrong mid-trade. Recovery after a crash now verifies direction and
+            things go wrong mid trade. Recovery after a crash now verifies direction and
             size against the exchange before adopting any position, records trades that
             finished while the bot was down, and a failed entry pass cools down instead
             of retrying in a tight loop.</p>
@@ -1295,14 +1295,14 @@ OKX_API_PASSPHRASE=...</code></pre>
   <section class="page" id="u-review-fixes-hardening">
     <a class="upd-back" href="#updates">&#8249; All updates</a>
     <div class="eyebrow">Updates &middot; AUG 11</div>
-    <h2>0.4.1: Twenty-eight review findings, fixed and verified</h2>
+    <h2>0.4.1: Twenty eight review findings, fixed and verified</h2>
     <div class="upd-meta"><span class="tg fix">fix</span><span class="st">2026-08-11</span></div>
     <div class="upd-article">
-          <p class="lede">An independent line-by-line review of the new bracket engine
-            came back with 28 findings. All fixed and re-verified the same day.</p>
+          <p class="lede">An independent line by line review of the new bracket engine
+            came back with 28 findings. All fixed and re verified the same day.</p>
 
           <p>The highlights: trades are now graded from the exchange's own realized
-            profit, not a price-feed guess; sizing reads spendable margin; and the
+            profit, not a price feed guess; sizing reads spendable margin; and the
             engine refuses to start if another bot is using the account. Nothing about
             the strategy changed, only what happens when reality misbehaves. Forward
             validation continues on <a href="https://t.me/+V7wwRr6n4ZtmOGFl"
@@ -1317,13 +1317,13 @@ OKX_API_PASSPHRASE=...</code></pre>
     <div class="upd-meta"><span class="tg feat">feature</span><span class="st">2026-08-11</span></div>
     <div class="upd-article">
           <p class="lede">Ocean Agent enters closed beta. Version 0.4.0 ships a new
-            bracket-trading engine built the way everything here gets built: by
+            bracket trading engine built the way everything here gets built: by
             measurement. We tested roughly 430 strategy variants against causal replays
             and live sealed predictions. Three survived, and together they are the
             engine.</p>
 
           <p>The surviving design: trade the top three of the daily sealed picks, exit
-            at a near take-profit or a wide stop placed on the exchange itself, hold at
+            at a near take profit or a wide stop placed on the exchange itself, hold at
             most 24 hours. In replay it wins about four trades in five. We are honest
             about why: most of that win rate comes from the bracket geometry itself, and
             the measured edge on top of it is a few points. Those few points are the
@@ -1331,14 +1331,14 @@ OKX_API_PASSPHRASE=...</code></pre>
             not marketing, it is validation.</p>
 
           <p>Closed beta means exactly that: the engine trades our own funds first,
-            under pre-registered stop conditions that halt it loudly if reality
+            under pre registered stop conditions that halt it loudly if reality
             disagrees with the measurements. The daily scorecard, wins and misses both,
             is public on <a href="https://t.me/+V7wwRr6n4ZtmOGFl" target="_blank"
             rel="noopener">Telegram</a>. If the forward numbers hold, public beta opens
             next week and open beta the week after.</p>
 
           <p>Also in 0.4.0: seals now record their bracket prices and trade ranks
-            before the outcome exists, so every day of validation is pre-registered and
+            before the outcome exists, so every day of validation is pre registered and
             auditable after the fact.</p>
     </div>
   </section>
@@ -1350,11 +1350,11 @@ OKX_API_PASSPHRASE=...</code></pre>
     <div class="upd-meta"><span class="tg fix">fix</span><span class="st">2026-08-10</span></div>
     <div class="upd-article">
           <p class="lede">Version 0.3.6. We ran a full security review against the current
-            landscape of crypto and supply-chain attacks, and tightened a few things as a
+            landscape of crypto and supply chain attacks, and tightened a few things as a
             result. No issue was ever exploited.</p>
 
           <p>The design principles that keep funds safe were confirmed intact: the trading key
-            is trade-only and can never withdraw, every order that moves money passes an
+            is trade only and can never withdraw, every order that moves money passes an
             explicit confirmation and a hard size ceiling, and the agent only ever signs
             requests it built itself. Your keys stay on your machine and are never transmitted
             to us.</p>
@@ -1368,7 +1368,7 @@ OKX_API_PASSPHRASE=...</code></pre>
   <section class="page" id="u-wider-stops-and-consent-fee">
     <a class="upd-back" href="#updates">&#8249; All updates</a>
     <div class="eyebrow">Updates &middot; AUG 9</div>
-    <h2>Wider stops, measured; and a consent-based developer fee</h2>
+    <h2>Wider stops, measured; and a consent based developer fee</h2>
     <div class="upd-meta"><span class="tg new">new</span><span class="st">2026-08-09</span></div>
     <div class="upd-article">
           <p class="lede">Version 0.3.4. The stops were sitting inside the noise band and cutting
@@ -1385,16 +1385,16 @@ OKX_API_PASSPHRASE=...</code></pre>
           <h4>What changed</h4>
           <div class="tbl-wrap"><table class="dtable">
             <thead><tr><th>Change</th><th>Measured basis</th></tr></thead><tbody>
-            <tr><th>Stop width doubled</th><td>24h-horizon picks swing about 3% against entry before going the right way, and the old stops sat inside that noise. Sweeping multipliers on a 7-year replay: 1.0x $8,048, 1.5x $9,134, <b>2.0x $9,709</b>, 2.5x $8,894, 3.0x $8,606. A single peak at 2.0, not a runaway curve. Position size auto-halves because sizing is stop-based, so risk per trade is unchanged, and max drawdown fell from 5.9% to 5.2%.</td></tr>
+            <tr><th>Stop width doubled</th><td>24h horizon picks swing about 3% against entry before going the right way, and the old stops sat inside that noise. Sweeping multipliers on a 7-year replay: 1.0x $8,048, 1.5x $9,134, <b>2.0x $9,709</b>, 2.5x $8,894, 3.0x $8,606. A single peak at 2.0, not a runaway curve. Position size auto halves because sizing is stop based, so risk per trade is unchanged, and max drawdown fell from 5.9% to 5.2%.</td></tr>
             <tr><th>Harness parity bug fixed</th><td>The backtest harness still carried a fixed swing stop block that the live bot withdrew on Aug 5. It was removed before the sweep above, so measurements now replay exactly what the bot runs. The default harness reproduces the live config to the cent.</td></tr>
-            <tr><th>Terms acceptance at install</th><td>The installer asks once, in your OS language, whether you have agreed to the Terms of Use. Accepting continues the install and signs the builder-fee approval the Terms describe (0.01%, 1 bps, section 11); declining cancels the installation, the standard EULA behavior. AI-client-only users get the same one-time question in chat, in the conversation language. Nothing is ever approved without your explicit answer, and an approval can be revoked anytime in your Pacifica account.</td></tr>
-            <tr><th>Install page terms gate</th><td>The install commands unlock after the full scrollable Terms of Use (18+, unregulated software, total-loss risk, fees). Agreeing also offers the commands to copy right in the window.</td></tr>
+            <tr><th>Terms acceptance at install</th><td>The installer asks once, in your OS language, whether you have agreed to the Terms of Use. Accepting continues the install and signs the builder fee approval the Terms describe (0.01%, 1 bps, section 11); declining cancels the installation, the standard EULA behavior. AI client only users get the same one time question in chat, in the conversation language. Nothing is ever approved without your explicit answer, and an approval can be revoked anytime in your Pacifica account.</td></tr>
+            <tr><th>Install page terms gate</th><td>The install commands unlock after the full scrollable Terms of Use (18+, unregulated software, total loss risk, fees). Agreeing also offers the commands to copy right in the window.</td></tr>
             </tbody></table></div>
 
           <h4>Tried and rejected, on the numbers</h4>
-          <p>Four plausible ideas were measured this round and kept out. Fixed take-profit exits
+          <p>Four plausible ideas were measured this round and kept out. Fixed take profit exits
             cut the 30-day pick total from +16.6% to +5.4% by amputating the big winners.
-            Break-even floors after a partial move did worse than holding. Dropping in-progress
+            Break even floors after a partial move did worse than holding. Dropping in progress
             bars changed accuracy by 0.1 points, noise. And the popular idea that the 4-hour
             bar should veto smaller ones inverted on our data: picks that fought the 4h bar hit
             55.2% against 49.4% for picks that agreed with it. Each rejection is recorded so we
@@ -1415,7 +1415,7 @@ OKX_API_PASSPHRASE=...</code></pre>
             it with Claude, and keeps it updated.</p>
 
           <p>Until now the only way to run it was to clone the repository. It now ships on PyPI
-            as <b>ocean-agent</b>, currently at version 0.3.3. Install with the one-line
+            as <b>ocean-agent</b>, currently at version 0.3.3. Install with the one line
             installer on this site, which sets up uv, Python, your keys and Claude&#39;s MCP
             config in a single paste, or with <b>pip install ocean-agent</b> if you already have
             a Python environment.</p>
@@ -1423,7 +1423,7 @@ OKX_API_PASSPHRASE=...</code></pre>
           <div class="upd-stats">
             <div><b>0.3.3</b><span>current version</span></div>
             <div><b>3,700+</b><span>measured combinations bundled</span></div>
-            <div><b>9 years</b><span>of walk-forward data shipped</span></div>
+            <div><b>9 years</b><span>of walk forward data shipped</span></div>
             <div><b>100</b><span>markets scanned</span></div>
           </div>
 
@@ -1431,26 +1431,26 @@ OKX_API_PASSPHRASE=...</code></pre>
           <div class="tbl-wrap"><table class="dtable">
             <thead><tr><th>Change</th><th>Measured basis</th></tr></thead><tbody>
             <tr><th>Renamed: mustache-mcp is now ocean-agent</th><td>Existing user data migrates automatically on first run.</td></tr>
-            <tr><th>Win-rate gate 52% &rarr; 45%</th><td>Nine years of walk-forward measurement put the composite-vote ceiling at 54.3%, so the 52% per-signal gate was starving entries: two days, zero trades. A 7-year replay showed +21% account improvement at 45%. The pure-edge +2%p gate stays, so the floor holds.</td></tr>
+            <tr><th>Win rate gate 52% &rarr; 45%</th><td>Nine years of walk forward measurement put the composite vote ceiling at 54.3%, so the 52% per signal gate was starving entries: two days, zero trades. A 7-year replay showed +21% account improvement at 45%. The pure edge +2%p gate stays, so the floor holds.</td></tr>
             <tr><th>Volume and liquidity filters removed, scan widened to all 100 markets</th><td>Measurement showed the filters were not what was blocking entries.</td></tr>
             <tr><th>Regime filter off by default</th><td>30-day A/B: +$6,052 with it off against +$2,612 with it on, and lower drawdown.</td></tr>
-            <tr><th>Margin checked before every entry</th><td>Fail-closed: if the check cannot run, the entry does not go out.</td></tr>
-            <tr><th>Defense line ratchets with equity peaks</th><td>The stop-trading floor now follows new highs instead of sitting at its starting value.</td></tr>
+            <tr><th>Margin checked before every entry</th><td>Fail closed: if the check cannot run, the entry does not go out.</td></tr>
+            <tr><th>Defense line ratchets with equity peaks</th><td>The stop trading floor now follows new highs instead of sitting at its starting value.</td></tr>
             <tr><th>Seed data bundled</th><td>The 9-year matrix and the calibration curve ship inside the package, so a new install starts with measured gates rather than empty ones.</td></tr>
             </tbody></table></div>
 
           <h4>Reliability and plumbing</h4>
-          <p>Seven fund-moving tools are now marked destructive in the MCP layer, so your client
+          <p>Seven fund moving tools are now marked destructive in the MCP layer, so your client
             asks before they run. Errors are standardized, rate limits back off on 429, and
-            remeasured timeframes hot-reload into a running session instead of waiting for a
+            remeasured timeframes hot reload into a running session instead of waiting for a
             restart. A timezone bug in prediction grading is fixed, expired predictions stop
-            retrying after a cap, orphan positions raise an alert, and a project-wide lint sweep
-            removed 13 dead-code findings.</p>
+            retrying after a cap, orphan positions raise an alert, and a project wide lint sweep
+            removed 13 dead code findings.</p>
 
           <h4>Updates arrive on their own</h4>
           <p>Installs register the server as <b>ocean-agent@latest</b>, so every client restart
-            picks up the newest release. A session that is already running shows a one-time
-            in-chat notice when a newer version appears on PyPI.</p>
+            picks up the newest release. A session that is already running shows a one time
+            in chat notice when a newer version appears on PyPI.</p>
 
           <p><a href="https://pypi.org/project/ocean-agent/" target="_blank" rel="noopener">pypi.org/project/ocean-agent</a></p>
     </div>
@@ -1482,22 +1482,22 @@ OKX_API_PASSPHRASE=...</code></pre>
           <h4>Bugs found and fixed</h4>
           <div class="tbl-wrap"><table class="dtable">
             <thead><tr><th>What was wrong</th><th>Why it mattered</th></tr></thead><tbody>
-            <tr><th>Stops judged on closing price only</th><td>A bar that pierced the stop and recovered was scored a win. Stop-out rate read 55% when it was really 68%.</td></tr>
+            <tr><th>Stops judged on closing price only</th><td>A bar that pierced the stop and recovered was scored a win. Stop out rate read 55% when it was really 68%.</td></tr>
             <tr><th>Timeframes ranked by average edge</th><td>The agent only trades its best signals, so ranking by the average picked nearly the reverse order.</td></tr>
-            <tr><th>Gate used a different stop than the trade</th><td>Setups cleared the expected-value gate on one stop distance, then traded with a wider one.</td></tr>
+            <tr><th>Gate used a different stop than the trade</th><td>Setups cleared the expected value gate on one stop distance, then traded with a wider one.</td></tr>
             <tr><th>Swing stop applied to every timeframe</th><td>A 1.5% stop tuned on hourly bars was applied to daily bars, where a day moves 3&ndash;5%.</td></tr>
             <tr><th>Risk setting never reached sizing</th><td>The policy file could be edited freely and nothing changed.</td></tr>
             <tr><th>Scan universe hardcoded to 12</th><td>29 markets passed the liquidity floor; 17 were never looked at.</td></tr>
-            <tr><th>Re-measurement never reached the agent</th><td>Timeframe selection was computed once at startup and never refreshed.</td></tr>
+            <tr><th>Re measurement never reached the agent</th><td>Timeframe selection was computed once at startup and never refreshed.</td></tr>
             </tbody></table></div>
 
           <h4>Settings changed</h4>
           <div class="tbl-wrap"><table class="dtable">
             <thead><tr><th>Setting</th><th>Before &rarr; after</th><th>Measured basis</th></tr></thead><tbody>
-            <tr><th>Path judgment</th><td>close &rarr; high / low</td><td>Stop-out rate 55% &rarr; 68% once intrabar wicks count</td></tr>
+            <tr><th>Path judgment</th><td>close &rarr; high / low</td><td>Stop out rate 55% &rarr; 68% once intrabar wicks count</td></tr>
             <tr><th>Timeframe selection</th><td>average &rarr; top 3</td><td>Daily ranked last by average, first by top-3</td></tr>
             <tr><th>Timeframes traded</th><td>5m/15m/1h &rarr; 8h/12h/1d</td><td>Hourly lost money per trade</td></tr>
-            <tr><th>Partial take-profit</th><td>on &rarr; off</td><td>More profit and less drawdown (5.8% &rarr; 4.5%)</td></tr>
+            <tr><th>Partial take profit</th><td>on &rarr; off</td><td>More profit and less drawdown (5.8% &rarr; 4.5%)</td></tr>
             <tr><th>Binance history</th><td>12 &rarr; 18 markets</td><td>Sample counts grew 4&ndash;9&times;</td></tr>
             <tr><th>Position cap</th><td>$150 &rarr; $250</td><td>+40% total profit</td></tr>
             <tr><th>Minimum margin</th><td>none &rarr; $25</td><td>Skips positions too small to be worth the round trip</td></tr>
@@ -1506,14 +1506,14 @@ OKX_API_PASSPHRASE=...</code></pre>
 
           <h4>Tested and deliberately not changed</h4>
           <p>Nine ideas measured worse than what was already there. Recording them matters as
-            much as the changes &mdash; it stops us re-litigating settled questions.</p>
+            much as the changes &mdash; it stops us re litigating settled questions.</p>
           <div class="tbl-wrap"><table class="dtable">
             <thead><tr><th>Idea</th><th>Result</th></tr></thead><tbody>
             <tr><th>Fixed 1.5% stop / 5% target</th><td>Negative even under the most generous fill assumption</td></tr>
-            <tr><th>Volume-spike entry filter</th><td>Entering on volume spikes was worse by 1.8pp</td></tr>
+            <tr><th>Volume spike entry filter</th><td>Entering on volume spikes was worse by 1.8pp</td></tr>
             <tr><th>Lower the sample requirement</th><td>30 samples beat 20, 15, 10 and 5</td></tr>
             <tr><th>Cap holding time</th><td>A 6-hour cap erased 85% of profit</td></tr>
-            <tr><th>Size as a % of equity</th><td>Compounding blow-up &mdash; impressive on paper, impossible in practice</td></tr>
+            <tr><th>Size as a % of equity</th><td>Compounding blow up &mdash; impressive on paper, impossible in practice</td></tr>
             <tr><th>Tighten the entry gates</th><td>Worse at three consecutive thresholds</td></tr>
             <tr><th>Shrink targets to correct bias</th><td>Narrower targets removed the room trailing stops need</td></tr>
             </tbody></table></div>
@@ -1543,7 +1543,7 @@ OKX_API_PASSPHRASE=...</code></pre>
             every structure and set aside.</p>
 
           <h4>The MCP server was pointed at testnet</h4>
-          <p>Tools reported a play-money balance while the agent traded real funds, and logged
+          <p>Tools reported a play money balance while the agent traded real funds, and logged
             predictions into the wrong network&#39;s files. One line in the config; the
             consequences were not small.</p>
 
@@ -1554,7 +1554,7 @@ OKX_API_PASSPHRASE=...</code></pre>
 
           <h4>Print evaluated and set aside</h4>
           <p>Pacifica&#39;s Print product pays a premium while a target order waits. We measured
-            every structure we could think of &mdash; single side, both sides, perp-hedged,
+            every structure we could think of &mdash; single side, both sides, perp hedged,
             distance sweeps, leverage sweeps, BTC+ETH mixes, signal timing. All negative.</p>
           <p>The reason is one line: implied volatility (26&ndash;38%) sits below realised
             volatility (40&ndash;53%). Selling that is a losing trade regardless of structure.
@@ -1576,7 +1576,7 @@ OKX_API_PASSPHRASE=...</code></pre>
 
           <h4>Profit and loss attributed to the wrong trade</h4>
           <p>A symbol&#39;s lifetime P&amp;L was being read as the result of the most recent
-            trade. One winning BTC position was recorded as a $7.30 loss. Re-grading the history
+            trade. One winning BTC position was recorded as a $7.30 loss. Re grading the history
             turned 1 win / 7 trades into 4 wins / 7 trades &mdash; which finally matched the
             account.</p>
 
@@ -1585,7 +1585,7 @@ OKX_API_PASSPHRASE=...</code></pre>
             placed orders at the policy cap. Intended risk of 2% per trade was operating
             at 0.17%.</p>
 
-          <h4>Auto-bans are no longer permanent</h4>
+          <h4>Auto bans are no longer permanent</h4>
           <p>Five samples and a 45% floor was killing genuinely-52% signals 46% of the time,
             with no way back. Bans now expire.</p>
     </div>
@@ -1609,35 +1609,35 @@ OKX_API_PASSPHRASE=...</code></pre>
     <h3>1 · Introduction and definitions</h3>
     <p>These Terms of Use ("<b>Terms</b>") govern your use of the Ocean Agent software and of this website. In these Terms:</p>
     <ul>
-      <li>"<b>Software</b>" means the ocean-agent package published on PyPI, including its MCP server, its autonomous trading process, its command-line utilities, its bundled measurement data, and this website's install scripts;</li>
+      <li>"<b>Software</b>" means the ocean-agent package published on PyPI, including its MCP server, its autonomous trading process, its command line utilities, its bundled measurement data, and this website's install scripts;</li>
       <li>"<b>Authors</b>" means the developers and contributors of the Software;</li>
-      <li>"<b>Exchange</b>" means Pacifica, the third-party trading venue the Software connects to;</li>
-      <li>"<b>Agent Key</b>" means the trade-only API key you create at the Exchange and supply to the Software;</li>
-      <li>"<b>AI Client</b>" means any MCP-compatible application (such as Claude) that you connect to the Software;</li>
-      <li>"<b>Autonomous Mode</b>" means the optional always-on process that scans markets and places orders without per-order confirmation;</li>
+      <li>"<b>Exchange</b>" means Pacifica, the third party trading venue the Software connects to;</li>
+      <li>"<b>Agent Key</b>" means the trade only API key you create at the Exchange and supply to the Software;</li>
+      <li>"<b>AI Client</b>" means any MCP compatible application (such as Claude) that you connect to the Software;</li>
+      <li>"<b>Autonomous Mode</b>" means the optional always on process that scans markets and places orders without per order confirmation;</li>
       <li>"<b>You</b>" means the person installing or using the Software.</li>
     </ul>
-    <p>The Software is open-source software released under the MIT License. It is a tool that runs entirely on your own computer. The Authors do not operate a service, do not run servers that touch your funds or orders, and have no ongoing relationship with you beyond publishing the code. The Software is not affiliated with, endorsed by, or operated by the Exchange.</p>
+    <p>The Software is open source software released under the MIT License. It is a tool that runs entirely on your own computer. The Authors do not operate a service, do not run servers that touch your funds or orders, and have no ongoing relationship with you beyond publishing the code. The Software is not affiliated with, endorsed by, or operated by the Exchange.</p>
 
     <h3>2 · Unregulated software: no protections</h3>
-    <p>No financial regulator in any jurisdiction has licensed, reviewed, or approved the Software or the Authors. The Authors are not a bank, exchange, broker-dealer, investment adviser, fund manager, money transmitter, or wallet provider. Using the Software gives you none of the protections that apply to regulated financial services: no deposit insurance, no investor compensation scheme, no segregation of client assets, and no financial ombudsman or complaints tribunal you can escalate to. If something goes wrong, the realistic remedies are limited to those in Section 15.</p>
+    <p>No financial regulator in any jurisdiction has licensed, reviewed, or approved the Software or the Authors. The Authors are not a bank, exchange, broker dealer, investment adviser, fund manager, money transmitter, or wallet provider. Using the Software gives you none of the protections that apply to regulated financial services: no deposit insurance, no investor compensation scheme, no segregation of client assets, and no financial ombudsman or complaints tribunal you can escalate to. If something goes wrong, the realistic remedies are limited to those in Section 15.</p>
 
     <h3>3 · Eligibility</h3>
     <p>You may use the Software only if all of the following are true:</p>
     <ul>
       <li>you are at least 18 years old and legally able to enter into binding contracts;</li>
       <li>you are not located in, and do not access the Exchange from, a jurisdiction where trading leveraged cryptocurrency derivatives is restricted or prohibited, including any jurisdiction the Exchange itself blocks or restricts (the Exchange's own list, which may change at any time, controls);</li>
-      <li>you are not a resident or citizen of, and are not accessing from, any country subject to comprehensive sanctions, and you are not on any sanctions or restricted-party list (including OFAC, UN, and EU lists);</li>
+      <li>you are not a resident or citizen of, and are not accessing from, any country subject to comprehensive sanctions, and you are not on any sanctions or restricted party list (including OFAC, UN, and EU lists);</li>
       <li>you will not use VPNs or other means to disguise your location in order to access the Exchange from a restricted jurisdiction;</li>
       <li>your use of the Software and of the Exchange is lawful where you live.</li>
     </ul>
     <p>Determining all of the above is solely your responsibility. The Software performs no identity verification and cannot check any of it for you.</p>
 
     <h3>4 · No accounts, no registration, no data collection</h3>
-    <p>The Software has no sign-up, no login, and no user database. The Authors do not collect, store, or transmit your personal data, your keys, your balances, or your trading history, everything the Software records lives in files on your own computer. This site is a static page and sets no tracking of its own. The only parties that see your activity are the Exchange (which you have a direct relationship with under its own terms) and, if you use an AI Client, that client's provider.</p>
+    <p>The Software has no sign up, no login, and no user database. The Authors do not collect, store, or transmit your personal data, your keys, your balances, or your trading history, everything the Software records lives in files on your own computer. This site is a static page and sets no tracking of its own. The only parties that see your activity are the Exchange (which you have a direct relationship with under its own terms) and, if you use an AI Client, that client's provider.</p>
 
-    <h3>5 · Non-custodial design: wallets and keys</h3>
-    <p>The Software never holds your funds and never sees your wallet's private key or seed phrase. It signs orders locally with an Agent Key that is trade-only by design: it cannot withdraw funds, and you can revoke it at the Exchange at any time. Signed requests go directly from your computer to the Exchange, there is no intermediate server.</p>
+    <h3>5 · Non custodial design: wallets and keys</h3>
+    <p>The Software never holds your funds and never sees your wallet's private key or seed phrase. It signs orders locally with an Agent Key that is trade only by design: it cannot withdraw funds, and you can revoke it at the Exchange at any time. Signed requests go directly from your computer to the Exchange, there is no intermediate server.</p>
     <p>Because of this design, the Authors cannot: access your account, freeze or unfreeze anything, recover keys you lose, cancel or reverse orders, or return funds. There is no support desk that can undo a trade. Anyone who obtains your Agent Key can trade your account until you revoke it; keeping it secret, and keeping the computer it lives on secure, is entirely your responsibility.</p>
 
     <h3>6 · The MCP server and AI clients</h3>
@@ -1662,26 +1662,26 @@ OKX_API_PASSPHRASE=...</code></pre>
     <p>The Authors have no power to suspend or terminate your trading, and equally no power to restore it. The Exchange may restrict, suspend, or close your account under its own terms at any time, may delist markets, change fees, or halt trading. None of that is within the Authors' control, and the Software may stop working, in whole or in part, whenever the Exchange changes its API.</p>
 
     <h3>11 · Fees</h3>
-    <p>The Software itself is free to install and use. All trading fees, funding payments, and spreads are set and collected by the Exchange under its own schedule, which can change. The Software's expected-value calculations account for fees as measured at the time; actual fees may differ.</p>
-    <p><b>Developer fee (builder code).</b> During installation you are asked whether to approve a builder fee of <b>0.01% (1 bps)</b> of each filled order's notional value, paid to the Authors through the Exchange's builder-code program. Approval is optional and takes effect only with your own cryptographic signature; the Software never approves it silently. Declining does not change any functionality. You can revoke an approval at any time in your Exchange account settings, and the Exchange rejects any order whose builder fee would exceed the cap you signed.</p>
+    <p>The Software itself is free to install and use. All trading fees, funding payments, and spreads are set and collected by the Exchange under its own schedule, which can change. The Software's expected value calculations account for fees as measured at the time; actual fees may differ.</p>
+    <p><b>Developer fee (builder code).</b> During installation you are asked whether to approve a builder fee of <b>0.01% (1 bps)</b> of each filled order's notional value, paid to the Authors through the Exchange's builder code program. Approval is optional and takes effect only with your own cryptographic signature; the Software never approves it silently. Declining does not change any functionality. You can revoke an approval at any time in your Exchange account settings, and the Exchange rejects any order whose builder fee would exceed the cap you signed.</p>
 
     <h3>12 · Taxes</h3>
     <p>Trading profits and losses may create tax obligations where you live. Determining, reporting, and paying any such taxes is solely your responsibility. The Software's records are kept for its own learning loop and are not tax documents; do not rely on them as complete or authoritative for tax purposes.</p>
 
     <h3>13 · Privacy</h3>
-    <p>Everything the Software learns (trade history, win-rate databases, measurement matrices, logs) is stored locally on your machine and never transmitted to the Authors. There is no telemetry, no analytics, and no phone-home. Your network traffic goes to the Exchange (to trade) and to public package registries (to install). If you optionally configure notifications, those go to the provider you configure.</p>
+    <p>Everything the Software learns (trade history, win rate databases, measurement matrices, logs) is stored locally on your machine and never transmitted to the Authors. There is no telemetry, no analytics, and no phone home. Your network traffic goes to the Exchange (to trade) and to public package registries (to install). If you optionally configure notifications, those go to the provider you configure.</p>
 
     <h3>14 · Disclaimers and risk statement</h3>
     <h4>No advice</h4>
     <p>Nothing the Software or this site outputs is investment advice, a recommendation, an offer, or a solicitation to trade. Win rates, expected values, backtests, forecasts, and "recommended settings" are measurements of past price data produced by code, not predictions, and not tailored to you. The Authors are not licensed financial advisors and know nothing about your circumstances. If you need advice, consult a licensed professional.</p>
     <h4>Market risk</h4>
-    <p>Cryptocurrency prices are extremely volatile and trade around the clock. Leveraged perpetual futures amplify both gains and losses: positions can lose more than the margin posted and can be liquidated entirely. Stop-loss orders are not guarantees, in a fast market or a price gap the fill can be far worse than the stop price, or the stop may not fill at all. Thin order books add slippage that can exceed the edge being traded.</p>
+    <p>Cryptocurrency prices are extremely volatile and trade around the clock. Leveraged perpetual futures amplify both gains and losses: positions can lose more than the margin posted and can be liquidated entirely. Stop loss orders are not guarantees, in a fast market or a price gap the fill can be far worse than the stop price, or the stop may not fill at all. Thin order books add slippage that can exceed the edge being traded.</p>
     <h4>Strategy risk</h4>
-    <p>The Software's measured edges are small, measurement puts the realistic directional ceiling in this market near 54~58%, and backtested figures above that did not survive out-of-sample testing. Edges that small are fragile: they can vanish when the market regime changes and are easily erased by fees and slippage. Past measurement does not guarantee future results. A period of profits is not proof the system works; a period of losses is possible at any time.</p>
+    <p>The Software's measured edges are small, measurement puts the realistic directional ceiling in this market near 54~58%, and backtested figures above that did not survive out of sample testing. Edges that small are fragile: they can vanish when the market regime changes and are easily erased by fees and slippage. Past measurement does not guarantee future results. A period of profits is not proof the system works; a period of losses is possible at any time.</p>
     <h4>Technical risk</h4>
-    <p>Software has bugs. The Software may miscalculate, crash, lose connectivity, or behave unexpectedly after an Exchange API change. Your own machine may fail, sleep, lose power, or be compromised. The Exchange may go down while you hold positions. Exchange-native stops remain on the Exchange's servers if your machine goes offline, but everything else the Software manages stops with it.</p>
+    <p>Software has bugs. The Software may miscalculate, crash, lose connectivity, or behave unexpectedly after an Exchange API change. Your own machine may fail, sleep, lose power, or be compromised. The Exchange may go down while you hold positions. Exchange native stops remain on the Exchange's servers if your machine goes offline, but everything else the Software manages stops with it.</p>
     <h4>As is</h4>
-    <p>The Software and this site are provided "as is" and "as available", without warranty of any kind, express or implied, including merchantability, fitness for a particular purpose, accuracy, non-infringement, or uninterrupted operation.</p>
+    <p>The Software and this site are provided "as is" and "as available", without warranty of any kind, express or implied, including merchantability, fitness for a particular purpose, accuracy, non infringement, or uninterrupted operation.</p>
 
     <h3>15 · Limitation of liability</h3>
     <p>To the maximum extent permitted by applicable law, the Authors and contributors shall not be liable for any loss or damage of any kind arising out of or in connection with the Software or this site, including, without limitation, trading losses, lost profits, liquidations, losses caused by software defects, incorrect calculations, stale data, Exchange outages or API changes, network failures, misconfiguration, compromised credentials, actions taken by an AI Client, or security incidents on your machine, whether in contract, tort, or otherwise, even if advised of the possibility of such damage. Where liability cannot be excluded by law, it is limited to the amount you paid for the Software, which is zero. Nothing in these Terms excludes liability that cannot lawfully be excluded, such as liability for fraud.</p>
@@ -1704,18 +1704,18 @@ OKX_API_PASSPHRASE=...</code></pre>
     <p>You are responsible for: keeping your Agent Key and <code>.env</code> file secret and out of version control and chat messages; securing the computer the Software runs on; reviewing the policy file before running Autonomous Mode with real funds; revoking keys promptly if you suspect compromise; and monitoring positions the Software opens. If your key leaks, revoke it at the Exchange immediately, that invalidates it at once.</p>
 
     <h3>19 · Force majeure</h3>
-    <p>The Authors are not responsible for any failure or delay caused by events beyond reasonable control, including natural disasters, war, civil unrest, labor disputes, power or internet outages, actions of governments or regulators, Exchange failures, blockchain congestion or forks, or failures of third-party infrastructure.</p>
+    <p>The Authors are not responsible for any failure or delay caused by events beyond reasonable control, including natural disasters, war, civil unrest, labor disputes, power or internet outages, actions of governments or regulators, Exchange failures, blockchain congestion or forks, or failures of third party infrastructure.</p>
 
     <h3>20 · Changes to these Terms and to the Software</h3>
     <p>These Terms may be updated as the Software evolves, to reflect new features, removed features, legal requirements, or clarity improvements. The current version always lives on this page with the date above; material changes will be reflected in the project changelog. Continuing to use the Software after a change means you accept the updated Terms. The Software itself may change at any time: features can be added, altered, or removed, and published measurement data can be revised as new measurements replace old ones.</p>
 
-    <h3>21 · Open-source license and intellectual property</h3>
+    <h3>21 · Open source license and intellectual property</h3>
     <p>The Software's source code is licensed under the MIT License, which governs your rights to use, copy, modify, and redistribute the code. These Terms do not restrict rights the MIT License grants you; they govern your <i>use of the Software against a live exchange account</i> and your use of this site. Trademarks, names, and logos of the Exchange and of AI Client providers belong to their respective owners. You are encouraged to read the source before connecting real funds, it is public precisely so you can verify what it does.</p>
 
     <h3>22 · General</h3>
     <p><b>Entire agreement.</b> These Terms and the MIT License are the entire agreement between you and the Authors concerning the Software, replacing any prior statements. <b>Severability.</b> If any part of these Terms is found unenforceable, the rest remains in effect. <b>No waiver.</b> Not enforcing a provision is not a waiver of it. <b>Assignment.</b> You may not assign these Terms; the MIT License travels with the code. <b>No relationship.</b> Nothing here creates a partnership, agency, fiduciary, or advisory relationship between you and the Authors. <b>Disputes.</b> Before pursuing any formal claim, contact the project through its public repository or package page and allow 30 days for an informal resolution. Any dispute shall be resolved on an individual basis; to the extent permitted by law, you waive participation in class or representative actions against the Authors. <b>Language.</b> These Terms are written in English; translations are provided for convenience and the English text prevails.</p>
 
-    <p class="tfinal">One sentence version: this is free, unregulated, open-source software that trades real money with real leverage under your own key. If you are not prepared to lose the funds in the connected account, do not connect it.</p>
+    <p class="tfinal">One sentence version: this is free, unregulated, open source software that trades real money with real leverage under your own key. If you are not prepared to lose the funds in the connected account, do not connect it.</p>
 
     <div class="signoff">
       <div class="tags"><span>Ocean Agent · built on Pacifica</span></div>
@@ -1948,10 +1948,48 @@ OKX_API_PASSPHRASE=...</code></pre>
     ];
     function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
     function add(cls, txt){ var d=document.createElement('div'); d.className=cls; d.textContent=txt; body.appendChild(d); }
+    // the demo rotates through the four assistants, one per question;
+    // clicking a logo pins the loop to that assistant, clicking again unpins
+    var ais=[
+      {title:'Claude',  name:'Claude',  color:'#D97757'},
+      {title:'ChatGPT', name:'ChatGPT', color:'#10A37F'},
+      {title:'Gemini',  name:'Gemini',  color:'#4E8DF7'},
+      {title:'Grok',    name:'Grok',    color:'#B3B9C4'}
+    ];
+    var brandIcon=document.getElementById('brandIcon'),
+        brandName=document.getElementById('brandName'),
+        clEls=[].slice.call(document.querySelectorAll('.clients-row .cl'));
+    var aiIdx=0, lock=null;
+    clEls.forEach(function(el){
+      var ai=ais.filter(function(a){ return a.title===el.getAttribute('title'); })[0];
+      if(!ai) return;
+      el.style.color=ai.color;
+      el.style.cursor='pointer';
+      el.addEventListener('click', function(){
+        var k=ais.indexOf(ai);
+        lock=(lock===k)?null:k;
+        if(lock!==null){ aiIdx=k; }
+        i=0; play();
+      });
+    });
+    function setBrand(k){
+      var ai=ais[k];
+      if(brandName) brandName.textContent=ai.name;
+      if(brandIcon){
+        var src=clEls.filter(function(e){ return e.getAttribute('title')===ai.title; })[0];
+        if(src && src.querySelector('svg')) brandIcon.innerHTML=src.querySelector('svg').innerHTML;
+        brandIcon.style.color=ai.color;
+      }
+      clEls.forEach(function(e){
+        e.classList.toggle('on', e.getAttribute('title')===ai.title);
+      });
+    }
     var i=0, timers=[];
     function clear(){ timers.forEach(clearTimeout); timers=[]; }
     function play(){
       clear(); body.innerHTML=''; ph.innerHTML='<span class="chat-caret"></span>';
+      var cur=(lock!==null)?lock:aiIdx;
+      setBrand(cur);
       var s=steps[i];
       step.textContent=('0'+(i+1)).slice(-2)+' / '+steps.length+'  '+s.name;
       var n=0;
@@ -1965,6 +2003,7 @@ OKX_API_PASSPHRASE=...</code></pre>
           s.out.forEach(function(o,k){ timers.push(setTimeout(function(){ add('chat-res', o); }, 420+k*620)); });
           var hold = 420 + s.out.length*620 + 1900;
           i=(i+1)%steps.length;
+          if(lock===null){ aiIdx=(aiIdx+1)%ais.length; }
           timers.push(setTimeout(play, hold));
         }, 480));
       })();
