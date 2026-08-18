@@ -1951,10 +1951,10 @@ OKX_API_PASSPHRASE=...</code></pre>
     // the demo rotates through the four assistants, one per question;
     // clicking a logo pins the loop to that assistant, clicking again unpins
     var ais=[
-      {title:'Claude',  name:'Claude',  color:'#D97757'},
-      {title:'ChatGPT', name:'ChatGPT', color:'#10A37F'},
-      {title:'Gemini',  name:'Gemini',  color:'#4E8DF7'},
-      {title:'Grok',    name:'Grok',    color:'#000000'}
+      {title:'Claude',  name:'Claude',  color:'#D97757', btn:''},
+      {title:'ChatGPT', name:'ChatGPT', color:'#10A37F', btn:'#3B82F6'},
+      {title:'Gemini',  name:'Gemini',  color:'#4E8DF7', btn:'#4285F4'},
+      {title:'Grok',    name:'Grok',    color:'#000000', btn:'#000000'}
     ];
     var brandIcon=document.getElementById('brandIcon'),
         brandName=document.getElementById('brandName'),
@@ -1983,6 +1983,10 @@ OKX_API_PASSPHRASE=...</code></pre>
       clEls.forEach(function(e){
         e.classList.toggle('on', e.getAttribute('title')===ai.title);
       });
+      // the send arrow wears each client's real button color;
+      // Claude keeps the default orange
+      var send=document.querySelector('.chat-send');
+      if(send){ send.style.background=ai.btn||''; }
     }
     var i=0, timers=[];
     function clear(){ timers.forEach(clearTimeout); timers=[]; }
