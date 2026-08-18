@@ -438,9 +438,13 @@ def reconcile_pending(client, st: dict) -> None:
             if done:
                 notional = float(q.get("amount") or 0) * \
                     float(q.get("entry_intent") or 0)
+                _rc = done.get("cause") or ""
+                if _rc in ("", "normal"):
+                    _rc = ("take_profit" if float(done.get("pnl") or 0) >= 0
+                           else "stop_loss")
                 st["closed"].append({
                     "sym": sym, "dir": q.get("dir"),
-                    "cause": done.get("cause") or "복구 조회",
+                    "cause": _rc,
                     "pnl_usd": done.get("pnl"),
                     "pnl_pct_est": (float(done.get("pnl") or 0) / notional
                                     * 100 if notional > 0 else 0.0),
@@ -909,6 +913,12 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
             if real and notional > 0:
                 est = real["pnl_usd"] / notional * 100
                 cause = real["cause"]
+                if cause in ("", "normal"):
+                    # the exchange reports TP/SL fills as plain closes;
+                    # recover the bracket meaning from the realized sign so
+                    # the stop-chase block and the slip breaker can see
+                    # stops (live day one: every fill came back "normal")
+                    cause = "take_profit" if est >= 0 else "stop_loss"
                 if cause == "liquidation" and HALT_ON_LIQUIDATION:
                     st["halted"] = True
                     st["halt_reason"] = f"거래소 청산 확인: {sym} ({est:+.2f}%)"
