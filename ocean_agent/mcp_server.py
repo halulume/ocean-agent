@@ -404,7 +404,7 @@ def account_status() -> str:
 @mcp.tool(title="Connect Pacifica Account",
           annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False,
                                       idempotentHint=True, openWorldHint=True))
-def connect_pacifica() -> str:
+def connect_pacifica(ctx: Context) -> str:
     """Open a styled local browser form where the user registers their
     Pacifica credentials - the same clean window on every AI client
     (Claude, ChatGPT, Gemini, Grok). The form guides them: log in at
@@ -452,9 +452,23 @@ def connect_pacifica() -> str:
         except PacificaError as e:
             return {"ok": False, "msg": str(e)[:150]}
 
+    # brand the form after the client that opened it (Claude, ChatGPT,
+    # Gemini, Grok); unknown clients get the Claude look
+    brand = "claude"
+    try:
+        cname = (ctx.session.client_params.clientInfo.name or "").lower()
+        for key, hints in (("gpt", ("chatgpt", "openai")),
+                           ("gemini", ("gemini", "google")),
+                           ("grok", ("grok", "xai")),
+                           ("claude", ("claude",))):
+            if any(h in cname for h in hints):
+                brand = key
+                break
+    except Exception:
+        pass
     from .connect_ui import open_connect_page
     try:
-        url = open_connect_page(_save_and_test)
+        url = open_connect_page(_save_and_test, brand=brand)
     except Exception as e:
         env_hint = os.environ.get("PACIFICA_ENV_FILE") or os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
