@@ -428,8 +428,22 @@ async def connect_pacifica(ctx: Context) -> str:
     guide = ("1) https://app.pacifica.fi 로그인(지갑 연결) → "
              "2) https://app.pacifica.fi/apikey 에서 API 키 생성 → "
              "3) 아래 입력창에 붙여넣기")
-    r1 = await ctx.elicit(message="지갑 공개주소를 입력하세요 (개인키 아님). "
-                                  + guide, schema=AddrForm)
+    env_hint = os.environ.get("PACIFICA_ENV_FILE") or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+    try:
+        r1 = await ctx.elicit(message="지갑 공개주소를 입력하세요 (개인키 "
+                                      "아님). " + guide, schema=AddrForm)
+    except Exception:
+        # client has no input-form (elicitation) support: fall back to the
+        # manual .env path instead of dying with a protocol error
+        return ("이 AI 클라이언트는 입력창(폼)을 지원하지 않습니다. 대신 "
+                "다음 파일을 직접 열어 두 줄을 채워 주세요:\n"
+                + env_hint + "\n"
+                "ADDRESS=지갑공개주소\n"
+                "PACIFICA_API_KEY=발급한키\n"
+                "키 발급: https://app.pacifica.fi/apikey (거래 전용, 출금 "
+                "불가, 언제든 폐기 가능). 저장 후 이 앱을 재시작하면 "
+                "연결됩니다. 설치 스크립트를 다시 실행해도 됩니다.")
     if r1.action != "accept" or not r1.data:
         return "주소 입력이 취소되어 연결을 중단했습니다. 언제든 다시 하시면 됩니다."
     addr = r1.data.address.strip()
