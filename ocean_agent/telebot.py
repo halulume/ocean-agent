@@ -471,7 +471,8 @@ def _handle_member(text, chat_id, env, root, admin):
             u["paid"] = True
             u["await_token"] = False
             _save_users(root, users)
-            return tr("token_saved", lang0) + ("\n\n" + tr("ask_addr", lang0)
+            return tr("token_saved", lang0).format(p["name"]) \
+                + ("\n\n" + tr("ask_addr", lang0)
                                                if not u.get("address") else "")
         return tr("token_bad", lang0).format(p["name"], p["prefix"])
     if not u.get("address"):

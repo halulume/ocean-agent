@@ -610,13 +610,14 @@ T["ask_token"] = {
  "tr": "{0} API anahtarınızı yapıştırın ({1} ile başlar). {2} adresinden alın. Anahtar operatörün sunucusunda saklanır ve yalnızca SİZİN sorularınız için kullanılır. /mode ile modu değiştirin.",
  "es": "Pega tu clave API de {0} (empieza con {1}). Consiguela en {2}. Se guarda en el servidor del operador y solo responde TUS preguntas. Cambia de modo con /mode.",
 }
+# token_saved takes .format(provider name)
 T["token_saved"] = {
- "en": "Key saved. Claude mode is on. Just chat naturally.",
- "zh": "密钥已保存。Claude 模式已开启。", "ja": "キーを保存しました。Claude モードが有効です。",
- "ko": "키 저장 완료. Claude 모드가 켜졌습니다.", "vi": "Đã lưu key. Chế độ Claude đã bật.",
- "hi": "Key सहेजी गई। Claude मोड चालू।", "id": "Key tersimpan. Mode Claude aktif.",
- "ru": "Ключ сохранён. Режим Claude включён.", "pt": "Chave salva. Modo Claude ativado.",
- "tr": "Anahtar kaydedildi. Claude modu açık.", "es": "Clave guardada. Modo Claude activado."}
+ "en": "Key saved. {0} mode is on. Just chat naturally.",
+ "zh": "密钥已保存。{0} 模式已开启。", "ja": "キーを保存しました。{0} モードが有効です。",
+ "ko": "키 저장 완료. {0} 모드가 켜졌습니다.", "vi": "Đã lưu key. Chế độ {0} đã bật.",
+ "hi": "Key सहेजी गई। {0} मोड चालू।", "id": "Key tersimpan. Mode {0} aktif.",
+ "ru": "Ключ сохранён. Режим {0} включён.", "pt": "Chave salva. Modo {0} ativado.",
+ "tr": "Anahtar kaydedildi. {0} modu açık.", "es": "Clave guardada. Modo {0} activado."}
 # token_bad takes .format(name, prefix)
 T["token_bad"] = {
  "en": "That does not look like a {0} API key (should start with {1}). Try again, or /mode to switch.",
@@ -638,17 +639,17 @@ T["mode_now_free"] = {
  "ru": "Включён бесплатный режим. Сохранённый ключ удалён.", "pt": "Modo grátis ativado. A chave salva foi removida.",
  "tr": "Ücretsiz mod açık. Kayıtlı anahtar silindi.", "es": "Modo gratis activado. La clave guardada fue eliminada."}
 T["menu_extra"] = {
- "en": "/menu - this list\n/mode - switch Free / Claude mode\nOr just type naturally - commands are optional.",
- "zh": "/menu - 命令列表\n/mode - 切换免费 / Claude 模式\n也可直接自然输入，命令可选。",
- "ja": "/menu - コマンド一覧\n/mode - 無料 / Claude 切替\n普通に打っても回答します。",
- "ko": "/menu - 명령어 목록\n/mode - 무료 / Claude 모드 전환\n그냥 대화하듯 치셔도 됩니다.",
- "vi": "/menu - danh sách lệnh\n/mode - đổi Miễn phí / Claude\nHoặc cứ gõ tự nhiên.",
- "hi": "/menu - सूची\n/mode - मुफ़्त / Claude\nया बस सीधे लिखें।",
- "id": "/menu - daftar perintah\n/mode - ganti Gratis / Claude\nAtau ketik biasa saja.",
+ "en": "/menu - this list\n/mode - switch Free / AI mode\nOr just type naturally - commands are optional.",
+ "zh": "/menu - 命令列表\n/mode - 切换免费 / AI 模式\n也可直接自然输入，命令可选。",
+ "ja": "/menu - コマンド一覧\n/mode - 無料 / AI 切替\n普通に打っても回答します。",
+ "ko": "/menu - 명령어 목록\n/mode - 무료 / AI 모드 전환\n그냥 대화하듯 치셔도 됩니다.",
+ "vi": "/menu - danh sách lệnh\n/mode - đổi Miễn phí / AI\nHoặc cứ gõ tự nhiên.",
+ "hi": "/menu - सूची\n/mode - मुफ़्त / AI\nया बस सीधे लिखें।",
+ "id": "/menu - daftar perintah\n/mode - ganti Gratis / AI\nAtau ketik biasa saja.",
  "ru": "/menu - список команд\n/mode - смена режима\nИли просто пишите.",
- "pt": "/menu - lista\n/mode - Grátis / Claude\nOu escreva normalmente.",
- "tr": "/menu - liste\n/mode - Ücretsiz / Claude\nYa da doğal yazın.",
- "es": "/menu - lista\n/mode - Gratis / Claude\nO escribe con naturalidad."}
+ "pt": "/menu - lista\n/mode - Grátis / AI\nOu escreva normalmente.",
+ "tr": "/menu - liste\n/mode - Ücretsiz / AI\nYa da doğal yazın.",
+ "es": "/menu - lista\n/mode - Gratis / AI\nO escribe con naturalidad."}
 
 
 def tier_kb(lang: str) -> str:
