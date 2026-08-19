@@ -643,11 +643,6 @@
       <p class="body" style="margin-top:8px">The window then dresses itself as Claude and installs in place. You type nothing else, anywhere.</p>
     </div>
     <div class="istep">
-      <div class="ihead">Windows, without hunting for PowerShell: press <b>Win + R</b>, paste, press Enter</div>
-      <div class="iwrap gated"><pre><code>powershell -NoExit -ExecutionPolicy ByPass -c "irm https://oceanagent.fi/install.ps1 | iex"</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
-      <p class="body" style="margin-top:8px">Same install, one keystroke less: <b>Win + R</b> opens the Run box and this line opens the window for you.</p>
-    </div>
-    <div class="istep">
       <div class="ihead">macOS / Linux: open Terminal (<b>Cmd + Space</b>, type terminal), paste, press Enter</div>
       <div class="iwrap gated"><pre><code>sh -c "$(curl -LsSf https://oceanagent.fi/install.sh)"</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
       <p class="body" style="margin-top:8px">A form then opens in your browser for your wallet public address and a key from <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a> (trade only, cannot withdraw, revocable any time). Claude restarts itself and the trading tools appear in chat. <b>No bot required.</b></p>
