@@ -75,6 +75,12 @@ button.go { width:100%; margin-top:20px; padding:13px; border:0;
   padding:12px 14px; font-size:14px; margin-bottom:10px; }
 .msg b { color:var(--acc); } .msg a { color:var(--acc); font-weight:600; }
 .note { color:var(--sub); font-size:12.5px; margin-top:12px; }
+.pick { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.pick label { display:flex; align-items:center; gap:7px; margin:0;
+  padding:10px 12px; border:1.5px solid var(--line);
+  border-radius:10px; font-weight:500; font-size:14px;
+  cursor:pointer; }
+.pick input { width:auto; }
 button.no { width:100%; margin-top:10px; padding:12px; border:1px solid var(--line);
   border-radius:10px; background:var(--card); color:var(--sub); font-size:14px;
   cursor:pointer; }
@@ -195,6 +201,7 @@ class _H(BaseHTTPRequestHandler):
                 "<label>Pacifica API key</label>"
                 "<input name='api_key' type='password' required "
                 "autocomplete='off' placeholder='from app.pacifica.fi/apikey'>"
+                
                 f"{s.get('err', '')}"
                 "<button class='go'>Connect</button></form>"
                 "<div class='note'>Saved only to a file on THIS computer and never "
@@ -269,6 +276,8 @@ class _H(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
             s["err"] = ""
+            # what they answered about size travels with the keys: an installed
+            # user has no policy file to edit, theirs is inside site-packages
             write_env(self.server.env_file, addr, key)
             os.environ["ADDRESS"] = addr
             os.environ["PACIFICA_API_KEY"] = key

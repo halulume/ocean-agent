@@ -102,12 +102,12 @@ def _confirm_gate(confirm: bool, action_desc: str, tool: str = "",
             return None
         # no fresh matching preview: never execute blind, re-preview instead
         _PREVIEWS[key] = now
-        return (f"[재확인 필요, {net}]\n{action_desc}\n\n"
+        return (f"[needs a fresh preview, {net}]\n{action_desc}\n\n"
                 f"이 파라미터로 만든 최근 미리보기가 없어 실행하지 않았습니다 "
                 f"(미리보기 5분 초과 또는 값 변경). 위 내용을 사용자에게 다시 "
                 f"보여주고, 승인하면 같은 도구를 confirm=true 로 다시 호출하세요.")
     _PREVIEWS[key] = now
-    return (f"[체결 전 확인, {net}]\n{action_desc}\n\n"
+    return (f"[confirm before it goes out, {net}]\n{action_desc}\n\n"
             f"위 내용으로 진행하려면 같은 도구를 confirm=true 로 다시 호출하세요. "
             f"(confirm 없이는 주문이 나가지 않습니다.)")
 
@@ -224,7 +224,24 @@ _ss.PREDICTIONS_FILE = data_file("predictions.json")
 # stays "mustache" unchanged. Tool namespace (mcp__mustache__*) comes from the
 # .mcp.json server key, not this, so this is brand-only and safe to change.
 from . import agent_name as _agent_name
-mcp = FastMCP(_agent_name(default="mustache"))
+# One instruction covers every tool. Many replies are still written in
+# Korean, because that is the operator's language and the strings grew with
+# the project; the assistant is what localises them. Saying so once here
+# beats repeating it in a hundred return statements, and it keeps a quoted
+# line from reaching someone who cannot read it.
+_INSTRUCTIONS = """Ocean Agent trades Pacifica perpetuals with the user's own
+keys, from this conversation.
+
+Language: tool results are written for you, not for the user. Some are in
+Korean. Always answer the user in the language they are writing in, and
+never paste a tool's raw text when it is in another language. Numbers,
+symbols and prices stay as they are.
+
+Money: every tool that can place or close an order previews first and acts
+only after the user agrees. Ask before you confirm, and say what will
+happen in their language."""
+
+mcp = FastMCP(_agent_name(default="mustache"), instructions=_INSTRUCTIONS)
 
 
 def _client() -> PacificaClient:
@@ -468,7 +485,7 @@ def connect_pacifica(ctx: Context) -> str:
             break
     if not url:
         return f"연결 창을 여는 데 실패했습니다. {fallback}"
-    return ("브라우저에 연결 창을 열었습니다. 창이 안 보이면 이 주소를 "
+    return ("A connect window opened in the browser. If it did not appear, "
             "여세요: " + url + "\n창에서 지갑 공개주소와 API 키를 넣으면 "
             "이 컴퓨터의 .env 에만 저장되고(대화에 안 남음) 연결 테스트와 "
             "잔고 확인까지 그 자리에서 끝납니다. 10분 안에 입력하면 되고, "
@@ -478,25 +495,93 @@ def connect_pacifica(ctx: Context) -> str:
 @mcp.tool(title="Start Auto Trading",
           annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True,
                                       idempotentHint=False, openWorldHint=True))
-def start_auto_trading(confirm: bool = False) -> str:
-    """Launch the bracket trading engine as a background process on this
-    machine, directly from this conversation - no separate program to run.
-    It generates fresh picks every hour, opens positions sized from the
-    account, and every entry carries exchange-side TP/SL so positions stay
-    protected even if this machine goes offline. Needs ADDRESS and the API
-    key in .env. Ask the user first; call with confirm=true only after they
-    explicitly agree to live orders."""
+def _env_file() -> str:
+    """The one file an installed user can actually edit."""
+    cand = os.environ.get("PACIFICA_ENV_FILE")
+    if cand:
+        return cand
+    home = os.path.join(os.path.expanduser("~"), ".ocean-agent", ".env")
+    return home if os.path.exists(home) else os.path.join(os.getcwd(), ".env")
+
+
+def _saved_budget() -> tuple[float, float]:
+    """(budget, per-pick) as the policy and env currently stand."""
+    from .autonomous import load_policy
+    pol = load_policy()
+
+    def num(env_key, pol_key, default):
+        raw = os.environ.get(env_key, "").strip()
+        if raw:
+            try:
+                return float(raw)
+            except ValueError:
+                pass
+        return float(pol.get(pol_key, default) or default)
+
+    return num("BRACKET_BUDGET_USD", "bracket_budget_usd", 0),         num("BRACKET_NOTIONAL_USD", "bracket_notional_usd", 50)
+
+
+def _remember_budget(usd: float, per: float = 0) -> None:
+    """Keep the answer where the engine reads it, and this process too."""
+    from .connect_ui import write_env
+    from .autonomous import address_from_env, api_key_from_env, load_policy
+    base = load_policy().get("base_url", "")
+    extra = {"BRACKET_BUDGET_USD": f"{usd:g}"}
+    os.environ["BRACKET_BUDGET_USD"] = f"{usd:g}"
+    if per > 0:
+        extra["BRACKET_NOTIONAL_USD"] = f"{per:g}"
+        os.environ["BRACKET_NOTIONAL_USD"] = f"{per:g}"
+    write_env(_env_file(), address_from_env(base) or "",
+              api_key_from_env(base) or "", extra)
+
+
+def start_auto_trading(budget_usd: float = 0, confirm: bool = False) -> str:
+    """Launch the bracket trading engine in the background on this machine,
+    from this conversation - no separate program to run.
+
+    Nothing starts until the user says how much to trade with. Call with
+    no arguments to get that question; call again with budget_usd once
+    they answer, which previews the split; call a third time with
+    confirm=true once they agree. One pick is $50 by default, so $300
+    opens six positions, eight at most.
+
+    It then builds fresh picks every hour, and every entry carries an
+    exchange-side take profit and stop, so positions stay protected even
+    with this machine off. Needs ADDRESS and the API key in .env. The
+    amount can be changed any time with set_trading_budget."""
     from .bracket_trader import live_bracket, OUTPUTS_DIR
+    saved, per = _saved_budget()
+    if budget_usd <= 0 and saved <= 0:
+        # Nothing starts until someone says how much. A share of the
+        # balance is what a spreadsheet understands; a person answering
+        # says a number, and that number is what trades.
+        return ("[assistant: ask the user this, in the language of this "
+                "conversation] Start auto trading? If so, how much should it "
+                f"work with? One pick is ${per:,.0f} by default and the "
+                "amount is split into that many positions: $300 is six "
+                "positions, $100 is two, eight at most. Call again with "
+                "budget_usd once they answer. The amount can be changed any "
+                "time with set_trading_budget.")
+    if budget_usd and budget_usd < per:
+        raise ToolError(f"One pick is ${per:,.0f}, so that is the smallest "
+                        f"amount it can start with. For less than that, "
+                        f"lower the per-pick size first with "
+                        f"set_trading_budget(per_pick_usd=...).")
+    use = budget_usd if budget_usd > 0 else saved
+    slots = max(1, min(int(use // per), 8))
     if not confirm:
-        return ("[미리보기] 자동매매 시작: 이 컴퓨터에서 브래킷 엔진을 "
-                "백그라운드로 켭니다. 매시간 픽을 스스로 만들어 계좌 크기에 "
-                "맞춰 진입하고, 모든 포지션에 거래소 익절·손절이 붙습니다. "
-                "실주문입니다. 시작하려면 사용자 동의 후 confirm=true 로 "
-                "다시 호출하세요. 중지는 stop_auto_trading.")
+        return (f"[preview, tell the user in their language] Auto trading "
+                f"would start with ${use:,.0f}: ${per:,.0f} a pick across "
+                f"{slots} positions. It builds picks every hour and every "
+                f"entry carries an exchange-side take profit and stop. These "
+                f"are REAL orders. Call again with confirm=true once they "
+                f"agree. Stop it any time with stop_auto_trading.")
+    if budget_usd > 0:
+        _remember_budget(budget_usd)
     alive = live_bracket()
     if alive:
-        return (f"이미 실행 중입니다 ({alive[0]} 모드, 심장박동 "
-                f"{alive[1]:.0f}분 전). 중복 실행은 안전상 거부합니다.")
+        return (f"Already running ({alive[0]} mode, heartbeat "
+                f"{alive[1]:.0f} min ago). A second one on the same account is refused.")
     from .autonomous import load_policy, address_from_env, api_key_from_env
     policy = load_policy()
     base = policy.get("base_url", "")
@@ -526,6 +611,40 @@ def start_auto_trading(confirm: bool = False) -> str:
     return (f"자동매매 시작 (PID {proc.pid}). 매시간 픽 생성과 진입을 스스로 "
             f"하고, 모든 포지션에 거래소 익절·손절이 붙습니다. 상태 확인은 "
             f"account_status, 중지는 stop_auto_trading. 로그: {log_path}")
+
+
+@mcp.tool(title="Set Trading Budget",
+          annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False,
+                                      idempotentHint=True, openWorldHint=False))
+def set_trading_budget(budget_usd: float = 0, per_pick_usd: float = 0) -> str:
+    """Change how much the auto trader works with, at any time.
+
+    budget_usd: total to keep in positions. per_pick_usd: size of one
+    position (default 50). The bot divides one by the other for the number
+    of slots, up to eight: $300 at $50 is six. Takes effect on the next
+    cycle for a running bot; positions already open are left alone. Call
+    with no arguments to see the current setting."""
+    saved, per = _saved_budget()
+    if budget_usd <= 0 and per_pick_usd <= 0:
+        slots = max(1, min(int(saved // per), 8)) if saved > 0 else 0
+        if saved <= 0:
+            return (f"[tell the user in their language] No amount is set "
+                    f"yet. One pick is ${per:,.0f} by default, so "
+                    f"set_trading_budget(300) would trade six positions.")
+        return (f"[tell the user in their language] Currently trading with "
+                f"${saved:,.0f}: ${per:,.0f} a pick across {slots} "
+                f"positions. Call again with an amount to change it.")
+    new_per = per_pick_usd if per_pick_usd > 0 else per
+    new_budget = budget_usd if budget_usd > 0 else saved
+    if new_budget < new_per:
+        raise ToolError(f"${new_budget:,.0f} is smaller than one pick "
+                        f"(${new_per:,.0f}). Lower the per-pick size too.")
+    _remember_budget(new_budget, new_per if per_pick_usd > 0 else 0)
+    slots = max(1, min(int(new_budget // new_per), 8))
+    return (f"[tell the user in their language] Now trading with "
+            f"${new_budget:,.0f}: ${new_per:,.0f} a pick across {slots} "
+            f"positions. A running bot picks this up on its next cycle; "
+            f"positions already open are left alone.")
 
 
 @mcp.tool(title="Stop Auto Trading",

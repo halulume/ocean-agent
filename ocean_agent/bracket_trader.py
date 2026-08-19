@@ -239,6 +239,11 @@ def bracket_cfg(policy: dict) -> dict:
         "tp_pct": max(0.0, float(policy.get("bracket_tp_pct", 0))),
         "sl_mult": float(policy.get("bracket_sl_mult", 1.0)),
         "vol_floor_pct": float(policy.get("bracket_vol_floor_pct", 0.8)),
+        # What the operator said they wanted working, in dollars. Slots and
+        # per-pick size come out of it: $300 at $50 a pick is six positions.
+        # Percent-of-account is what a spreadsheet understands; a person
+        # answering "how much do you want to trade with" says a number.
+        "budget_usd": max(0.0, float(policy.get("bracket_budget_usd", 0))),
         # symbols the operator wants left alone, whatever the seal says.
         # Empty by default: this is a manual veto, not a measured rule.
         "skip_syms": {str(s).upper()
@@ -559,6 +564,24 @@ def _cool_down() -> None:
     """Hold off the seal poll after a pass that entered nothing."""
     global _retry_not_before
     _retry_not_before = time.time() + ENTRY_RETRY_COOLDOWN_SEC
+
+
+def apply_budget(cfg: dict) -> dict:
+    """Turn a dollar answer into slots and per-pick size.
+
+    Asked once when auto trading starts and changeable any time, so the
+    number a person gave is the number that trades: $300 with the standard
+    $50 a pick is six positions, not a share of whatever the balance
+    happens to be that morning.
+    """
+    budget = cfg.get("budget_usd", 0)
+    if budget <= 0:
+        return cfg
+    per = cfg.get("notional_usd") or 50.0
+    cfg["notional_usd"] = per
+    cfg["slots"] = max(1, min(int(budget // per), 8))
+    cfg["capital_pct"] = 100.0        # the budget is the limit, not a share
+    return cfg
 
 
 def enter_positions(client, policy, st, cfg, dry: bool) -> None:
@@ -1344,7 +1367,7 @@ def main():
         log("사용자 중지 상태를 시작과 함께 해제합니다")
 
     policy = load_policy()
-    cfg = bracket_cfg(policy)
+    cfg = apply_budget(bracket_cfg(policy))
     global _selfgen_enabled
     _selfgen_enabled = bool(policy.get("bracket_selfgen_seal", True))
     if not _selfgen_enabled:

@@ -211,7 +211,7 @@ def open_connect_page(on_submit, brand="claude") -> str:
     return url
 
 
-def write_env(path: str, addr: str, key: str) -> None:
+def write_env(path: str, addr: str, key: str, extra: dict = None) -> None:
     """Put the two credentials into an env file, keeping other lines.
 
     Written through a temp file and moved into place so a crash cannot
@@ -237,6 +237,10 @@ def write_env(path: str, addr: str, key: str) -> None:
 
     lines = upsert(lines, "ADDRESS", addr)
     lines = upsert(lines, "PACIFICA_API_KEY", key)
+    # anything else the setup asked for rides along, so an installed
+    # user has one file to edit instead of a policy inside site-packages
+    for k, v in (extra or {}).items():
+        lines = upsert(lines, k, v)
     if not any(ln.strip().startswith("PACIFICA_BASE_URL=") for ln in lines):
         lines.append("PACIFICA_BASE_URL=https://api.pacifica.fi")
     os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)

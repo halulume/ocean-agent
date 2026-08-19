@@ -1690,6 +1690,19 @@ def load_policy() -> dict:
     #    (예: policy.yaml에 뭘 적든 aggressive 프리셋의 min_win_rate 0.45,
     #     max_concurrent 6 이 실효값이 된다. 파일만 보면 알 수 없어 혼동을 부른다.)
     merged = {**pol, **preset}
+    # Anyone who installed from PyPI has no policy file to edit: theirs is the
+    # packaged default inside site-packages. The few numbers a person is
+    # actually asked for at setup live in their .env instead, and win here.
+    for env_key, pol_key, cast in (
+            ("BRACKET_CAPITAL_PCT", "bracket_capital_pct", float),
+            ("BRACKET_NOTIONAL_USD", "bracket_notional_usd", float),
+            ("BRACKET_SLOTS", "bracket_slots", int)):
+        raw = os.environ.get(env_key, "").strip()
+        if raw:
+            try:
+                merged[pol_key] = cast(raw)
+            except ValueError:
+                pass
     merged["_mode"] = mode
     return merged
 
