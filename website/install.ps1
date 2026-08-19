@@ -115,8 +115,13 @@ Write-Host ""
 Write-Host "==============================================" -ForegroundColor Green
 Write-Host "  INSTALL COMPLETE" -ForegroundColor Green
 Write-Host "==============================================" -ForegroundColor Green
-Write-Host "Next, in order:"
-Write-Host "  1. Restart Claude Desktop"
-Write-Host "  2. Say hello in any language - the setup interview runs in YOUR language"
-Write-Host "  3. To link your account, just ask: 'connect my Pacifica account'"
-Write-Host "  4. To trade automatically, ask: 'start auto trading'"
+Write-Host "Nothing else to type in this window. You can close it."
+Write-Host ""
+Write-Host "Next, in Claude Desktop (NOT here):" -ForegroundColor Yellow
+Write-Host "  1. Quit Claude Desktop and open it again"
+Write-Host "  2. Say hello in any language - it replies in yours"
+Write-Host "  3. Then just talk to it, for example:"
+Write-Host "       show me today's picks"
+Write-Host "       start auto trading"
+Write-Host ""
+Write-Host "Your keys are already saved, so there is nothing more to set up."
