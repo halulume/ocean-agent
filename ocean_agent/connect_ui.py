@@ -74,7 +74,7 @@ _FORM = """
  fill-rule="evenodd" style="color:{bcolor}">{bsvg}</svg>
  <b>{bname}</b><span class="bsub">Ocean Agent</span></div>
 <h1>Connect your Pacifica account</h1>
-<div class="sub">파시피카 계정 연결</div>
+<div class="sub">Two values, then you are done.</div>
 <div class="msg"><b>1.</b> Log in at
  <a href="https://app.pacifica.fi" target="_blank">app.pacifica.fi</a>
  (connect wallet)</div>
@@ -85,38 +85,34 @@ _FORM = """
  <br>trade-only, cannot withdraw, revocable anytime</div>
 <div class="msg"><b>3.</b> Paste the copied key below</div>
 <form method="post" action="/submit?n={nonce}">
-<label>Wallet PUBLIC address (Solana) &middot; 지갑 공개주소</label>
+<label>Wallet PUBLIC address (Solana)</label>
 <input name="address" placeholder="e.g. 7Ncb...abcd" required
  autocomplete="off" value="{addr}">
-<label>Pacifica API key &middot; API 키</label>
+<label>Pacifica API key</label>
 <input name="api_key" placeholder="from app.pacifica.fi/apikey" required
  autocomplete="off" type="password">
 {err}
-<button style="{bbtn}">Connect &middot; 연결</button>
+<button style="{bbtn}">Connect</button>
 </form>
 <div class="note">Saved only to the .env file on THIS computer and never
-shown in the chat. 이 값은 이 컴퓨터의 .env 에만 저장되며 대화에 표시되지
-않습니다.</div>
+shown in the chat.</div>
 """
 
 _DONE_OK = """
 <div class="big">✅</div>
-<h1 style="text-align:center">Connected &middot; 연결 완료</h1>
+<h1 style="text-align:center">Connected</h1>
 <div class="sub" style="text-align:center">balance {bal} USDC</div>
-<div class="msg">Keys saved to .env. Go back to your AI chat and continue -
-try asking to <b>start auto trading</b>.<br>
-.env 저장 완료. 이제 AI 대화로 돌아가 "자동매매 시작"이라고 해보세요.</div>
-<div class="note">You can close this window. 이 창은 닫으셔도 됩니다.</div>
+<div class="msg">Keys saved. Go back to your AI chat and continue - try
+asking to <b>start auto trading</b>.</div>
+<div class="note">You can close this window.</div>
 """
 
 _DONE_WARN = """
 <div class="big">⚠️</div>
 <h1 style="text-align:center">Saved, but test failed</h1>
 <div class="sub" style="text-align:center">{msg}</div>
-<div class="msg">The values were saved to .env. Check that the address has
-deposited on Pacifica, or open this page again from the chat.<br>
-저장은 됐지만 연결 테스트에 실패했습니다. 주소가 파시피카에 입금 이력이 있는
-계정인지 확인하세요.</div>
+<div class="msg">The values were saved. Check that the address has
+deposited on Pacifica, or open this page again from the chat.</div>
 """
 
 
@@ -164,12 +160,11 @@ class _Handler(BaseHTTPRequestHandler):
         key = (form.get("api_key") or [""])[0].strip()
         if not _ADDR_RE.fullmatch(addr):
             self._form('<div class="note bad">That is not a Solana public '
-                       'address (base58, 32-44 chars). 공개주소 형식이 '
-                       '아닙니다.</div>')
+                       'address (base58, 32-44 chars).</div>')
             return
         if len(key) < 20:
             self._form('<div class="note bad">The API key looks too short. '
-                       'API 키가 너무 짧습니다.</div>', addr=addr)
+                       'That key looks too short.</div>', addr=addr)
             return
         self.server.used = True
         result = self.server.on_submit(addr, key)
@@ -298,15 +293,15 @@ def main(argv=None) -> int:
     # first line is machine readable: the caller may be a parent process
     # that needs the address to hand back to the user
     print(f"URL {url}", flush=True)
-    print(f"  브라우저 창에서 입력해 주세요. 창이 안 열리면: {url}",
+    print(f"  Finish in the browser window. If it did not open: {url}",
           flush=True)
     end = _t.time() + a.timeout
     while _t.time() < end and not state["done"]:
         _t.sleep(1)
     if state["done"]:
-        print(f"  저장 완료: {a.env_file}", flush=True)
+        print(f"  Saved to {a.env_file}", flush=True)
         return 0
-    print("  입력이 없어 건너뜁니다.", flush=True)
+    print("  Nothing was entered; skipping.", flush=True)
     return 1
 
 
