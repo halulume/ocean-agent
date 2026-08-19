@@ -39,7 +39,11 @@ KST = timezone(timedelta(hours=9))
 TF = "1h"
 PER = 24                 # bars per 24h horizon
 WIN = 720                # scoring window, bars
-SLOTS = 6                # regular seats, filled by class score rank
+SLOTS = 10               # regular seats, filled by class score rank
+# Ten, not the eight the engine can hold: symbols already open and the
+# operator's skip list both eat seats, and a seal with no bench leaves
+# them empty until the next hour. On 08-19 three of six were skipped
+# and three were already held, so nothing could be entered at all.
 SPECIAL = 2              # extra seats for funding-extreme symbols
 SPECIAL_APR = 1.00       # minimum |funding| APR for a special seat
 SPECIAL_MOVE = 0.03      # specials also need this much expected move
