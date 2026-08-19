@@ -14,8 +14,10 @@ intraday refills (ranks 7-12 net negative), no swaps, no reserve slots, no
 Safety posture:
   · TP/SL ride on the exchange with the entry order, so a dead bot or PC
     cannot orphan a position without its lines.
-  · Pre-registered circuit breakers halt the bot loudly (file flag + telegram)
-    rather than letting it degrade quietly.
+  · The pre-registered breakers (liquidation, a bad running average, stops
+    filling past their line) warn loudly instead of halting: 08-19 showed
+    a halt is a silence, not a brake, because it waits for a console
+    nobody reads while the account's real protection sits on the exchange.
   · Dry runs touch NOTHING on disk (review 5, BR1/BR4: a dry run once burned
     the day's seal and could even flip the halt flag; now it only logs).
   · Grading of closed trades reads the exchange's own realized pnl and cause,
@@ -67,7 +69,7 @@ HEARTBEAT_FRESH_MIN = 10            # same window as the X1 guard (old EV bot)
 LOOP_MIN = 30
 
 # ── pre-registered circuit breakers (round-3 review, 2026-08-11) ──
-HALT_ON_LIQUIDATION = True          # exchange-confirmed liquidation = stop
+HALT_ON_LIQUIDATION = True          # exchange-confirmed liquidation = warn
 HALT_AVG_AFTER = 30                 # trades before the average is judged
 # Floor for the 1.5x TP geometry (same derivation as before, re-evaluated
 # 2026-08-19 when the target widened): wins near +4.4% and stops near
@@ -76,7 +78,10 @@ HALT_AVG_AFTER = 30                 # trades before the average is judged
 # ~= -1.4. Re-derive from the live sample once 30 real trades are booked.
 HALT_AVG_FLOOR = -1.4               # % per trade; -2 sigma of the expectation
 DEMOTE_SLIP_EVENTS = 2              # stop fills worse than line by ...
-DEMOTE_SLIP_PCT = 0.5               # ... this many %p, twice -> leverage down
+DEMOTE_SLIP_PCT = 0.5               # ... this many %p, twice -> warn.
+# Not "lower the leverage" any more: with a fixed notional per pick that
+# moves the margin posted, not the loss a slipped stop takes. Thin books
+# are the cause, so the answer is a smaller notional or bracket_skip_syms.
 
 # Seals a dry run has already logged, per process. Deliberately NOT persisted:
 # dry must leave no trace in the state file (BR1), this only stops log spam.
@@ -183,7 +188,28 @@ def load_state() -> dict:
 
 
 def save_state(st: dict) -> None:
+    """Write the ledger, keeping any closes another process booked.
+
+    The whole file is rewritten from memory, so two bots (or a bot and a
+    repair) overwrite each other's closed trades: on 08-19 a bot started
+    at 21:59 saved at 22:33 and erased three closes written in between.
+    Closed records only ever get appended, so the union of what is on
+    disk and what is in memory is the truth.
+    """
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
+    try:
+        with open(STATE_PATH, encoding='utf-8') as f:
+            on_disk = json.load(f).get('closed', [])
+    except (OSError, ValueError):
+        on_disk = []
+    if on_disk:
+        seen = {(c.get('sym'), c.get('closed_at')) for c in st['closed']}
+        extra = [c for c in on_disk
+                 if (c.get('sym'), c.get('closed_at')) not in seen]
+        if extra:
+            st['closed'] = sorted(st['closed'] + extra,
+                                  key=lambda c: c.get('closed_at', ''))
+            log(f'다른 프로세스가 기록한 청산 {len(extra)}건을 합칩니다')
     tmp = STATE_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(st, f, ensure_ascii=False, indent=1)
@@ -209,6 +235,10 @@ def bracket_cfg(policy: dict) -> dict:
         "tp_pct": max(0.0, float(policy.get("bracket_tp_pct", 0))),
         "sl_mult": float(policy.get("bracket_sl_mult", 1.0)),
         "vol_floor_pct": float(policy.get("bracket_vol_floor_pct", 0.8)),
+        # symbols the operator wants left alone, whatever the seal says.
+        # Empty by default: this is a manual veto, not a measured rule.
+        "skip_syms": {str(s).upper()
+                      for s in (policy.get("bracket_skip_syms") or [])},
         "horizon_h": int(policy.get("bracket_horizon_h", 24)),
         # fixed per-pick notional in USD; 0 keeps proportional sizing.
         # Added 2026-08-14 (user): their own account trades a fixed $30 a
@@ -264,6 +294,9 @@ def select_picks(rec: dict, cfg: dict) -> list[dict]:
     picks = sorted(rec.get("picks", []), key=lambda p: p.get("trade_rank", 9))
     out = []
     for p in picks:
+        if p["sym"].upper() in cfg.get("skip_syms", ()):
+            log(f"제외 목록이라 건너뜀: {p['sym']} (bracket_skip_syms)")
+            continue
         if p.get("exp_move_pct", 0) < cfg["vol_floor_pct"]:
             log(f"변동폭 하한 미달로 건너뜀: {p['sym']} "
                 f"({p.get('exp_move_pct')}% < {cfg['vol_floor_pct']}%)")
@@ -518,6 +551,12 @@ def reconcile_pending(client, st: dict) -> None:
     save_state(st)
 
 
+def _cool_down() -> None:
+    """Hold off the seal poll after a pass that entered nothing."""
+    global _retry_not_before
+    _retry_not_before = time.time() + ENTRY_RETRY_COOLDOWN_SEC
+
+
 def enter_positions(client, policy, st, cfg, dry: bool) -> None:
     rec = latest_seal()
     if not rec:
@@ -546,7 +585,12 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
     # bot's S4 fix).
     funds = float(acct.get("available_to_spend") or 0)
     if funds <= 0:
-        notify.send("브래킷: 가용 증거금을 읽지 못해 진입 중단")
+        # Cooling down matters as much as the message: without it the seal
+        # stays unconsumed, the 30-second poll wakes on it forever, and the
+        # same telegram goes out twice a minute. 08-19 ran 388 cycles in
+        # four hours that way.
+        _warn_once(st, "funds", "가용 증거금을 읽지 못해 진입을 건너뜁니다.")
+        _cool_down()
         return
     # only the share of that spendable margin the user allows (default all of
     # it); deploy_pct and the slot split then divide this share, so $1000 at
@@ -554,9 +598,17 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
     funds *= cfg["capital_pct"] / 100
     picks = select_picks(rec, cfg)
     if not picks:
+        # every pick filtered out (vol floor, skip list): the seal holds
+        # nothing for us, so stop re-reading it every thirty seconds
+        _cool_down()
         return
+    # Divide by the whole plan, not by what happens to be free. With the
+    # old divisor a single empty slot took the entire spendable margin:
+    # seven held plus one free put 97% of the account into that one
+    # entry. Anyone running the shipped defaults (no fixed notional)
+    # met that on their first refill.
     open_slots = max(1, cfg["slots"] - len(st["positions"]))
-    margin_per = funds * cfg["deploy_pct"] / open_slots
+    margin_per = funds * cfg["deploy_pct"] / max(1, cfg["slots"])
     if cfg["notional_usd"] > 0:
         # fixed notional wins over the proportional split, but never exceeds
         # what the margin could carry anyway
@@ -584,13 +636,20 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             if rec.get("sym") != sym:
                 continue
             cause = str(rec.get("cause") or "")
-            if rec.get("dir") != direction or not (
-                    cause == "stop_loss" or cause.startswith("추정")):
+            # A guessed loss is not proof the stop was hit: a position the
+            # operator closed by hand at a loss used to block that direction
+            # for the rest of the day (VVV, 08-19).
+            if rec.get("dir") != direction or cause != "stop_loss":
                 break
             n += 1
         return n
 
     for p in picks:
+        # Eight picks mean eight order round-trips and their retries; ten
+        # minutes of that used to read as a dead bot and invited a second
+        # one onto the same margin.
+        if not dry:
+            write_heartbeat()
         if _stop_streak(p["sym"], p["dir"]) >= 2:
             log(f"{p['sym']} {p['dir']} 연속 손절 2회, 같은 방향 추격 중단")
             continue
@@ -922,14 +981,28 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                 est = real["pnl_usd"] / notional * 100
                 cause = real["cause"]
                 if cause in ("", "normal"):
-                    # the exchange reports TP/SL fills as plain closes;
-                    # recover the bracket meaning from the realized sign so
-                    # the stop-chase block and the slip breaker can see
-                    # stops (live day one: every fill came back "normal")
-                    cause = "take_profit" if est >= 0 else "stop_loss"
+                    # The venue reports every close as "normal", so a label made from
+                    # the sign of the result is a guess, and it was being read as fact:
+                    # a hand-closed loss became a "stop", which then fed the stop-chase
+                    # block and the slippage counter. The price decides when it can,
+                    # and the guess is named as one when it cannot.
+                    px_close = float(real.get("price") or 0)
+                    ref_tp, ref_sl = pos.get("tp"), pos.get("sl")
+                    hit = ""
+                    if px_close and ref_tp and ref_sl:
+                        tol = abs(float(ref_tp) - float(ref_sl)) * 0.02
+                        if abs(px_close - float(ref_tp)) <= tol:
+                            hit = "take_profit"
+                        elif abs(px_close - float(ref_sl)) <= tol:
+                            hit = "stop_loss"
+                    cause = hit or ("추정:이익" if est >= 0 else "추정:손실")
                 if cause == "liquidation" and HALT_ON_LIQUIDATION:
-                    st["halted"] = True
-                    st["halt_reason"] = f"거래소 청산 확인: {sym} ({est:+.2f}%)"
+                    # Warned, not halted: every position carries an
+                    # exchange-side stop, so a liquidation means that line
+                    # was jumped rather than that the bot is unsupervised.
+                    _warn_once(st, f"liq:{sym}",
+                               f"거래소 청산 확인: {sym} ({est:+.2f}%). "
+                               f"손절선을 건너뛴 체결입니다. 매매는 계속합니다.")
                 if cause == "stop_loss" and est < -sl_d - DEMOTE_SLIP_PCT:
                     st["slip_events"] = st.get("slip_events", 0) + 1
                     notify.send(f"브래킷 경고: {sym} 손절 이탈 "
@@ -1029,6 +1102,24 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                 notify.send(f"브래킷 청산 실패 {sym}: {str(e)[:120]}")
 
 
+def _warn_once(st, key: str, msg: str) -> None:
+    """Say it loudly, once per condition, and carry on trading.
+
+    These three conditions used to stop new entries until a person typed
+    --resume. On 08-19 that turned one bad fill into an afternoon of holding
+    positions and entering nothing, unnoticed, because a halt announces
+    itself to a console window nobody is watching. The account's real
+    protection is the exchange-side stop on every position, not this flag,
+    so the conditions now warn instead of blocking.
+    """
+    seen = st.setdefault("warned", {})
+    if seen.get(key) == msg:
+        return
+    seen[key] = msg
+    log(f"⚠️ {msg}")
+    notify.send(f"브래킷 경고: {msg}")
+
+
 def circuit_breakers(st, cfg) -> None:
     if st["halted"]:
         return
@@ -1037,17 +1128,17 @@ def circuit_breakers(st, cfg) -> None:
         recent = closed[-HALT_AVG_AFTER:]
         avg = sum(c["pnl_pct_est"] for c in recent) / len(recent)
         if avg < HALT_AVG_FLOOR:
-            st["halted"] = True
-            st["halt_reason"] = (f"누적 성적 미달: 최근 {HALT_AVG_AFTER}건 "
-                                 f"건당 {avg:+.3f}% < {HALT_AVG_FLOOR}%")
-    # Fires at any leverage above the documented reduced floor of 3; the
-    # effective setting is 5, so the demotion 5 -> 3 can actually happen.
-    # A ">" against the effective value itself would compare equal and
-    # leave this breaker permanently dead. (review N4)
-    if st.get("slip_events", 0) >= DEMOTE_SLIP_EVENTS and cfg["leverage"] > 3:
-        st["halted"] = True
-        st["halt_reason"] = (f"손절 이탈 {st['slip_events']}회: 레버리지를 "
-                             f"3배 이하로 낮춰 재개할 것 (bracket_leverage)")
+            _warn_once(st, "avg",
+                       f"누적 성적 미달: 최근 {HALT_AVG_AFTER}건 건당 "
+                       f"{avg:+.3f}% < {HALT_AVG_FLOOR}%. 매매는 계속합니다.")
+    if st.get("slip_events", 0) >= DEMOTE_SLIP_EVENTS:
+        # The old remedy said "lower the leverage", which stopped meaning
+        # anything on 08-14: notional is fixed per pick now, so leverage
+        # moves the margin posted and not the loss a slipped stop takes.
+        _warn_once(st, "slip",
+                   f"손절 이탈 {st['slip_events']}회. 호가가 얇은 종목이 "
+                   f"섞여 있습니다. 명목을 줄이거나 그 종목을 "
+                   f"bracket_skip_syms 로 빼는 걸 검토하세요. 매매는 계속합니다.")
 
 
 def status(st) -> str:
@@ -1085,10 +1176,17 @@ def cycle(client, policy, st, cfg, dry: bool) -> None:
         if not dry:
             save_state(st)
         return
+    held_before = len(st["positions"])
     watch_positions(client, policy, st, cfg, dry)
     circuit_breakers(st, cfg)
     if not st["halted"]:
         enter_positions(client, policy, st, cfg, dry)
+    # A heartbeat says the process exists; these say it worked. The
+    # watchdog and account_status read them, so a bot whose cycle
+    # throws on every pass can no longer look healthy.
+    st["last_cycle_ok_at"] = _now().isoformat(timespec="seconds")
+    if len(st["positions"]) > held_before:
+        st["last_entry_at"] = st["last_cycle_ok_at"]
     if not dry:
         save_state(st)
 
@@ -1203,9 +1301,20 @@ def main():
     ap.add_argument("--once", action="store_true", help="1사이클만")
     ap.add_argument("--dry", action="store_true", help="판단만, 주문 안 함")
     ap.add_argument("--status", action="store_true", help="상태만 출력")
-    ap.add_argument("--resume", action="store_true", help="정지 해제")
-    ap.add_argument("--close-all", action="store_true", help="전량 청산 후 정지")
+    ap.add_argument("--resume", action="store_true",
+                    help="정지 해제 (옛 상태 파일용, 이제 멈추는 장치가 없음)")
+    ap.add_argument("--close-all", action="store_true", help="전량 청산")
     args = ap.parse_args()
+
+    # Starting is the operator saying "trade": it outranks a stop they asked
+    # for earlier, and it is the only thing that clears one. Without this the
+    # watchdog and a stop would argue with each other every hour.
+    st_early = load_state()
+    if st_early.get("stopped_by_user") and not (args.status or args.dry):
+        st_early["stopped_by_user"] = False
+        st_early["stopped_at"] = ""
+        save_state(st_early)
+        log("사용자 중지 상태를 시작과 함께 해제합니다")
 
     policy = load_policy()
     cfg = bracket_cfg(policy)
@@ -1287,12 +1396,25 @@ def main():
         for sym, pos in list(st["positions"].items()):
             try:
                 close_market(client, policy, sym, pos, live)
+                # Book it the way every other close path does. Without this a
+                # flatten erased those trades from the ledger, so the running
+                # average that warns on a bad run never saw them, and neither
+                # did any later measurement.
+                st["closed"].append({
+                    "sym": sym, "dir": pos.get("dir", ""),
+                    "pnl_pct_est": 0.0, "cause": "manual_close",
+                    "opened_at": pos.get("opened_at", ""),
+                    "closed_at": _now().isoformat(),
+                    "trade_rank": pos.get("trade_rank", 0),
+                    "basis": "--close-all 전량 청산 (손익은 거래소 이력에서 확인)"})
                 del st["positions"][sym]
                 log(f"청산: {sym}")
             except PacificaError as e:
                 failed.append(sym)
                 log(f"⚠️ 청산 실패 {sym}: {e} (장부에 남김, 재실행으로 재시도)")
-        st["halted"], st["halt_reason"] = True, "수동 전량 청산"
+        # Flattening is not a reason to stop trading: the operator asked
+        # for a clean slate, and the next cycle fills it from the seal.
+        st["halted"], st["halt_reason"] = False, ""
         save_state(st)
         if failed:
             msg = ("브래킷 --close-all: 청산 주문 실패로 장부에 남은 포지션: "

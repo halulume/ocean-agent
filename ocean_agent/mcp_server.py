@@ -549,6 +549,7 @@ def stop_auto_trading(confirm: bool = False) -> str:
             try:
                 with open(hp, encoding="utf-8") as f:
                     target = (mode, json.load(f).get("pid"), hp)
+                    break        # first live mode wins; the loop used to keep the last
             except (OSError, ValueError):
                 continue
     if target is None:
@@ -580,6 +581,18 @@ def stop_auto_trading(confirm: bool = False) -> str:
     try:
         os.remove(hp)
     except OSError:
+        pass
+    # Write the intent down, not just the kill. A watchdog that only asks
+    # "is a bot running?" revives one within the hour, so a stop that lives
+    # only in a dead process is not a stop at all. Starting again clears it.
+    try:
+        from .bracket_trader import load_state, save_state, use_mode
+        use_mode(mode)
+        st = load_state()
+        st["stopped_by_user"] = True
+        st["stopped_at"] = _dt.datetime.now().isoformat(timespec="seconds")
+        save_state(st)
+    except Exception:                                      # noqa: BLE001
         pass
     return (f"자동매매 중지 완료 ({mode} 모드). 보유 포지션은 거래소 "
             f"익절·손절로 계속 보호됩니다. 다시 켜려면 start_auto_trading.")
@@ -1182,13 +1195,15 @@ def review_predictions() -> str:
 
 @mcp.tool(title="Open Position with TP/SL", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True))
 def open_with_bracket(symbol: str, side: str, usd: float,
-                      stop_loss_pct: float = 0, take_profit_pct: float = 0,
+                      stop_loss_pct: float = 3.0, take_profit_pct: float = 0,
                       confirm: bool = False) -> str:
     """Open a perp position with EXCHANGE-NATIVE take-profit / stop-loss attached,
     so the position is protected even if this bot or the user's computer is off,
     Pacifica closes it at the trigger price. side: 'long'/'short'. usd: notional
     size. stop_loss_pct / take_profit_pct: distance from entry as a percent
-    (e.g. 3 = 3%); 0 disables that leg. Triggers use mark price. IMPORTANT:
+    (e.g. 3 = 3%). The stop defaults to 3%: this tool exists to open a
+    protected position, so going without one has to be asked for with
+    stop_loss_pct=0, and the preview then says it plainly. Triggers use mark price. IMPORTANT:
     places a REAL order, call with confirm=false first to preview, confirm=true
     only after the user approves. Carries builder code 'mustache' (if approved)."""
     if side not in ("long", "short"):

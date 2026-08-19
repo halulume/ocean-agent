@@ -2,7 +2,7 @@
 # Ocean Agent one-command installer (macOS / Linux)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 set -e
-OA_PKG="ocean-agent@0.4.31"
+OA_PKG="ocean-agent@0.4.32"
 echo ""
 echo "=== Ocean Agent installer ==="
 
@@ -16,8 +16,14 @@ fi
 UV="$HOME/.local/bin/uv";  command -v uv  >/dev/null 2>&1 && UV="$(command -v uv)"
 UVX="$HOME/.local/bin/uvx"; command -v uvx >/dev/null 2>&1 && UVX="$(command -v uvx)"
 
-# 2) keys -> .env
-echo "[2/4] Account setup"
+# 2) terms of use (declining aborts the install; details: oceanagent.fi)
+echo "[2/4] Terms of Use"
+RC=0
+PACIFICA_ENV_FILE="$ENVF" "$UVX" --from "$OA_PKG" python -m ocean_agent.builder_consent </dev/tty || RC=$?
+if [ "$RC" = "3" ]; then exit 1; fi
+
+# 3) keys -> .env (after the terms, so declining leaves no key on disk)
+echo "[3/4] Account setup"
 ENVDIR="$HOME/.ocean-agent"; mkdir -p "$ENVDIR"
 ENVF="$ENVDIR/.env"
 WRITE=1
@@ -31,7 +37,7 @@ if [ "$WRITE" = "1" ]; then
     # rather than a console prompt; the form also checks the format and
     # tests the connection. Falls back to asking here if it cannot run.
     echo "  Opening a secure form in your browser..."
-    if ! "$UV" tool run --from ocean-agent python -m ocean_agent.connect_ui             --env-file "$ENVF" --timeout 600; then
+    if ! "$UV" tool run --from "$OA_PKG" python -m ocean_agent.connect_ui             --env-file "$ENVF" --timeout 600; then
         echo "  Browser form unavailable, asking here instead."
         printf "  Wallet public address (ADDRESS): "
         read ADDR </dev/tty
@@ -51,12 +57,6 @@ PACIFICA_BASE_URL=https://api.pacifica.fi
     fi
     echo "  saved to $ENVF (readable only by you)"
 fi
-
-# 3) terms of use (declining aborts the install; details: oceanagent.fi)
-echo "[3/4] Terms of Use"
-RC=0
-PACIFICA_ENV_FILE="$ENVF" "$UVX" --from "$OA_PKG" python -m ocean_agent.builder_consent </dev/tty || RC=$?
-if [ "$RC" = "3" ]; then exit 1; fi
 
 # 4) register in Claude Desktop config (uses uv's Python for a safe JSON merge)
 echo "[4/4] Registering with Claude Desktop"

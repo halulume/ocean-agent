@@ -1,12 +1,43 @@
-"""텔레그램 알림. 토큰/챗ID가 없으면 콘솔 출력만 한다."""
+"""Telegram notifications; console only when no token is configured.
+
+The token lives in .env, and until 2026-08-19 this module read it straight
+from os.environ. Anything that fired before the first client was built ran
+with an empty environment, so a bot refusing to start, a watchdog reviving
+one, and every circuit-breaker warning went to a console nobody was
+watching. The .env is loaded here instead, once, on first use.
+"""
 
 import os
 
 import requests
 
+_env_loaded = False
+
+
+def _load_env_once() -> None:
+    global _env_loaded
+    if _env_loaded:
+        return
+    _env_loaded = True
+    if os.environ.get("TELEGRAM_BOT_TOKEN"):
+        return
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    for cand in (os.environ.get("PACIFICA_ENV_FILE"),
+                 os.path.join(os.path.expanduser("~"), ".ocean-agent", ".env"),
+                 os.path.join(os.getcwd(), ".env"),
+                 os.path.join(os.path.dirname(os.path.dirname(
+                     os.path.abspath(__file__))), ".env")):
+        if cand and os.path.exists(cand):
+            load_dotenv(cand, override=False)
+            break
+
 
 def send(text: str) -> None:
     print(f"[알림] {text}")
+    _load_env_once()
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
     if not token or not chat_id:

@@ -317,7 +317,7 @@ def analyze_multi(client: PacificaClient, symbol: str,
             except (TypeError, IndexError):
                 live = False
             # 봇이 실제로 진입을 막는 신호인지 함께 표시한다. 이 화면만 보고
-            # "통계 우위"라 읽으면, 봇이 9년 측정으로 걸러낸 것을 사람이 다시
+            # "통계 우위"라 읽으면, 봇이 장기 측정으로 걸러낸 것을 사람이 다시
             # 집어들게 된다 (예: RSI>70 과열은 매트릭스 EV -3.3%로 차단 대상).
             try:
                 from .signal_scanner import _matrix_rejects
@@ -334,7 +334,7 @@ def analyze_multi(client: PacificaClient, symbol: str,
                 mark = "🔆 점등!" if live else "대기"
                 gap = (f", 이 코인 백테 {raw:.0%}"
                        if abs(raw - pwin) >= 0.03 else "")
-                tag = " ⛔ 봇 차단(9년 측정상 기준선 미달)" if blocked else ""
+                tag = " ⛔ 봇 차단(장기 측정상 기준선 미달)" if blocked else ""
                 lines.append(f"    {mark} {name} → {'롱' if side=='long' else '숏'} "
                              f"(실측 승률 {pwin:.0%}{gap}, n={cnt}, "
                              f"지평 ~{hz_txt}){tag}")

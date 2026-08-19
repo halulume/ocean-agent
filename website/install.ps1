@@ -1,7 +1,7 @@
 # Ocean Agent one-command installer (Windows)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 $ErrorActionPreference = 'Stop'
-$oaPkg = "ocean-agent@0.4.31"
+$oaPkg = "ocean-agent@0.4.32"
 
 # The console a new user lands in is the first impression, so it is dressed
 # as Claude instead of left as a black DOS box: light ground, dark text, the
@@ -150,7 +150,20 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 $uvx = Join-Path $env:USERPROFILE ".local\bin\uvx.exe"
 if (-not (Test-Path $uvx)) {
     $cmd = Get-Command uvx -ErrorAction SilentlyContinue
-    if ($cmd) { $uvx = $cmd.Source } else { $uvx = "uvx" }
+    if ($cmd) { $uvx = $cmd.Source } else { $uvx = "" }
+}
+# Falling through with the bare string "uvx" made every later call raise
+# CommandNotFoundException, which does not touch $LASTEXITCODE, so the
+# install walked past its own failure and still printed "Install complete".
+if (-not $uvx) {
+    Status ""
+    Bad "uv could not be installed, so nothing else can run."
+    Write-Host ""
+    Say "Check your internet connection and run the line again."
+    Dim "If it keeps failing, install uv yourself and retry:"
+    Dim "    irm https://astral.sh/uv/install.ps1 | iex"
+    Write-Host ""
+    exit 1
 }
 # Let uv bring its own Python. A machine with the Microsoft Store Python on
 # PATH otherwise hands uv an interpreter it cannot launch, and the install
@@ -329,7 +342,7 @@ if ($write) {
     if (-not $done) {
         Status "Opening a secure form..."
         try {
-            & $uvx --from "ocean-agent" python -m ocean_agent.connect_ui `
+            & $uvx --from "$oaPkg" python -m ocean_agent.connect_ui `
                 --env-file "$envFile" --timeout 600
             if ($LASTEXITCODE -eq 0) { $done = $true }
         } catch { }
