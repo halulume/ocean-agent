@@ -101,17 +101,38 @@ else:
     print("  updated " + cfg_path)
 PY
 
+# Claude reads its config once at startup, so the tools only appear after
+# a restart. Doing it here saves a step the user cannot skip.
+echo ""
+echo "Restarting Claude Desktop so the tools load..."
+if [ "$(uname)" = "Darwin" ]; then
+    osascript -e 'tell application "Claude" to quit' >/dev/null 2>&1 || true
+    sleep 3
+    if open -a "Claude" >/dev/null 2>&1; then
+        echo "  Claude Desktop restarted."
+    else
+        echo "  Could not find Claude Desktop. Open it yourself once."
+    fi
+else
+    pkill -f -i "claude" >/dev/null 2>&1 || true
+    sleep 2
+    if command -v claude-desktop >/dev/null 2>&1; then
+        (claude-desktop >/dev/null 2>&1 &)
+        echo "  Claude Desktop restarted."
+    else
+        echo "  Open Claude Desktop yourself once."
+    fi
+fi
+
 echo ""
 echo "=============================================="
 echo "  INSTALL COMPLETE"
 echo "=============================================="
 echo "Nothing else to type in this window. You can close it."
 echo ""
-echo "Next, in Claude Desktop (NOT here):"
-echo "  1. Quit Claude Desktop and open it again"
-echo "  2. Say hello in any language - it replies in yours"
-echo "  3. Then just talk to it, for example:"
+echo "Now go to Claude Desktop and just talk to it:"
 echo "       show me today's picks"
 echo "       start auto trading"
 echo ""
+echo "Say hello in any language and it replies in yours."
 echo "Your keys are already saved, so there is nothing more to set up."

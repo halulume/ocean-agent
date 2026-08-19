@@ -121,17 +121,49 @@ if ($bakPath) {
     Write-Host "  updated $cfgPath"
 }
 
+# Claude reads its config once at startup, so the tools only appear after
+# a restart. Doing it here saves the user a step they cannot skip; if
+# Claude was not running, it is simply started.
+Write-Host ""
+Write-Host "Restarting Claude Desktop so the tools load..."
+$claudeExe = $null
+try {
+    $running = Get-Process -Name "Claude" -ErrorAction SilentlyContinue
+    if ($running) {
+        $claudeExe = ($running | Select-Object -First 1).Path
+        $running | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 3
+    }
+    if (-not $claudeExe) {
+        $guess = Join-Path $env:LOCALAPPDATA "AnthropicClaude\Claude.exe"
+        if (Test-Path $guess) { $claudeExe = $guess }
+        else {
+            $shortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Claude.lnk"
+            if (Test-Path $shortcut) {
+                $sh = New-Object -ComObject WScript.Shell
+                $claudeExe = $sh.CreateShortcut($shortcut).TargetPath
+            }
+        }
+    }
+    if ($claudeExe -and (Test-Path $claudeExe)) {
+        Start-Process $claudeExe
+        Write-Host "  Claude Desktop restarted." -ForegroundColor Green
+    } else {
+        Write-Host "  Could not find Claude Desktop. Open it yourself once." -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "  Could not restart Claude Desktop. Open it yourself once." -ForegroundColor Yellow
+}
+
 Write-Host ""
 Write-Host "==============================================" -ForegroundColor Green
 Write-Host "  INSTALL COMPLETE" -ForegroundColor Green
 Write-Host "==============================================" -ForegroundColor Green
 Write-Host "Nothing else to type in this window. You can close it."
 Write-Host ""
-Write-Host "Next, in Claude Desktop (NOT here):" -ForegroundColor Yellow
-Write-Host "  1. Quit Claude Desktop and open it again"
-Write-Host "  2. Say hello in any language - it replies in yours"
-Write-Host "  3. Then just talk to it, for example:"
+Write-Host "Now go to Claude Desktop and just talk to it:" -ForegroundColor Yellow
 Write-Host "       show me today's picks"
 Write-Host "       start auto trading"
 Write-Host ""
+Write-Host "Say hello in any language and it replies in yours."
 Write-Host "Your keys are already saved, so there is nothing more to set up."
