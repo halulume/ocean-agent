@@ -1,13 +1,25 @@
 # Ocean Agent one-command installer (Windows)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 $ErrorActionPreference = 'Stop'
-$oaPkg = "ocean-agent@0.4.24"
+$oaPkg = "ocean-agent@0.4.25"
 Write-Host ""
 Write-Host "=== Ocean Agent installer ===" -ForegroundColor Cyan
+
+# The install page (OA_UI, set by the launcher) shows progress in the
+# browser so nobody has to read a console. Reporting is best effort: if
+# the page is not there, the install just runs on without it.
+function Report($step, $status) {
+    if (-not $env:OA_UI) { return }
+    try {
+        Invoke-RestMethod -Method Post -Uri $env:OA_UI `
+            -Body @{ step = $step; status = $status } -TimeoutSec 3 | Out-Null
+    } catch { }
+}
 
 # 1) uv (installs its own Python automatically)
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     Write-Host "[1/4] Installing uv..."
+    Report "python" "run"
     Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression
 } else {
     Write-Host "[1/4] uv already installed"
@@ -18,58 +30,51 @@ if (-not (Test-Path $uvx)) {
     if ($cmd) { $uvx = $cmd.Source } else { $uvx = "uvx" }
 }
 
-# 2) keys -> .env
-Write-Host "[2/4] Account setup"
+# Bring up the install page and let it carry the rest: progress, the two
+# credentials, and the finish card all happen there, so this console has
+# nothing left worth reading.
 $envDir  = Join-Path $env:USERPROFILE ".ocean-agent"
 New-Item -ItemType Directory -Force $envDir | Out-Null
 $envFile = Join-Path $envDir ".env"
-$write = $true
-if (Test-Path $envFile) {
-    $ans = Read-Host "  .env already exists. Overwrite? (y/N)"
-    if ($ans -notmatch '^[yY]') { $write = $false; Write-Host "  keeping existing .env" }
-}
-if ($write) {
-    # Credentials go in through a small styled page on this machine, not
-    # a terminal prompt: pasting a key into a black console reads as
-    # something to be nervous about, and the form can check the format
-    # and test the connection while it is at it.
-    Write-Host "  Opening a secure form in your browser..."
-    $done = $false
-    try {
-        & $uvx --from "ocean-agent" python -m ocean_agent.connect_ui `
-            --env-file "$envFile" --timeout 600
-        if ($LASTEXITCODE -eq 0) { $done = $true }
-    } catch { }
-    if (-not $done) {
-        Write-Host "  Browser form unavailable, asking here instead." -ForegroundColor Yellow
-        $addr = Read-Host "  Wallet public address (ADDRESS)"
-        try { Start-Process "https://app.pacifica.fi/apikey" } catch {}
-        $keySec = Read-Host "  Agent API key (input hidden)" -AsSecureString
-        $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($keySec)
-        $key  = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
-        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-        @(
-            "ADDRESS=$addr"
-            "PACIFICA_API_KEY=$key"
-            "PACIFICA_BASE_URL=https://api.pacifica.fi"
-        ) -join "`r`n" | Out-File -Encoding ascii $envFile
-        try {
-            icacls $envFile /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
-        } catch {
-            Write-Host "  WARNING: could not restrict permissions on $envFile" -ForegroundColor Yellow
+$uiOut = Join-Path $env:TEMP "ocean_agent_ui.txt"
+Remove-Item $uiOut -ErrorAction SilentlyContinue
+$uiProc = $null
+try {
+    $uiProc = Start-Process -PassThru -WindowStyle Hidden -FilePath $uvx `
+        -ArgumentList @("--from", "ocean-agent", "python", "-m",
+            "ocean_agent.install_ui", "--env-file", "$envFile",
+            "--stage", "install", "--timeout", "1800") `
+        -RedirectStandardOutput $uiOut
+    for ($i = 0; $i -lt 90; $i++) {
+        if (Test-Path $uiOut) {
+            $line = (Get-Content $uiOut -ErrorAction SilentlyContinue |
+                     Where-Object { $_ -like "URL *" } | Select-Object -First 1)
+            if ($line) {
+                $uiUrl = $line.Substring(4).Trim()
+                $env:OA_UI = ($uiUrl -replace "/\?n=", "/progress?n=")
+                Start-Process $uiUrl
+                break
+            }
         }
+        Start-Sleep -Milliseconds 500
     }
-    Write-Host "  saved to $envFile (readable only by you)"
+} catch { }
+if ($env:OA_UI) {
+    Write-Host "  Follow along in the browser window that just opened."
 }
+Report "python" "done"
 
-# 3) terms of use (declining aborts the install; details: oceanagent.fi)
-Write-Host "[3/4] Terms of Use"
+# 2) terms of use (declining aborts the install; details: oceanagent.fi)
+Report "package" "run"
+Write-Host "[2/4] Terms of Use"
 $env:PACIFICA_ENV_FILE = $envFile
 & $uvx --from $oaPkg python -m ocean_agent.builder_consent
 if ($LASTEXITCODE -eq 3) { exit 1 }
 
-# 4) register in Claude Desktop config
-Write-Host "[4/4] Registering with Claude Desktop"
+# 3) register in Claude Desktop config
+Report "package" "done"
+Report "register" "run"
+Write-Host "[3/4] Registering with Claude Desktop"
 $cfgDir  = Join-Path $env:APPDATA "Claude"
 $cfgPath = Join-Path $cfgDir "claude_desktop_config.json"
 $server  = [pscustomobject]@{
@@ -120,6 +125,54 @@ if ($bakPath) {
 } else {
     Write-Host "  updated $cfgPath"
 }
+
+Report "register" "done"
+
+# 4) credentials, last, on the page that is already open
+Write-Host "[4/4] Account setup"
+$write = $true
+if (Test-Path $envFile) {
+    $ans = Read-Host "  .env already exists. Overwrite? (y/N)"
+    if ($ans -notmatch '^[yY]') { $write = $false; Write-Host "  keeping existing .env" }
+}
+if ($write) {
+    $done = $false
+    if ($env:OA_UI -and $uiProc -and -not $uiProc.HasExited) {
+        Write-Host "  Waiting for the browser window (wallet address + API key)..."
+        Report "keys" "run"
+        $uiProc.WaitForExit()
+        if (Test-Path $envFile) { $done = $true }
+    }
+    if (-not $done) {
+        Write-Host "  Opening a secure form in your browser..."
+        try {
+            & $uvx --from "ocean-agent" python -m ocean_agent.connect_ui `
+                --env-file "$envFile" --timeout 600
+            if ($LASTEXITCODE -eq 0) { $done = $true }
+        } catch { }
+    }
+    if (-not $done) {
+        Write-Host "  Browser form unavailable, asking here instead." -ForegroundColor Yellow
+        $addr = Read-Host "  Wallet public address (ADDRESS)"
+        try { Start-Process "https://app.pacifica.fi/apikey" } catch {}
+        $keySec = Read-Host "  Agent API key (input hidden)" -AsSecureString
+        $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($keySec)
+        $key  = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+        @(
+            "ADDRESS=$addr"
+            "PACIFICA_API_KEY=$key"
+            "PACIFICA_BASE_URL=https://api.pacifica.fi"
+        ) -join "`r`n" | Out-File -Encoding ascii $envFile
+        try {
+            icacls $envFile /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
+        } catch {
+            Write-Host "  WARNING: could not restrict permissions on $envFile" -ForegroundColor Yellow
+        }
+    }
+    Write-Host "  saved to $envFile (readable only by you)"
+}
+$env:PACIFICA_ENV_FILE = $envFile
 
 # Claude reads its config once at startup, so the tools only appear after
 # a restart. Doing it here saves the user a step they cannot skip; if
