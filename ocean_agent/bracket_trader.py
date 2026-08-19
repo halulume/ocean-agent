@@ -203,9 +203,13 @@ def save_state(st: dict) -> None:
     except (OSError, ValueError):
         on_disk = []
     if on_disk:
-        seen = {(c.get('sym'), c.get('closed_at')) for c in st['closed']}
-        extra = [c for c in on_disk
-                 if (c.get('sym'), c.get('closed_at')) not in seen]
+        # keyed on the entry, not on the writer's clock: two processes
+        # grading the same close stamp different closed_at values and would
+        # each keep a row
+        def key(c):
+            return (c.get('sym'), c.get('opened_at') or c.get('closed_at'))
+        seen = {key(c) for c in st['closed']}
+        extra = [c for c in on_disk if key(c) not in seen]
         if extra:
             st['closed'] = sorted(st['closed'] + extra,
                                   key=lambda c: c.get('closed_at', ''))
@@ -481,13 +485,13 @@ def reconcile_pending(client, st: dict) -> None:
                     float(q.get("entry_intent") or 0)
                 _rc = done.get("cause") or ""
                 if _rc in ("", "normal"):
-                    _rc = ("take_profit" if float(done.get("pnl") or 0) >= 0
+                    _rc = ("take_profit" if float(done.get("pnl_usd") or 0) >= 0
                            else "stop_loss")
                 st["closed"].append({
                     "sym": sym, "dir": q.get("dir"),
                     "cause": _rc,
-                    "pnl_usd": done.get("pnl"),
-                    "pnl_pct_est": (float(done.get("pnl") or 0) / notional
+                    "pnl_usd": done.get("pnl_usd"),
+                    "pnl_pct_est": (float(done.get("pnl_usd") or 0) / notional
                                     * 100 if notional > 0 else 0.0),
                     "opened_at": q.get("at"),
                     "closed_at": _now().isoformat(),
@@ -912,14 +916,32 @@ def realized_close(client, sym: str, since_ms: int) -> dict | None:
             cause = h.get("cause") or ""
             if str(h.get("side", "")).startswith("close") or \
                     cause in ("take_profit", "stop_loss", "liquidation"):
-                evs.append((t, float(h.get("pnl") or 0), cause))
+                evs.append((t, float(h.get("pnl") or 0), cause,
+                            float(h.get("price") or 0)))
     except Exception as e:
         raise PacificaError(
             f"positions/history 파싱 실패 ({type(e).__name__}: {e})") from e
     if not evs:
         return None
     evs.sort()
-    return {"pnl_usd": sum(e[1] for e in evs), "cause": evs[-1][2]}
+    return {"pnl_usd": sum(e[1] for e in evs), "cause": evs[-1][2],
+            "price": evs[-1][3]}
+
+
+def _flat_pct(client, sym: str, pos: dict, since_ms: int) -> float:
+    """Percent for a position closed by --close-all, read from the venue.
+
+    Booking these at 0.0 kept the count honest and the number a lie, and it
+    is the same number the running average warns on.
+    """
+    try:
+        real = realized_close(client, sym, since_ms)
+        notional = float(pos.get("entry_fill") or 0) * float(pos.get("amount") or 0)
+        if real and notional > 0:
+            return round(float(real["pnl_usd"]) / notional * 100, 3)
+    except Exception:                                       # noqa: BLE001
+        pass
+    return 0.0
 
 
 def close_market(client, policy, sym: str, pos: dict, live: dict) -> None:
@@ -990,11 +1012,16 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                     ref_tp, ref_sl = pos.get("tp"), pos.get("sl")
                     hit = ""
                     if px_close and ref_tp and ref_sl:
-                        tol = abs(float(ref_tp) - float(ref_sl)) * 0.02
-                        if abs(px_close - float(ref_tp)) <= tol:
-                            hit = "take_profit"
-                        elif abs(px_close - float(ref_sl)) <= tol:
-                            hit = "stop_loss"
+                        tp_v, sl_v = float(ref_tp), float(ref_sl)
+                        # Past the line counts as that line: a stop that
+                        # slipped 1%p is still a stop, and it is precisely
+                        # the slipped ones the counter needs to see.
+                        if pos["dir"] == "long":
+                            hit = ("take_profit" if px_close >= tp_v
+                                   else "stop_loss" if px_close <= sl_v else "")
+                        else:
+                            hit = ("take_profit" if px_close <= tp_v
+                                   else "stop_loss" if px_close >= sl_v else "")
                     cause = hit or ("추정:이익" if est >= 0 else "추정:손실")
                 if cause == "liquidation" and HALT_ON_LIQUIDATION:
                     # Warned, not halted: every position carries an
@@ -1395,14 +1422,15 @@ def main():
         failed = []
         for sym, pos in list(st["positions"].items()):
             try:
+                since_ms = int(time.time() * 1000) - 60_000
                 close_market(client, policy, sym, pos, live)
                 # Book it the way every other close path does. Without this a
                 # flatten erased those trades from the ledger, so the running
                 # average that warns on a bad run never saw them, and neither
                 # did any later measurement.
                 st["closed"].append({
-                    "sym": sym, "dir": pos.get("dir", ""),
-                    "pnl_pct_est": 0.0, "cause": "manual_close",
+                    "pnl_pct_est": _flat_pct(client, sym, pos, since_ms),
+                    "cause": "manual_close",
                     "opened_at": pos.get("opened_at", ""),
                     "closed_at": _now().isoformat(),
                     "trade_rank": pos.get("trade_rank", 0),

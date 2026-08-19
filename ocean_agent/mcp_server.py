@@ -553,7 +553,18 @@ def stop_auto_trading(confirm: bool = False) -> str:
             except (OSError, ValueError):
                 continue
     if target is None:
-        return "실행 중인 자동매매 엔진이 없습니다 (심장박동 없음)."
+        # No heartbeat is not no intent: a bot that just died, or one the
+        # watchdog is about to revive, still has to stay off.
+        try:
+            from .bracket_trader import load_state, save_state
+            st = load_state()
+            st["stopped_by_user"] = True
+            st["stopped_at"] = _dt.datetime.now().isoformat(timespec="seconds")
+            save_state(st)
+        except Exception:                                  # noqa: BLE001
+            pass
+        return ("실행 중인 자동매매 엔진이 없습니다 (심장박동 없음). "
+                "중지 상태로 기록했으니 감시기도 띄우지 않습니다.")
     if not confirm:
         return (f"[미리보기] 자동매매 중지: {target[0]} 모드 엔진(PID "
                 f"{target[1]})을 끕니다. 보유 포지션은 청산하지 않으며 "
@@ -1099,7 +1110,7 @@ def top_setups(top: int = 3, budget_usd: float = 100) -> str:
     walk-forward validation over ~9 years (Binance history joined to Pacifica),
     where a prediction is formed using only data available at that moment and
     then checked against what actually happened. That measurement found the
-    realistic ceiling in this market is about 58%, and that raw backtest values
+    realistic ceiling in this market is far below what a backtest suggests, and raw backtest values
     above ~55% do not survive out of sample (a backtest claiming 73% came out at
     51% in reality). So expect numbers in the low-to-mid 50s. A setup showing
     "70%" would be a bug, not an opportunity.

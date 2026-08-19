@@ -1405,7 +1405,7 @@ OKX_API_PASSPHRASE=...</code></pre>
             developer fee. Nothing is approved silently.</p>
 
           <div class="upd-stats">
-            <div><b>+20.6%</b><span>7-year final equity, wider stops</span></div>
+            <div><b>withdrawn</b><span>7-year replay figure, withdrawn (look-ahead bug)</span></div>
             <div><b>5.9% &rarr; 5.2%</b><span>max drawdown, lower too</span></div>
             <div><b>~3%</b><span>average adverse swing before a pick moves</span></div>
             <div><b>0.01%</b><span>optional builder fee (1 bps)</span></div>
@@ -1460,7 +1460,7 @@ OKX_API_PASSPHRASE=...</code></pre>
           <div class="tbl-wrap"><table class="dtable">
             <thead><tr><th>Change</th><th>Measured basis</th></tr></thead><tbody>
             <tr><th>Renamed: mustache-mcp is now ocean-agent</th><td>Existing user data migrates automatically on first run.</td></tr>
-            <tr><th>Win rate gate 52% &rarr; 45%</th><td>Nine years of walk forward measurement put the composite vote ceiling at 54.3%, so the 52% per signal gate was starving entries: two days, zero trades. A 7-year replay showed +21% account improvement at 45%. The pure edge +2%p gate stays, so the floor holds.</td></tr>
+            <tr><th>Win rate gate 52% &rarr; 45%</th><td>Nine years of walk forward measurement put the a measured ceiling on composite-vote win rate, so the 52% per signal gate was starving entries: two days, zero trades. A 7-year replay argued for the lower floor, and that replay was later found to have a look-ahead bug. The pure edge +2%p gate stays, so the floor holds.</td></tr>
             <tr><th>Volume and liquidity filters removed, scan widened to all 100 markets</th><td>Measurement showed the filters were not what was blocking entries.</td></tr>
             <tr><th>Regime filter off by default</th><td>30-day A/B: +$6,052 with it off against +$2,612 with it on, and lower drawdown.</td></tr>
             <tr><th>Margin checked before every entry</th><td>Fail closed: if the check cannot run, the entry does not go out.</td></tr>

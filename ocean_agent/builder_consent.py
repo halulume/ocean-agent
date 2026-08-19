@@ -101,6 +101,31 @@ def _remember(value: str) -> None:
         pass
 
 
+def ask_terms_only() -> str:
+    """Ask the Terms question with no account attached.
+
+    Returns 'approved' | 'declined' | 'skipped'. The answer goes in the same
+    marker file, so the builder approval that runs once keys exist reads it
+    instead of asking a second time.
+    """
+    remembered = _marker()
+    if remembered in ("approved", "declined"):
+        return remembered
+    if not sys.stdin.isatty():
+        return "skipped"
+    m = _msgs()
+    try:
+        answer = input(m["q"]).strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return "skipped"
+    if answer in ("", "y", "yes"):
+        _remember("approved")
+        print(m["ok"])
+        return "approved"
+    print(m["no"])
+    return "declined"
+
+
 def ensure_consent(client, builder_code: str,
                    remember_decline: bool = True) -> str:
     """Returns 'approved' | 'declined' | 'skipped'. Never raises.
@@ -162,8 +187,17 @@ def main() -> None:
     os.environ.setdefault("PACIFICA_BASE_URL", policy["base_url"])
     try:
         client = make_client(policy)
-    except Exception as e:
-        print(f"Skipping terms consent (no client: {e})")
+    except Exception:
+        # No keys yet is the normal case when the terms are asked before
+        # the account is connected, which is the order that lets a decline
+        # leave nothing on disk. The question is about the Terms of Use
+        # and can be answered without an account; the on-chain approval
+        # that follows needs one and happens later on its own.
+        client = None
+    if client is None:
+        if ask_terms_only() == "declined":
+            print(_msgs()["must"])
+            sys.exit(3)
         return
     status = ensure_consent(client, policy.get("builder_code", ""),
                             remember_decline=False)
