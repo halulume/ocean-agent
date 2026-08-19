@@ -324,10 +324,24 @@ def main(argv=None) -> int:
     ap.add_argument("--stage", default="install",
                     choices=["install", "keys"])
     ap.add_argument("--timeout", type=int, default=1800)
+    ap.add_argument("--url-file", default="",
+                    help="write the page address here as well as to stdout")
     a = ap.parse_args(argv)
     url, state, stop = serve(a.env_file, a.brand)
     state["stage"] = a.stage
     print(f"URL {url}", flush=True)
+    # The installer used to read this address out of a redirected stdout,
+    # which does not always reach disk when the process is started hidden.
+    # Writing the file here, and renaming it into place so a reader never
+    # sees half a line, is the channel that always works.
+    if a.url_file:
+        try:
+            tmp = a.url_file + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(f"URL {url}\n")
+            os.replace(tmp, a.url_file)
+        except OSError:
+            pass
     try:
         webbrowser.open(url)
     except Exception:

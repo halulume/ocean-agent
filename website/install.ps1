@@ -1,7 +1,7 @@
 # Ocean Agent one-command installer (Windows)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 $ErrorActionPreference = 'Stop'
-$oaPkg = "ocean-agent@0.4.29"
+$oaPkg = "ocean-agent@0.4.30"
 
 # The console a new user lands in is the first impression, so it is dressed
 # as Claude instead of left as a black DOS box: light ground, dark text, the
@@ -141,7 +141,10 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     # uv's own installer prints a page of PATH advice, which would scroll the
     # rows away; it runs in a child process with every stream discarded
     $uvCmd = "iex (irm https://astral.sh/uv/install.ps1)"
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'      # same stderr trap as below
     $null = & powershell -NoProfile -ExecutionPolicy ByPass -Command $uvCmd 2>&1
+    $ErrorActionPreference = $prevEAP
     $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
 }
 $uvx = Join-Path $env:USERPROFILE ".local\bin\uvx.exe"
@@ -166,12 +169,22 @@ Report "python" "done"
 # while the browser never opened.
 Report "package" "run"
 Status "Downloading Ocean Agent and its Python..."
-$prep = & $uvx --from $oaPkg python -c "import ocean_agent" 2>&1
-if ($LASTEXITCODE -ne 0) {
+# uv writes its download progress to stderr, and under ErrorActionPreference
+# Stop PowerShell turns every one of those lines into a terminating error. The
+# preference is lowered around the call and put back straight after, so the
+# exit code decides the outcome rather than the noise.
+$prepLog = Join-Path $env:TEMP "ocean_agent_install.log"
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+& $uvx --from $oaPkg python -c "import ocean_agent" *> $prepLog
+$prepCode = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($prepCode -ne 0) {
     Status ""
     Bad "Could not install Ocean Agent."
     Write-Host ""
-    Dim ($prep | Out-String).Trim()
+    Dim ((Get-Content $prepLog -Tail 12 -ErrorAction SilentlyContinue) -join "`r`n")
+    Dim "Full log: $prepLog"
     Write-Host ""
     Say "Nothing was saved. Check your connection and run the line again."
     exit 1
@@ -188,12 +201,17 @@ try {
     # the launcher already put the window up in this same console session,
     # so reuse it: a second one would leave the first stuck on its own page
     if ($env:OA_UI) { throw "reuse" }
-    Remove-Item $uiOut -ErrorAction SilentlyContinue
+    # The page writes its own address to $uiOut. Reading it out of a
+    # redirected stdout looked equivalent and was not: started hidden, that
+    # file sometimes never reaches disk, and the install then walks past the
+    # window it had just opened.
+    Remove-Item $uiOut, "$uiOut.log" -ErrorAction SilentlyContinue
     $uiProc = Start-Process -PassThru -WindowStyle Hidden -FilePath $uvx `
         -ArgumentList @("--from", $oaPkg, "python", "-m",
             "ocean_agent.install_ui", "--env-file", "$envFile",
-            "--stage", "install", "--timeout", "1800") `
-        -RedirectStandardOutput $uiOut
+            "--stage", "install", "--timeout", "1800",
+            "--url-file", "$uiOut") `
+        -RedirectStandardOutput "$uiOut.log"
     for ($i = 0; $i -lt 240; $i++) {
         if (Test-Path $uiOut) {
             $line = (Get-Content $uiOut -ErrorAction SilentlyContinue |
