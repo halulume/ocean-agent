@@ -34,38 +34,38 @@ SERVER_LIFETIME_SEC = 600
 _PAGE = """<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ocean Agent - Connect</title><style>
-:root {{ --ink:#0b2239; --sub:#5a7184; --line:#dbe6ee; --acc:#0e7f8a;
-        --bg:#eef4f8; --card:#ffffff; --ok:#0d8a4f; --bad:#c0392b; }}
-* {{ box-sizing:border-box; margin:0; }}
-body {{ background:var(--bg); color:var(--ink);
+:root { --ink:#0b2239; --sub:#5a7184; --line:#dbe6ee; --acc:#0e7f8a;
+        --bg:#eef4f8; --card:#ffffff; --ok:#0d8a4f; --bad:#c0392b; }
+* { box-sizing:border-box; margin:0; }
+body { background:var(--bg); color:var(--ink);
        font:16px/1.6 -apple-system,'Segoe UI',Roboto,sans-serif;
-       display:flex; justify-content:center; padding:40px 16px; }}
-.card {{ background:var(--card); border:1px solid var(--line);
+       display:flex; justify-content:center; padding:40px 16px; }
+.card { background:var(--card); border:1px solid var(--line);
         border-radius:18px; max-width:560px; width:100%;
-        padding:28px 26px; box-shadow:0 10px 40px rgba(11,34,57,.08); }}
-h1 {{ font-size:20px; margin-bottom:4px; }}
-.brand {{ display:flex; align-items:center; gap:9px; padding-bottom:14px;
-         margin-bottom:16px; border-bottom:1px solid var(--line); }}
-.brand svg {{ width:26px; height:26px; }}
-.brand b {{ font-size:16px; }}
-.brand .bsub {{ color:var(--sub); font-size:13px; margin-left:auto; }}
-.sub {{ color:var(--sub); font-size:14px; margin-bottom:18px; }}
-.msg {{ background:#f2f7fa; border:1px solid var(--line);
+        padding:28px 26px; box-shadow:0 10px 40px rgba(11,34,57,.08); }
+h1 { font-size:20px; margin-bottom:4px; }
+.brand { display:flex; align-items:center; gap:9px; padding-bottom:14px;
+         margin-bottom:16px; border-bottom:1px solid var(--line); }
+.brand svg { width:26px; height:26px; }
+.brand b { font-size:16px; }
+.brand .bsub { color:var(--sub); font-size:13px; margin-left:auto; }
+.sub { color:var(--sub); font-size:14px; margin-bottom:18px; }
+.msg { background:#f2f7fa; border:1px solid var(--line);
        border-radius:12px; padding:12px 14px; font-size:14px;
-       margin-bottom:10px; }}
-.msg b {{ color:var(--acc); }}
-.msg a {{ color:var(--acc); font-weight:600; }}
-label {{ display:block; font-size:13px; font-weight:600; margin:16px 0 6px; }}
-input {{ width:100%; padding:12px 14px; border:1.5px solid var(--line);
-        border-radius:10px; font-size:14px; font-family:ui-monospace,monospace; }}
-input:focus {{ outline:none; border-color:var(--acc); }}
-button {{ width:100%; margin-top:20px; padding:13px; border:0;
+       margin-bottom:10px; }
+.msg b { color:var(--acc); }
+.msg a { color:var(--acc); font-weight:600; }
+label { display:block; font-size:13px; font-weight:600; margin:16px 0 6px; }
+input { width:100%; padding:12px 14px; border:1.5px solid var(--line);
+        border-radius:10px; font-size:14px; font-family:ui-monospace,monospace; }
+input:focus { outline:none; border-color:var(--acc); }
+button { width:100%; margin-top:20px; padding:13px; border:0;
          border-radius:10px; background:var(--acc); color:#fff;
-         font-size:15px; font-weight:700; cursor:pointer; }}
-button:hover {{ filter:brightness(1.08); }}
-.note {{ color:var(--sub); font-size:12.5px; margin-top:12px; }}
-.ok {{ color:var(--ok); }} .bad {{ color:var(--bad); }}
-.big {{ font-size:38px; text-align:center; margin:10px 0 2px; }}
+         font-size:15px; font-weight:700; cursor:pointer; }
+button:hover { filter:brightness(1.08); }
+.note { color:var(--sub); font-size:12.5px; margin-top:12px; }
+.ok { color:var(--ok); } .bad { color:var(--bad); }
+.big { font-size:38px; text-align:center; margin:10px 0 2px; }
 </style></head><body><div class="card">{body}</div></body></html>"""
 
 _FORM = """
