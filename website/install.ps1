@@ -21,36 +21,92 @@ function Say($text)  { Write-Host "  $text" }
 function Dim($text)  { Write-Host "  $text" -ForegroundColor DarkGray }
 function Good($text) { Write-Host "  $text" -ForegroundColor DarkGreen }
 function Bad($text)  { Write-Host "  $text" -ForegroundColor Red }
-function Rule { Write-Host ("  " + ("-" * 66)) -ForegroundColor DarkGray }
+function Rule { Write-Host ("  " + ([string][char]0x2500) * 62) -ForegroundColor DarkGray }
+
+# Glyphs are built from code points rather than typed literally: this file
+# travels over the wire and is executed straight from the response, so a
+# stray encoding guess would turn every mark into mojibake.
+$CHK = [string][char]0x2713      # check
+$DOT = [string][char]0x25CF      # in progress
+$RING = [string][char]0x25CB     # waiting
+try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
 
 Write-Host ""
 Write-Host "  * " -ForegroundColor DarkRed -NoNewline
 Write-Host "Claude" -NoNewline
-Write-Host ("".PadLeft(46) + "Ocean Agent") -ForegroundColor DarkGray
+Write-Host ("".PadLeft(42) + "Ocean Agent") -ForegroundColor DarkGray
 Rule
 Write-Host ""
-Say "Installing Ocean Agent. This takes a minute or two."
-Dim "Nothing to type here: a window opens and asks for what it needs."
+Say "Installing"
+Dim "This usually takes a minute or two."
 Write-Host ""
 
-# The install page (OA_UI, set by the launcher) shows progress in the
-# browser so nobody has to read a console. Reporting is best effort: if
-# the page is not there, the install just runs on without it.
+# The three rows mirror the browser window exactly, and they are redrawn in
+# place as each step lands. Where the cursor cannot be moved (redirected
+# output, an odd host), every draw simply appends instead.
+$LABELS = @(@("python", "Preparing Python"),
+            @("package", "Installing Ocean Agent"),
+            @("register", "Connecting to Claude"))
+$script:stepState = @{ python = "wait"; package = "wait"; register = "wait" }
+$script:rowsTop = $null
+$script:statusText = ""
+
+function Draw-Rows {
+    $canMove = $false
+    try {
+        if ($null -eq $script:rowsTop) {
+            $script:rowsTop = $Host.UI.RawUI.CursorPosition
+        } else {
+            $Host.UI.RawUI.CursorPosition = $script:rowsTop
+        }
+        $canMove = $true
+    } catch { }
+    foreach ($pair in $LABELS) {
+        $st = $script:stepState[$pair[0]]
+        if ($st -eq "done") {
+            Write-Host "  $CHK  " -ForegroundColor DarkCyan -NoNewline
+            Write-Host $pair[1].PadRight(60)
+        } elseif ($st -eq "run") {
+            Write-Host "  $DOT  " -ForegroundColor DarkCyan -NoNewline
+            Write-Host $pair[1].PadRight(60)
+        } else {
+            Write-Host "  $RING  " -ForegroundColor DarkGray -NoNewline
+            Write-Host $pair[1].PadRight(60) -ForegroundColor DarkGray
+        }
+    }
+    Write-Host ""
+    Write-Host ("  " + $script:statusText.PadRight(64)) -ForegroundColor DarkGray
+    if (-not $canMove) { Write-Host "" }
+}
+
+function Status($text) {
+    $script:statusText = $text
+    Draw-Rows
+}
+
+# Progress goes to the browser window too (OA_UI). Reporting is best effort:
+# if the page is not there, the install just runs on without it.
 function Report($step, $status) {
+    if ($script:stepState.ContainsKey($step)) {
+        $script:stepState[$step] = $status
+        Draw-Rows
+    }
     if (-not $env:OA_UI) { return }
     try {
         Invoke-RestMethod -Method Post -Uri $env:OA_UI `
             -Body @{ step = $step; status = $status } -TimeoutSec 3 | Out-Null
     } catch { }
 }
+Draw-Rows
 
 # 1) uv (installs its own Python automatically)
+Report "python" "run"
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-    Say "Preparing Python..."
-    Report "python" "run"
-    Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression
-} else {
-    Say "Python is ready."
+    # uv's own installer prints a page of PATH advice, which would scroll the
+    # rows away; it runs in a child process with every stream discarded
+    $null = & powershell -NoProfile -ExecutionPolicy ByPass -Command `
+        "irm https://astral.sh/uv/install.ps1 | iex" 2>&1
+    $env:Path = "$env:USERPROFILE\.localin;$env:Path"
 }
 $uvx = Join-Path $env:USERPROFILE ".local\bin\uvx.exe"
 if (-not (Test-Path $uvx)) {
@@ -90,14 +146,11 @@ try {
         Start-Sleep -Milliseconds 500
     }
 } catch { }
-if ($env:OA_UI) {
-    Dim "Follow along in the window that just opened."
-}
+if ($env:OA_UI) { Status "A window just opened; it follows along." }
 Report "python" "done"
 
 # 2) terms of use (declining aborts the install; details: oceanagent.fi)
 Report "package" "run"
-Say "Terms of use"
 $env:PACIFICA_ENV_FILE = $envFile
 $marker = Join-Path $env:USERPROFILE ".ocean_agent_builder_consent"
 if ($env:OA_UI) {
@@ -105,7 +158,7 @@ if ($env:OA_UI) {
     # is looking at; the answer lands in the same marker file either way
     Remove-Item $marker -ErrorAction SilentlyContinue
     Report "terms" "run"
-    Dim "Answer in the window, please."
+    Status "Terms of use: please answer in the window."
     $answer = ""
     for ($i = 0; $i -lt 1200; $i++) {
         if (Test-Path $marker) {
@@ -115,7 +168,8 @@ if ($env:OA_UI) {
         Start-Sleep -Seconds 1
     }
     if ($answer -eq "declined") {
-        Bad "Terms declined. Installation cancelled."
+        Status ""
+    Bad "Terms declined. Installation cancelled."
         exit 1
     }
 } else {
@@ -126,7 +180,7 @@ if ($env:OA_UI) {
 # 3) register in Claude Desktop config
 Report "package" "done"
 Report "register" "run"
-Say "Connecting to Claude..."
+Status "Writing the Claude config."
 $cfgDir  = Join-Path $env:APPDATA "Claude"
 $cfgPath = Join-Path $cfgDir "claude_desktop_config.json"
 $server  = [pscustomobject]@{
@@ -173,30 +227,30 @@ try {
     exit 1
 }
 if ($bakPath) {
-    Dim "Claude config updated."
+    Status "Claude config updated."
 } else {
-    Dim "Claude config updated."
+    Status "Claude config updated."
 }
 
 Report "register" "done"
 
 # 4) credentials, last, on the page that is already open
-Say "Your account"
+Status "Your account"
 $write = $true
 if (Test-Path $envFile) {
     $ans = Read-Host "  .env already exists. Overwrite? (y/N)"
-    if ($ans -notmatch '^[yY]') { $write = $false; Dim "Keeping the keys already saved." }
+    if ($ans -notmatch '^[yY]') { $write = $false; Status "Keeping the keys already saved." }
 }
 if ($write) {
     $done = $false
     if ($env:OA_UI -and $uiProc -and -not $uiProc.HasExited) {
-        Dim "Waiting for the window: wallet address and API key."
+        Status "Waiting for the window: wallet address and API key."
         Report "keys" "run"
         $uiProc.WaitForExit()
         if (Test-Path $envFile) { $done = $true }
     }
     if (-not $done) {
-        Dim "Opening a secure form..."
+        Status "Opening a secure form..."
         try {
             & $uvx --from "ocean-agent" python -m ocean_agent.connect_ui `
                 --env-file "$envFile" --timeout 600
@@ -204,6 +258,7 @@ if ($write) {
         } catch { }
     }
     if (-not $done) {
+        Status ""
         Dim "The form could not open, so this window asks instead."
         $addr = Read-Host "  Wallet public address (ADDRESS)"
         try { Start-Process "https://app.pacifica.fi/apikey" } catch {}
@@ -222,7 +277,7 @@ if ($write) {
             Bad "Could not restrict permissions on $envFile."
         }
     }
-    Good "Saved. Only you can read it."
+    Status "Keys saved. Only you can read them."
 }
 $env:PACIFICA_ENV_FILE = $envFile
 
@@ -230,7 +285,7 @@ $env:PACIFICA_ENV_FILE = $envFile
 # a restart. Doing it here saves the user a step they cannot skip; if
 # Claude was not running, it is simply started.
 Write-Host ""
-Say "Restarting Claude so the tools load..."
+Status "Restarting Claude so the tools load..."
 $claudeExe = $null
 try {
     $running = Get-Process -Name "Claude" -ErrorAction SilentlyContinue
@@ -252,18 +307,20 @@ try {
     }
     if ($claudeExe -and (Test-Path $claudeExe)) {
         Start-Process $claudeExe
-        Good "Claude restarted."
+        Status "Claude restarted."
     } else {
-        Dim "Could not find Claude. Open it yourself once."
+        Status "Could not find Claude. Open it yourself once."
     }
 } catch {
-    Dim "Could not restart Claude. Open it yourself once."
+    Status "Could not restart Claude. Open it yourself once."
 }
 
+Status ""
 Write-Host ""
 Rule
 Write-Host ""
-Good "Install complete."
+Write-Host "  $CHK  " -ForegroundColor DarkCyan -NoNewline
+Write-Host "Install complete."
 Write-Host ""
 Say "Go to Claude and just talk to it:"
 Dim "    show me today's picks"
