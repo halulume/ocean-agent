@@ -418,22 +418,11 @@ def connect_pacifica(ctx: Context) -> str:
     Use whenever the user wants to link their account or auto trading
     complains that keys are missing. Tell the user a browser window opened
     and to finish there, in their own language."""
-    def _save_and_test(addr: str, key: str) -> dict:
-        from .connect_ui import write_env
-        env_path = os.environ.get("PACIFICA_ENV_FILE") or os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            ".env")
-        write_env(env_path, addr, key)
-        os.environ["ADDRESS"] = addr
-        os.environ["PACIFICA_API_KEY"] = key
-        try:
-            client = PacificaClient(os.environ.get(
-                "PACIFICA_BASE_URL", "https://api.pacifica.fi"),
-                address=addr)
-            return {"ok": True, "bal": client.get_account().get("balance")}
-        except PacificaError as e:
-            return {"ok": False, "msg": str(e)[:150]}
-
+    env_path = os.environ.get("PACIFICA_ENV_FILE") or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+    fallback = ("다음 파일을 직접 열어 두 줄을 채워 주세요:\n" + env_path
+                + "\nADDRESS=지갑공개주소\nPACIFICA_API_KEY=발급한키\n"
+                "키 발급: https://app.pacifica.fi/apikey")
     # brand the form after the client that opened it (Claude, ChatGPT,
     # Gemini, Grok); unknown clients get the Claude look
     brand = "claude"
@@ -448,17 +437,37 @@ def connect_pacifica(ctx: Context) -> str:
                 break
     except Exception:
         pass
-    from .connect_ui import open_connect_page
+    # The page runs in its own detached process rather than a thread in
+    # here: the AI client starts and stops this server whenever it likes,
+    # and a thread dies with it, leaving whoever clicks the link on a
+    # refused connection.
+    import subprocess
+    import sys as _sys
+    import time as _t
+    kw = {}
+    if os.name == "nt":
+        kw["creationflags"] = 0x00000008 | 0x00000200 | 0x08000000
+    else:
+        kw["start_new_session"] = True
     try:
-        url = open_connect_page(_save_and_test, brand=brand)
+        proc = subprocess.Popen(
+            [_sys.executable, "-u", "-m", "ocean_agent.connect_ui",
+             "--env-file", env_path, "--brand", brand, "--timeout", "900"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace", **kw)
     except Exception as e:
-        env_hint = os.environ.get("PACIFICA_ENV_FILE") or os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            ".env")
-        return ("연결 창을 열지 못했습니다 (" + type(e).__name__ + "). 대신 "
-                "다음 파일을 직접 열어 두 줄을 채워 주세요:\n" + env_hint
-                + "\nADDRESS=지갑공개주소\nPACIFICA_API_KEY=발급한키\n"
-                "키 발급: https://app.pacifica.fi/apikey")
+        return f"연결 창을 열지 못했습니다 ({type(e).__name__}). {fallback}"
+    url = ""
+    deadline = _t.time() + 20
+    while _t.time() < deadline:
+        line = proc.stdout.readline()
+        if not line:
+            break
+        if line.startswith("URL "):
+            url = line[4:].strip()
+            break
+    if not url:
+        return f"연결 창을 여는 데 실패했습니다. {fallback}"
     return ("브라우저에 연결 창을 열었습니다. 창이 안 보이면 이 주소를 "
             "여세요: " + url + "\n창에서 지갑 공개주소와 API 키를 넣으면 "
             "이 컴퓨터의 .env 에만 저장되고(대화에 안 남음) 연결 테스트와 "

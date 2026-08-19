@@ -297,6 +297,9 @@ def main(argv=None) -> int:
             return {"ok": False, "msg": str(e)[:150]}
 
     url = open_connect_page(on_submit, brand=a.brand)
+    # first line is machine readable: the caller may be a parent process
+    # that needs the address to hand back to the user
+    print(f"URL {url}", flush=True)
     print(f"  브라우저 창에서 입력해 주세요. 창이 안 열리면: {url}",
           flush=True)
     end = _t.time() + a.timeout
