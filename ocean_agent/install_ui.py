@@ -75,9 +75,26 @@ button.go { width:100%; margin-top:20px; padding:13px; border:0;
   padding:12px 14px; font-size:14px; margin-bottom:10px; }
 .msg b { color:var(--acc); } .msg a { color:var(--acc); font-weight:600; }
 .note { color:var(--sub); font-size:12.5px; margin-top:12px; }
+button.no { width:100%; margin-top:10px; padding:12px; border:1px solid var(--line);
+  border-radius:10px; background:var(--card); color:var(--sub); font-size:14px;
+  cursor:pointer; }
 .bad { color:var(--bad); } .big { font-size:38px; text-align:center; }
 </style></head><body><div class="card">{body}</div>
 </body></html>"""
+
+
+def _write_consent(value: str) -> None:
+    """Record the terms answer where the installer and the bot look for it."""
+    try:
+        from .builder_consent import MARKER
+    except Exception:
+        MARKER = os.path.join(os.path.expanduser("~"),
+                              ".ocean_agent_builder_consent")
+    try:
+        with open(MARKER, "w", encoding="utf-8") as f:
+            f.write(value)
+    except OSError:
+        pass
 
 
 def _rows(state):
@@ -131,6 +148,26 @@ class _H(BaseHTTPRequestHandler):
         if u.path != "/":
             self._send(404, "<h1>Not found</h1>")
             return
+        if s["stage"] == "terms":
+            self._page(
+                "<h1>Terms of Use</h1>"
+                "<div class='sub'>One question, then it finishes on its own."
+                "</div>"
+                "<div class='msg'>Ocean Agent is unregulated software that "
+                "places real orders with your own keys. Trading perpetual "
+                "futures can lose you everything you put in.<br><br>"
+                "Continuing accepts the "
+                "<a href='https://oceanagent.fi/#terms' target='_blank'>"
+                "Terms of Use</a>, including the builder fee in section 11 "
+                "(1 basis point, capped and published on the site).</div>"
+                f"<form method='post' action='/terms?n={self.server.nonce}'>"
+                "<button class='go' name='answer' value='yes'>I agree"
+                "</button>"
+                "<button class='no' name='answer' value='no'>I do not agree"
+                "</button></form>"
+                "<div class='note'>Declining stops the install. Nothing is "
+                "sent anywhere either way.</div>")
+            return
         if s["stage"] == "install":
             self._page(
                 "<h1>Installing</h1>"
@@ -173,6 +210,14 @@ class _H(BaseHTTPRequestHandler):
                 "<b>show me today's picks</b> &middot; <b>start auto trading</b></div>"
                 "<div class='note'>You can close this window.</div>")
             return
+        if s["stage"] == "declined":
+            self._page(
+                "<h1>Install stopped</h1>"
+                "<div class='sub'>Nothing was installed and nothing was "
+                "saved.</div>"
+                "<div class='note'>Run the command again if you change your "
+                "mind. You can close this window.</div>")
+            return
         self._page("<h1>One moment</h1>")
 
     def do_POST(self):
@@ -191,9 +236,20 @@ class _H(BaseHTTPRequestHandler):
             if step in dict(STEPS):
                 s["steps"][step] = status
                 s["stage"] = "install"
+            if step == "terms" and not s.get("terms"):
+                s["stage"] = "terms"
             if step == "keys":
                 s["stage"] = "keys"
             self._send(200, "ok", "text/plain")
+            return
+        if u.path == "/terms":
+            answer = (form.get("answer") or [""])[0]
+            s["terms"] = "approved" if answer == "yes" else "declined"
+            _write_consent(s["terms"])
+            s["stage"] = "install" if answer == "yes" else "declined"
+            self.send_response(303)
+            self.send_header("Location", f"/?n={self.server.nonce}")
+            self.end_headers()
             return
         if u.path == "/submit":
             addr = (form.get("address") or [""])[0].strip()
@@ -240,7 +296,7 @@ def serve(env_file: str, brand: str = "claude") -> tuple:
     srv.brand = brand
     srv.env_file = env_file
     srv.state = {"stage": "install", "steps": {}, "err": "",
-                 "finished": False}
+                 "terms": "", "finished": False}
     url = f"http://127.0.0.1:{srv.server_address[1]}/?n={srv.nonce}"
 
     def run():

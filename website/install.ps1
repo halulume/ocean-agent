@@ -1,9 +1,9 @@
 # Ocean Agent one-command installer (Windows)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 $ErrorActionPreference = 'Stop'
-$oaPkg = "ocean-agent@0.4.27"
+$oaPkg = "ocean-agent@0.4.29"
 Write-Host ""
-Write-Host "=== Ocean Agent installer ===" -ForegroundColor Cyan
+Write-Host "=== Ocean Agent installer ===" -ForegroundColor DarkCyan
 
 # The install page (OA_UI, set by the launcher) shows progress in the
 # browser so nobody has to read a console. Reporting is best effort: if
@@ -37,9 +37,12 @@ $envDir  = Join-Path $env:USERPROFILE ".ocean-agent"
 New-Item -ItemType Directory -Force $envDir | Out-Null
 $envFile = Join-Path $envDir ".env"
 $uiOut = Join-Path $env:TEMP "ocean_agent_ui.txt"
-Remove-Item $uiOut -ErrorAction SilentlyContinue
-$uiProc = $null
+$uiProc = $global:oaUiProc
 try {
+    # the launcher already put the window up in this same console session,
+    # so reuse it: a second one would leave the first stuck on its own page
+    if ($env:OA_UI) { throw "reuse" }
+    Remove-Item $uiOut -ErrorAction SilentlyContinue
     $uiProc = Start-Process -PassThru -WindowStyle Hidden -FilePath $uvx `
         -ArgumentList @("--from", "ocean-agent", "python", "-m",
             "ocean_agent.install_ui", "--env-file", "$envFile",
@@ -68,8 +71,29 @@ Report "python" "done"
 Report "package" "run"
 Write-Host "[2/4] Terms of Use"
 $env:PACIFICA_ENV_FILE = $envFile
-& $uvx --from $oaPkg python -m ocean_agent.builder_consent
-if ($LASTEXITCODE -eq 3) { exit 1 }
+$marker = Join-Path $env:USERPROFILE ".ocean_agent_builder_consent"
+if ($env:OA_UI) {
+    # the window asks, so this console never blocks on a question nobody
+    # is looking at; the answer lands in the same marker file either way
+    Remove-Item $marker -ErrorAction SilentlyContinue
+    Report "terms" "run"
+    Write-Host "  Answer in the window, please."
+    $answer = ""
+    for ($i = 0; $i -lt 1200; $i++) {
+        if (Test-Path $marker) {
+            $answer = (Get-Content $marker -Raw -ErrorAction SilentlyContinue).Trim()
+            if ($answer) { break }
+        }
+        Start-Sleep -Seconds 1
+    }
+    if ($answer -eq "declined") {
+        Write-Host "  Terms declined. Installation cancelled." -ForegroundColor DarkYellow
+        exit 1
+    }
+} else {
+    & $uvx --from $oaPkg python -m ocean_agent.builder_consent
+    if ($LASTEXITCODE -eq 3) { exit 1 }
+}
 
 # 3) register in Claude Desktop config
 Report "package" "done"
@@ -89,7 +113,7 @@ if (Test-Path $cfgPath) {
     try {
         $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
     } catch {
-        Write-Host "  WARNING: existing config is not valid JSON; rewriting it (original saved as .bak)" -ForegroundColor Yellow
+        Write-Host "  WARNING: existing config is not valid JSON; rewriting it (original saved as .bak)" -ForegroundColor DarkYellow
         $cfg = $null
     }
     if ($null -eq $cfg) { $cfg = [pscustomobject]@{} }
@@ -152,7 +176,7 @@ if ($write) {
         } catch { }
     }
     if (-not $done) {
-        Write-Host "  Browser form unavailable, asking here instead." -ForegroundColor Yellow
+        Write-Host "  Browser form unavailable, asking here instead." -ForegroundColor DarkYellow
         $addr = Read-Host "  Wallet public address (ADDRESS)"
         try { Start-Process "https://app.pacifica.fi/apikey" } catch {}
         $keySec = Read-Host "  Agent API key (input hidden)" -AsSecureString
@@ -167,7 +191,7 @@ if ($write) {
         try {
             icacls $envFile /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
         } catch {
-            Write-Host "  WARNING: could not restrict permissions on $envFile" -ForegroundColor Yellow
+            Write-Host "  WARNING: could not restrict permissions on $envFile" -ForegroundColor DarkYellow
         }
     }
     Write-Host "  saved to $envFile (readable only by you)"
@@ -200,21 +224,21 @@ try {
     }
     if ($claudeExe -and (Test-Path $claudeExe)) {
         Start-Process $claudeExe
-        Write-Host "  Claude Desktop restarted." -ForegroundColor Green
+        Write-Host "  Claude Desktop restarted." -ForegroundColor DarkGreen
     } else {
-        Write-Host "  Could not find Claude Desktop. Open it yourself once." -ForegroundColor Yellow
+        Write-Host "  Could not find Claude Desktop. Open it yourself once." -ForegroundColor DarkYellow
     }
 } catch {
-    Write-Host "  Could not restart Claude Desktop. Open it yourself once." -ForegroundColor Yellow
+    Write-Host "  Could not restart Claude Desktop. Open it yourself once." -ForegroundColor DarkYellow
 }
 
 Write-Host ""
-Write-Host "==============================================" -ForegroundColor Green
-Write-Host "  INSTALL COMPLETE" -ForegroundColor Green
-Write-Host "==============================================" -ForegroundColor Green
+Write-Host "==============================================" -ForegroundColor DarkGreen
+Write-Host "  INSTALL COMPLETE" -ForegroundColor DarkGreen
+Write-Host "==============================================" -ForegroundColor DarkGreen
 Write-Host "Nothing else to type in this window. You can close it."
 Write-Host ""
-Write-Host "Now go to Claude Desktop and just talk to it:" -ForegroundColor Yellow
+Write-Host "Now go to Claude Desktop and just talk to it:" -ForegroundColor DarkYellow
 Write-Host "       show me today's picks"
 Write-Host "       start auto trading"
 Write-Host ""
