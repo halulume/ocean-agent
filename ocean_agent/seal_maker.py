@@ -46,9 +46,12 @@ SPECIAL_MOVE = 0.03      # specials also need this much expected move
 SIZE = 300               # USD walked against the live book for the gate
 MAX_SLIP = 0.005         # slippage cap for the gate
 MIN_ROWS = 25            # refuse to seal on a thinner cross-section
-# Symbols that ride the cross-sectional side regardless of class: thin-book
-# names that trend like unlisted coins even when their class label says
-# otherwise.
+# Classes that ride the cross-sectional side rather than the touch side.
+# Stocks joined after the touch side put the engine long into a falling
+# stock session the cross-sectional side had called short.
+XSEC_DIR_CLASSES = {"기타·RWA", "주식"}
+# Individual symbols that ride it regardless of class: thin-book names that
+# trend like unlisted coins even when their class label says otherwise.
 XSEC_DIR_SYMS = {"CHIP"}
 
 # Default seal directory: <project root>/outputs, next to the package.
@@ -396,7 +399,7 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
         # so the ledger keeps comparing them
         xsec_dir = "long" if r24 >= xsec_median else "short"
         touch_dir = "long" if u >= d_ else "short"
-        direction = (xsec_dir if r["cls"] == "기타·RWA"
+        direction = (xsec_dir if r["cls"] in XSEC_DIR_CLASSES
                      or r["sym"] in XSEC_DIR_SYMS else touch_dir)
         picks.append({
             "sym": r["sym"], "dir": direction, "xsec_dir": xsec_dir,

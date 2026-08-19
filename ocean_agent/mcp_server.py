@@ -21,6 +21,7 @@
 """
 
 import os
+import threading
 
 from mcp.server.fastmcp import Context, FastMCP
 # 도구 실행 오류는 예외로 올려야 클라이언트가 isError=true 로 받는다.
@@ -55,6 +56,9 @@ from .oi_planner import format_plans, plan_hedges
 from .position import (close_delta_neutral, close_directional, compute_amount,
                        open_delta_neutral, open_directional)
 from .scanner import price_and_funding, scan
+
+# background seal rebuild state for daily_picks
+_SEAL_REFRESH: dict = {"running": False}
 
 BUILDER_CODE = "mustache"
 SLIPPAGE = "0.5"
@@ -977,6 +981,103 @@ def print_close(game: str = "BTC_24H", confirm: bool = False) -> str:
 # readOnlyHint=False: 주문은 넣지 않지만 예측 로그 파일에 기록을 남긴다.
 # 읽기전용으로 표시하면 클라이언트가 자동 승인해버릴 수 있어 사실대로 알린다.
 # destructiveHint=False 로 '되돌릴 수 없는 파괴'와는 구분한다.
+@mcp.tool(title="Daily Picks",
+          annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False,
+                                      idempotentHint=True, openWorldHint=True))
+def daily_picks(refresh: bool = False) -> str:
+    """The ranked picks the bracket engine trades: symbol, side, expected
+    24h move, the odds of reaching plus or minus 3 percent, and the entry
+    price. Reads the newest seal; when none is fresh it computes one from
+    public market data, which needs no account and no API key and takes
+    about a minute. Use whenever the user asks what to trade today, what
+    the picks are, or what the bot is about to do. Present the list in the
+    user's language and say the two percentages are reach odds, not the
+    side taken."""
+    import glob as _glob
+    import json as _json
+    import time as _time
+    from .seal_maker import OUTPUTS_DIR, make_seal
+
+    def newest():
+        for p in reversed(sorted(_glob.glob(
+                os.path.join(OUTPUTS_DIR, "내일예측_*.json")))):
+            try:
+                with open(p, encoding="utf-8") as f:
+                    r = _json.load(f)
+            except (OSError, ValueError):
+                continue
+            if str(r.get("rule", "")).startswith("자산군"):
+                return p, r
+        return None, None
+
+    path, rec = newest()
+    age_h = 1e9
+    if path:
+        age_h = (_time.time() - os.path.getmtime(path)) / 3600
+    stale_note = ""
+    if rec is not None and (age_h > 1.0 or refresh) and not refresh:
+        # answer instantly from what exists and rebuild for the next ask:
+        # a full recompute walks every market and takes minutes, which is
+        # not something to make someone wait through mid-conversation
+        stale_note = (f"\n({age_h:.1f}시간 전 계산본입니다. 방금 갱신을 "
+                      f"시작했으니 잠시 후 다시 물으시면 최신으로 나옵니다.)")
+        if not _SEAL_REFRESH.get("running"):
+            _SEAL_REFRESH["running"] = True
+
+            def _bg():
+                try:
+                    make_seal(out_dir=OUTPUTS_DIR, log=lambda s: None)
+                except Exception:
+                    pass
+                finally:
+                    _SEAL_REFRESH["running"] = False
+
+            threading.Thread(target=_bg, daemon=True).start()
+    elif rec is None or refresh:
+        try:
+            made = make_seal(out_dir=OUTPUTS_DIR, log=lambda s: None)
+        except Exception as e:
+            if rec is None:
+                raise ToolError(f"픽 계산 실패: {type(e).__name__}. "
+                                f"잠시 후 다시 시도하세요.") from e
+            made = None
+        if made:
+            path, rec = newest()
+        elif rec is None:
+            raise ToolError("지금은 픽을 만들 표본이 부족합니다. "
+                            "잠시 후 다시 시도하세요.")
+    # live prices so the snapshot can be read against right now: the ranking
+    # itself is the sealed one the engine trades, but a pick sealed an hour
+    # ago has moved since, and hiding that would misread as a live quote
+    live = {}
+    try:
+        live = {q["symbol"]: float(q.get("mid") or 0)
+                for q in _client().get_prices()}
+    except Exception:
+        pass
+    lines = [f"봉인 {str(rec.get('made_at', ''))[:16]} · "
+             f"지평 {rec.get('horizon_h', 24)}시간",
+             "[외부 데이터 시작]"]
+    for p in rec.get("picks", []):
+        now = live.get(p.get("sym"), 0.0)
+        entry = float(p.get("entry") or 0)
+        drift = ""
+        if now > 0 and entry > 0:
+            d = (now / entry - 1) * 100
+            side = 1 if p.get("dir") == "long" else -1
+            drift = f" · 현재 {now:g} ({d:+.2f}%, 방향기준 {d*side:+.2f}%)"
+        lines.append(
+            f"{p.get('trade_rank', '-')}. {p.get('sym')} "
+            f"{p.get('dir')} · 예상변동 {p.get('exp_move_pct')}% · "
+            f"±3% 도달 위 {p.get('touch_up_pct')}% / "
+            f"아래 {p.get('touch_dn_pct')}% · 진입 {p.get('entry')}"
+            f"{drift} · 슬리피지 {p.get('slip_pct')}%")
+    lines.append("[외부 데이터 끝]")
+    lines.append("도달률은 24시간 안에 그 선에 닿을 확률이며 방향 판단이 "
+                 "아닙니다. 방향은 자산군별 규칙이 정합니다.")
+    return "\n".join(lines)
+
+
 @mcp.tool(title="Top Trade Setups", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True))
 def top_setups(top: int = 3, budget_usd: float = 100) -> str:
     """Scan top-volume Pacifica perps across three horizons and return the

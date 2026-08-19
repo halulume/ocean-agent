@@ -688,7 +688,35 @@ T["pick_header"] = {
  "id": "📌 Pilihan (disegel {0})", "ru": "📌 Подборка ({0})",
  "pt": "📌 Escolhas (selado {0})", "tr": "📌 Seçimler ({0})",
  "es": "📌 Selecciones (sellado {0})"}
-T["pick_row"] = {c: "{0}. {1} {2} · ±{3}% · {4}" for c, _ in LANGS}
+# pick_row: rank, symbol, side, expected 24h move %, chance of touching
+# +3% (the "long" side), chance of touching -3% (the "short" side), entry
+T["pick_row"] = {
+ "en": "{0}. {1} {2} · move {3}% · up {4}% / down {5}% · entry {6}",
+ "zh": "{0}. {1} {2} · 波动 {3}% · 上涨 {4}% / 下跌 {5}% · 入场 {6}",
+ "ja": "{0}. {1} {2} · 変動 {3}% · 上 {4}% / 下 {5}% · 参入 {6}",
+ "ko": "{0}. {1} {2} · 예상변동 {3}% · 롱 {4}% / 숏 {5}% · 진입 {6}",
+ "vi": "{0}. {1} {2} · biến động {3}% · lên {4}% / xuống {5}% · vào {6}",
+ "hi": "{0}. {1} {2} · मूव {3}% · ऊपर {4}% / नीचे {5}% · एंट्री {6}",
+ "id": "{0}. {1} {2} · gerak {3}% · naik {4}% / turun {5}% · masuk {6}",
+ "ru": "{0}. {1} {2} · ход {3}% · вверх {4}% / вниз {5}% · вход {6}",
+ "pt": "{0}. {1} {2} · movim. {3}% · alta {4}% / baixa {5}% · entrada {6}",
+ "tr": "{0}. {1} {2} · hareket {3}% · yukarı {4}% / aşağı {5}% · giriş {6}",
+ "es": "{0}. {1} {2} · mov. {3}% · sube {4}% / baja {5}% · entrada {6}"}
+# one-line note under the list: the two percentages are reach odds, not
+# the direction call
+T["pick_note"] = {
+ "en": "Move = expected 24h range. Up/down = chance of reaching ±3% within "
+       "24h, not the side we take.",
+ "zh": "波动＝预计24小时幅度。上涨/下跌＝24小时内触及±3%的概率，不是方向判断。",
+ "ja": "変動＝24時間の予想幅。上/下＝24時間以内に±3%へ到達する確率で、方向の判断ではありません。",
+ "ko": "예상변동은 24시간 예상 폭입니다. 롱·숏 %는 24시간 안에 ±3%에 닿을 확률이고 방향 판단이 아닙니다.",
+ "vi": "Biến động = biên độ dự kiến 24h. Lên/xuống = xác suất chạm ±3% trong 24h, không phải hướng vào lệnh.",
+ "hi": "मूव = 24 घंटे की अपेक्षित रेंज। ऊपर/नीचे = 24 घंटे में ±3% छूने की संभावना, दिशा नहीं।",
+ "id": "Gerak = rentang perkiraan 24 jam. Naik/turun = peluang menyentuh ±3% dalam 24 jam, bukan arah posisi.",
+ "ru": "Ход = ожидаемый диапазон за 24ч. Вверх/вниз = шанс достичь ±3% за 24ч, а не выбор стороны.",
+ "pt": "Movim. = faixa esperada em 24h. Alta/baixa = chance de atingir ±3% em 24h, não o lado escolhido.",
+ "tr": "Hareket = 24 saatlik beklenen aralık. Yukarı/aşağı = 24 saatte ±3% dokunma olasılığı, yön kararı değil.",
+ "es": "Mov. = rango esperado en 24h. Sube/baja = probabilidad de tocar ±3% en 24h, no el lado elegido."}
 T["pick_none"] = {
  "en": "No seal yet. The bot writes one every hour once it is running.",
  "zh": "尚无推荐。机器人运行后每小时生成一次。",

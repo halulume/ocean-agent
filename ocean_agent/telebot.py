@@ -159,7 +159,10 @@ def _pick_table(root, lang="ko"):
                   lang)
         out.append(tr("pick_row", lang).format(
             p.get("trade_rank", "-"), p.get("sym", "?"), side,
-            p.get("exp_move_pct", 0), p.get("entry", 0)))
+            p.get("exp_move_pct", 0), p.get("touch_up_pct", "-"),
+            p.get("touch_dn_pct", "-"), p.get("entry", 0)))
+    out.append("")
+    out.append(tr("pick_note", lang))
     return "\n".join(out)
 
 
