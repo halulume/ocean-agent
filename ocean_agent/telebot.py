@@ -129,6 +129,40 @@ def _carry_alerts(root, hours=24):
     return "\n".join(out) if out else "No data."
 
 
+def _pick_table(root, lang="ko"):
+    """Render the newest seal: exactly the picks the bot trades.
+
+    Reads the seal file the bracket bot consumes, so this can never drift
+    from what actually gets ordered. The seal is rewritten every hour on
+    the machine that runs the bot, operator and user alike.
+    """
+    import glob as _glob
+    import json as _json
+    from .telebot_i18n import tr
+    paths = sorted(_glob.glob(os.path.join(root, "outputs",
+                                           "내일예측_*.json")))
+    rec = None
+    for p in reversed(paths):
+        try:
+            with open(p, encoding="utf-8") as f:
+                r = _json.load(f)
+        except (OSError, ValueError):
+            continue
+        if str(r.get("rule", "")).startswith("자산군"):
+            rec = r
+            break
+    if rec is None:
+        return tr("pick_none", lang)
+    out = [tr("pick_header", lang).format(str(rec.get("made_at", ""))[:16])]
+    for p in rec.get("picks", []):
+        side = tr("side_long" if p.get("dir") == "long" else "side_short",
+                  lang)
+        out.append(tr("pick_row", lang).format(
+            p.get("trade_rank", "-"), p.get("sym", "?"), side,
+            p.get("exp_move_pct", 0), p.get("entry", 0)))
+    return "\n".join(out)
+
+
 def handle(cmd, env, root, lang="ko"):
     from .api_client import PacificaClient
     from .telebot_i18n import tr
@@ -136,8 +170,7 @@ def handle(cmd, env, root, lang="ko"):
                                 "https://api.pacifica.fi"),
                         address=env.get("ADDRESS", ""))
     if cmd == "/pick":
-        return _read_tail(root, os.path.join("outputs", "pick_table.md"),
-                          30, lang)
+        return _pick_table(root, lang)
     if cmd == "/funding":
         return _funding_table(cl, top=10)
     if cmd == "/carry":

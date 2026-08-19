@@ -676,3 +676,36 @@ def prov_kb() -> str:
     return json.dumps({"inline_keyboard": [[
         {"text": PROVIDERS[k]["name"], "callback_data": "prov:" + k}]
         for k in ("claude", "gpt", "gemini", "grok")]})
+
+
+# ── /pick rendered from the live seal (2026-08-19) ───────────────────────
+# pick_header takes the seal time; pick_row takes rank, symbol, side,
+# expected move %, entry price.
+T["pick_header"] = {
+ "en": "📌 Picks (sealed {0})", "zh": "📌 推荐（封存于 {0}）",
+ "ja": "📌 ピック（{0} 封印）", "ko": "📌 추천픽 ({0} 봉인)",
+ "vi": "📌 Lựa chọn (chốt {0})", "hi": "📌 पिक्स ({0})",
+ "id": "📌 Pilihan (disegel {0})", "ru": "📌 Подборка ({0})",
+ "pt": "📌 Escolhas (selado {0})", "tr": "📌 Seçimler ({0})",
+ "es": "📌 Selecciones (sellado {0})"}
+T["pick_row"] = {c: "{0}. {1} {2} · ±{3}% · {4}" for c, _ in LANGS}
+T["pick_none"] = {
+ "en": "No seal yet. The bot writes one every hour once it is running.",
+ "zh": "尚无推荐。机器人运行后每小时生成一次。",
+ "ja": "まだピックがありません。ボットが動き出すと毎時作成されます。",
+ "ko": "아직 봉인이 없습니다. 봇이 돌기 시작하면 매시간 만들어집니다.",
+ "vi": "Chưa có lựa chọn. Bot sẽ tạo mỗi giờ khi chạy.",
+ "hi": "अभी कोई पिक नहीं। बॉट चलने पर हर घंटे बनती है।",
+ "id": "Belum ada pilihan. Bot membuatnya tiap jam saat berjalan.",
+ "ru": "Пока нет подборки. Бот создаёт её каждый час во время работы.",
+ "pt": "Ainda sem escolhas. O bot gera a cada hora quando está rodando.",
+ "tr": "Henüz seçim yok. Bot çalışırken her saat oluşturur.",
+ "es": "Aún no hay selecciones. El bot las genera cada hora al ejecutarse."}
+T["side_long"] = {
+ "en": "LONG", "zh": "做多", "ja": "ロング", "ko": "롱", "vi": "LONG",
+ "hi": "LONG", "id": "LONG", "ru": "ЛОНГ", "pt": "LONG", "tr": "LONG",
+ "es": "LARGO"}
+T["side_short"] = {
+ "en": "SHORT", "zh": "做空", "ja": "ショート", "ko": "숏", "vi": "SHORT",
+ "hi": "SHORT", "id": "SHORT", "ru": "ШОРТ", "pt": "SHORT", "tr": "SHORT",
+ "es": "CORTO"}
