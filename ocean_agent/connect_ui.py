@@ -64,6 +64,7 @@ button { width:100%; margin-top:20px; padding:13px; border:0;
          font-size:15px; font-weight:700; cursor:pointer; }
 button:hover { filter:brightness(1.08); }
 .note { color:var(--sub); font-size:12.5px; margin-top:12px; }
+.ko { color:var(--ink); font-weight:600; }
 .ok { color:var(--ok); } .bad { color:var(--bad); }
 .big { font-size:38px; text-align:center; margin:10px 0 2px; }
 </style></head><body><div class="card">{body}</div></body></html>"""
@@ -77,10 +78,14 @@ _FORM = """
 <div class="msg"><b>1.</b> Log in at
  <a href="https://app.pacifica.fi" target="_blank">app.pacifica.fi</a>
  (connect wallet)</div>
-<div class="msg"><b>2.</b> Create an API key at
+<div class="msg"><b>2.</b> Open
  <a href="https://app.pacifica.fi/apikey" target="_blank">app.pacifica.fi/apikey</a>
- &middot; trade-only, cannot withdraw, revocable anytime</div>
-<div class="msg"><b>3.</b> Paste both below &middot; 아래에 붙여넣기</div>
+ and make a key: press <b>Generate</b>, copy the key that appears on the
+ left, then press <b>Create</b><br>
+ <span class="ko">Generate 누르기 → 왼쪽에 뜬 키 복사 → Create 누르기</span>
+ <br>trade-only, cannot withdraw, revocable anytime</div>
+<div class="msg"><b>3.</b> Paste the copied key below &middot;
+ 복사한 키를 아래에 붙여넣기</div>
 <form method="post" action="/submit?n={nonce}">
 <label>Wallet PUBLIC address (Solana) &middot; 지갑 공개주소</label>
 <input name="address" placeholder="e.g. 7Ncb...abcd" required
@@ -211,3 +216,98 @@ def open_connect_page(on_submit, brand="claude") -> str:
     except Exception:
         pass
     return url
+
+
+def write_env(path: str, addr: str, key: str) -> None:
+    """Put the two credentials into an env file, keeping other lines.
+
+    Written through a temp file and moved into place so a crash cannot
+    leave a half-written file, then locked to the current user where the
+    platform allows it.
+    """
+    lines = []
+    if os.path.exists(path):
+        with open(path, encoding="utf-8", errors="replace") as f:
+            lines = f.read().splitlines()
+
+    def upsert(ls, k, v):
+        out, done = [], False
+        for ln in ls:
+            if ln.strip().startswith(k + "="):
+                out.append(f"{k}={v}")
+                done = True
+            else:
+                out.append(ln)
+        if not done:
+            out.append(f"{k}={v}")
+        return out
+
+    lines = upsert(lines, "ADDRESS", addr)
+    lines = upsert(lines, "PACIFICA_API_KEY", key)
+    if not any(ln.strip().startswith("PACIFICA_BASE_URL=") for ln in lines):
+        lines.append("PACIFICA_BASE_URL=https://api.pacifica.fi")
+    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    os.replace(tmp, path)
+    try:
+        if os.name == "nt":
+            import subprocess
+            user = os.environ.get("USERNAME", "")
+            if user:
+                subprocess.run(["icacls", path, "/inheritance:r",
+                                "/grant:r", f"{user}:(R,W)"],
+                               capture_output=True, check=False)
+        else:
+            os.chmod(path, 0o600)
+    except Exception:
+        pass
+
+
+def main(argv=None) -> int:
+    """Collect credentials in the browser form; used by the installer.
+
+    Prints the URL so a headless or locked-down machine can still be
+    finished by hand, waits for the submission, and exits non-zero when
+    nothing arrives inside the window so the caller can fall back to
+    asking in the terminal.
+    """
+    import argparse
+    import time as _t
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--env-file", required=True)
+    ap.add_argument("--brand", default="claude")
+    ap.add_argument("--timeout", type=int, default=600)
+    a = ap.parse_args(argv)
+    state = {"done": False}
+
+    def on_submit(addr: str, key: str) -> dict:
+        write_env(a.env_file, addr, key)
+        state["done"] = True
+        try:
+            os.environ["ADDRESS"] = addr
+            os.environ["PACIFICA_API_KEY"] = key
+            from .api_client import PacificaClient
+            cl = PacificaClient(os.environ.get("PACIFICA_BASE_URL",
+                                               "https://api.pacifica.fi"),
+                                address=addr)
+            return {"ok": True, "bal": cl.get_account().get("balance")}
+        except Exception as e:
+            return {"ok": False, "msg": str(e)[:150]}
+
+    url = open_connect_page(on_submit, brand=a.brand)
+    print(f"  브라우저 창에서 입력해 주세요. 창이 안 열리면: {url}",
+          flush=True)
+    end = _t.time() + a.timeout
+    while _t.time() < end and not state["done"]:
+        _t.sleep(1)
+    if state["done"]:
+        print(f"  저장 완료: {a.env_file}", flush=True)
+        return 0
+    print("  입력이 없어 건너뜁니다.", flush=True)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

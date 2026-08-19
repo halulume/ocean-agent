@@ -419,40 +419,18 @@ def connect_pacifica(ctx: Context) -> str:
     complains that keys are missing. Tell the user a browser window opened
     and to finish there, in their own language."""
     def _save_and_test(addr: str, key: str) -> dict:
+        from .connect_ui import write_env
         env_path = os.environ.get("PACIFICA_ENV_FILE") or os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             ".env")
-        lines = []
-        if os.path.exists(env_path):
-            with open(env_path, encoding="utf-8", errors="replace") as f:
-                lines = f.read().splitlines()
-
-        def upsert(ls, k, v):
-            out, done = [], False
-            for ln in ls:
-                if ln.strip().startswith(k + "="):
-                    out.append(f"{k}={v}")
-                    done = True
-                else:
-                    out.append(ln)
-            if not done:
-                out.append(f"{k}={v}")
-            return out
-
-        lines = upsert(lines, "ADDRESS", addr)
-        lines = upsert(lines, "PACIFICA_API_KEY", key)
-        tmp = env_path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
-        os.replace(tmp, env_path)
+        write_env(env_path, addr, key)
         os.environ["ADDRESS"] = addr
         os.environ["PACIFICA_API_KEY"] = key
         try:
             client = PacificaClient(os.environ.get(
                 "PACIFICA_BASE_URL", "https://api.pacifica.fi"),
                 address=addr)
-            bal = client.get_account().get("balance")
-            return {"ok": True, "bal": bal}
+            return {"ok": True, "bal": client.get_account().get("balance")}
         except PacificaError as e:
             return {"ok": False, "msg": str(e)[:150]}
 

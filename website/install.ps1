@@ -1,7 +1,7 @@
 # Ocean Agent one-command installer (Windows)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 $ErrorActionPreference = 'Stop'
-$oaPkg = "ocean-agent@0.4.21"
+$oaPkg = "ocean-agent@0.4.22"
 Write-Host ""
 Write-Host "=== Ocean Agent installer ===" -ForegroundColor Cyan
 
@@ -29,25 +29,35 @@ if (Test-Path $envFile) {
     if ($ans -notmatch '^[yY]') { $write = $false; Write-Host "  keeping existing .env" }
 }
 if ($write) {
-    $addr = Read-Host "  Wallet public address (ADDRESS)"
-    Write-Host "  Opening app.pacifica.fi/apikey in your browser (create a key there)..."
-    try { Start-Process "https://app.pacifica.fi/apikey" } catch {}
-    $keySec = Read-Host "  Agent API key (from app.pacifica.fi/apikey, input hidden)" -AsSecureString
-    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($keySec)
-    $key  = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
-    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-    @(
-        "ADDRESS=$addr"
-        "PACIFICA_API_KEY=$key"
-        "PACIFICA_BASE_URL=https://api.pacifica.fi"
-    ) -join "`r`n" | Out-File -Encoding ascii $envFile
-    # Lock the file to the current user only (remove inherited access).
+    # Credentials go in through a small styled page on this machine, not
+    # a terminal prompt: pasting a key into a black console reads as
+    # something to be nervous about, and the form can check the format
+    # and test the connection while it is at it.
+    Write-Host "  Opening a secure form in your browser..."
+    $done = $false
     try {
-        icacls $envFile /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "icacls exited with code $LASTEXITCODE" }
-    } catch {
-        Write-Host "  WARNING: could not restrict permissions on $envFile ($_)" -ForegroundColor Yellow
-        Write-Host "  The file may be readable by other users on this machine." -ForegroundColor Yellow
+        & $uvx --from "ocean-agent" python -m ocean_agent.connect_ui `
+            --env-file "$envFile" --timeout 600
+        if ($LASTEXITCODE -eq 0) { $done = $true }
+    } catch { }
+    if (-not $done) {
+        Write-Host "  Browser form unavailable, asking here instead." -ForegroundColor Yellow
+        $addr = Read-Host "  Wallet public address (ADDRESS)"
+        try { Start-Process "https://app.pacifica.fi/apikey" } catch {}
+        $keySec = Read-Host "  Agent API key (input hidden)" -AsSecureString
+        $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($keySec)
+        $key  = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+        @(
+            "ADDRESS=$addr"
+            "PACIFICA_API_KEY=$key"
+            "PACIFICA_BASE_URL=https://api.pacifica.fi"
+        ) -join "`r`n" | Out-File -Encoding ascii $envFile
+        try {
+            icacls $envFile /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
+        } catch {
+            Write-Host "  WARNING: could not restrict permissions on $envFile" -ForegroundColor Yellow
+        }
     }
     Write-Host "  saved to $envFile (readable only by you)"
 }

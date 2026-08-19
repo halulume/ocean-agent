@@ -2,7 +2,7 @@
 # Ocean Agent one-command installer (macOS / Linux)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 set -e
-OA_PKG="ocean-agent@0.4.21"
+OA_PKG="ocean-agent@0.4.22"
 echo ""
 echo "=== Ocean Agent installer ==="
 
@@ -27,16 +27,25 @@ if [ -f "$ENVF" ]; then
     case "$ANS" in y|Y) ;; *) WRITE=0; echo "  keeping existing .env";; esac
 fi
 if [ "$WRITE" = "1" ]; then
-    printf "  Wallet public address (ADDRESS): "
-    read ADDR </dev/tty
-    echo "  Opening app.pacifica.fi/apikey in your browser (create a key there)..."
-    (open "https://app.pacifica.fi/apikey" 2>/dev/null || xdg-open "https://app.pacifica.fi/apikey" 2>/dev/null || true) >/dev/null 2>&1
-    printf "  Agent API key (from app.pacifica.fi/apikey, input hidden): "
-    stty -echo </dev/tty 2>/dev/null || true
-    read KEY </dev/tty
-    stty echo </dev/tty 2>/dev/null || true
-    echo ""
-    (umask 177; printf 'ADDRESS=%s\nPACIFICA_API_KEY=%s\nPACIFICA_BASE_URL=https://api.pacifica.fi\n' "$ADDR" "$KEY" > "$ENVF")
+    # Keys go in through a small styled page served on this machine
+    # rather than a console prompt; the form also checks the format and
+    # tests the connection. Falls back to asking here if it cannot run.
+    echo "  Opening a secure form in your browser..."
+    if ! "$UV" tool run --from ocean-agent python -m ocean_agent.connect_ui             --env-file "$ENVF" --timeout 600; then
+        echo "  Browser form unavailable, asking here instead."
+        printf "  Wallet public address (ADDRESS): "
+        read ADDR </dev/tty
+        (open "https://app.pacifica.fi/apikey" 2>/dev/null || xdg-open "https://app.pacifica.fi/apikey" 2>/dev/null || true) >/dev/null 2>&1
+        printf "  Agent API key (Generate, copy, Create; input hidden): "
+        stty -echo </dev/tty 2>/dev/null || true
+        read KEY </dev/tty
+        stty echo </dev/tty 2>/dev/null || true
+        echo ""
+        (umask 177; printf 'ADDRESS=%s
+PACIFICA_API_KEY=%s
+PACIFICA_BASE_URL=https://api.pacifica.fi
+' "$ADDR" "$KEY" > "$ENVF")
+    fi
     if ! chmod 600 "$ENVF" 2>/dev/null; then
         echo "  WARNING: chmod 600 failed; $ENVF may be readable by other users on this machine"
     fi
