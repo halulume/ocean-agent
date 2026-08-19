@@ -21,25 +21,50 @@ function Say($text)  { Write-Host "  $text" }
 function Dim($text)  { Write-Host "  $text" -ForegroundColor DarkGray }
 function Good($text) { Write-Host "  $text" -ForegroundColor DarkGreen }
 function Bad($text)  { Write-Host "  $text" -ForegroundColor Red }
-function Rule { Write-Host ("  " + ([string][char]0x2500) * 62) -ForegroundColor DarkGray }
 
 # Glyphs are built from code points rather than typed literally: this file
 # travels over the wire and is executed straight from the response, so a
-# stray encoding guess would turn every mark into mojibake.
-$CHK = [string][char]0x2713      # check
-$DOT = [string][char]0x25CF      # in progress
+# stray encoding guess would turn every mark into mojibake. Square corners,
+# not rounded ones, because Consolas carries these and not those.
+# Consolas carries no check mark, and a missing glyph draws as a hollow box,
+# so the three states are told apart by fill and colour instead: a filled dot
+# for done, a teal ring for the step running now, a grey ring for waiting.
+$CHK = [string][char]0x25CF      # done
+$DOT = [string][char]0x25CB      # in progress
 $RING = [string][char]0x25CB     # waiting
+$H = [string][char]0x2500        # horizontal
+$V = [string][char]0x2502        # vertical
+$TL = [string][char]0x250C; $TR = [string][char]0x2510
+$BL = [string][char]0x2514; $BR = [string][char]0x2518
+$W = 64                          # inner width of the card
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
 
+# The console cannot draw a rounded card with a shadow, but it can draw the
+# frame around one, which is what makes the window read as Claude's rather
+# than as a DOS box.
+function Edge($left, $right) {
+    Write-Host ("  " + $left + ($H * $W) + $right) -ForegroundColor DarkGray
+}
+function Line($text, $color) {
+    Write-Host ("  " + $V + " ") -ForegroundColor DarkGray -NoNewline
+    if ($color) { Write-Host $text.PadRight($W - 2) -ForegroundColor $color -NoNewline }
+    else { Write-Host $text.PadRight($W - 2) -NoNewline }
+    Write-Host (" " + $V) -ForegroundColor DarkGray
+}
+function Blank { Line "" $null }
+
 Write-Host ""
-Write-Host "  * " -ForegroundColor DarkRed -NoNewline
+Edge $TL $TR
+Write-Host ("  " + $V + " ") -ForegroundColor DarkGray -NoNewline
+Write-Host "* " -ForegroundColor DarkRed -NoNewline
 Write-Host "Claude" -NoNewline
-Write-Host ("".PadLeft(42) + "Ocean Agent") -ForegroundColor DarkGray
-Rule
-Write-Host ""
-Say "Installing"
-Dim "This usually takes a minute or two."
-Write-Host ""
+Write-Host ("Ocean Agent".PadLeft($W - 10)) -ForegroundColor DarkGray -NoNewline
+Write-Host (" " + $V) -ForegroundColor DarkGray
+Line ($H * ($W - 2)) DarkGray
+Blank
+Line "Installing" $null
+Line "This usually takes a minute or two." DarkGray
+Blank
 
 # The three rows mirror the browser window exactly, and they are redrawn in
 # place as each step lands. Where the cursor cannot be moved (redirected
@@ -49,7 +74,16 @@ $LABELS = @(@("python", "Preparing Python"),
             @("register", "Connecting to Claude"))
 $script:stepState = @{ python = "wait"; package = "wait"; register = "wait" }
 $script:rowsTop = $null
+$script:parked = $null
 $script:statusText = ""
+
+function Row($mark, $markColor, $label, $labelColor) {
+    Write-Host ("  " + $V + " ") -ForegroundColor DarkGray -NoNewline
+    Write-Host "$mark  " -ForegroundColor $markColor -NoNewline
+    if ($labelColor) { Write-Host $label.PadRight($W - 5) -ForegroundColor $labelColor -NoNewline }
+    else { Write-Host $label.PadRight($W - 5) -NoNewline }
+    Write-Host (" " + $V) -ForegroundColor DarkGray
+}
 
 function Draw-Rows {
     $canMove = $false
@@ -63,20 +97,22 @@ function Draw-Rows {
     } catch { }
     foreach ($pair in $LABELS) {
         $st = $script:stepState[$pair[0]]
-        if ($st -eq "done") {
-            Write-Host "  $CHK  " -ForegroundColor DarkCyan -NoNewline
-            Write-Host $pair[1].PadRight(60)
-        } elseif ($st -eq "run") {
-            Write-Host "  $DOT  " -ForegroundColor DarkCyan -NoNewline
-            Write-Host $pair[1].PadRight(60)
-        } else {
-            Write-Host "  $RING  " -ForegroundColor DarkGray -NoNewline
-            Write-Host $pair[1].PadRight(60) -ForegroundColor DarkGray
-        }
+        if ($st -eq "done") { Row $CHK DarkCyan $pair[1] $null }
+        elseif ($st -eq "run") { Row $DOT DarkCyan $pair[1] $null }
+        else { Row $RING DarkGray $pair[1] DarkGray }
     }
-    Write-Host ""
-    Write-Host ("  " + $script:statusText.PadRight(64)) -ForegroundColor DarkGray
-    if (-not $canMove) { Write-Host "" }
+    Blank
+    Line $script:statusText DarkGray
+    # the frame closes under the status line, and the cursor parks below it so
+    # anything printed later lands outside the card instead of eating its edge
+    if ($null -eq $script:parked) {
+        Edge $BL $BR
+        try { $script:parked = $Host.UI.RawUI.CursorPosition } catch { }
+    } elseif ($canMove) {
+        try { $Host.UI.RawUI.CursorPosition = $script:parked } catch { }
+    } else {
+        Write-Host ""
+    }
 }
 
 function Status($text) {
@@ -106,7 +142,7 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     # rows away; it runs in a child process with every stream discarded
     $null = & powershell -NoProfile -ExecutionPolicy ByPass -Command `
         "irm https://astral.sh/uv/install.ps1 | iex" 2>&1
-    $env:Path = "$env:USERPROFILE\.localin;$env:Path"
+    $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
 }
 $uvx = Join-Path $env:USERPROFILE ".local\bin\uvx.exe"
 if (-not (Test-Path $uvx)) {
@@ -316,8 +352,6 @@ try {
 }
 
 Status ""
-Write-Host ""
-Rule
 Write-Host ""
 Write-Host "  $CHK  " -ForegroundColor DarkCyan -NoNewline
 Write-Host "Install complete."
