@@ -140,8 +140,8 @@ Report "python" "run"
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     # uv's own installer prints a page of PATH advice, which would scroll the
     # rows away; it runs in a child process with every stream discarded
-    $null = & powershell -NoProfile -ExecutionPolicy ByPass -Command `
-        "irm https://astral.sh/uv/install.ps1 | iex" 2>&1
+    $uvCmd = "iex (irm https://astral.sh/uv/install.ps1)"
+    $null = & powershell -NoProfile -ExecutionPolicy ByPass -Command $uvCmd 2>&1
     $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
 }
 $uvx = Join-Path $env:USERPROFILE ".local\bin\uvx.exe"
@@ -149,13 +149,39 @@ if (-not (Test-Path $uvx)) {
     $cmd = Get-Command uvx -ErrorAction SilentlyContinue
     if ($cmd) { $uvx = $cmd.Source } else { $uvx = "uvx" }
 }
+# Let uv bring its own Python. A machine with the Microsoft Store Python on
+# PATH otherwise hands uv an interpreter it cannot launch, and the install
+# dies on "Unable to create process using ...WindowsApps\python.exe".
+$env:UV_PYTHON_PREFERENCE = "only-managed"
 
-# Bring up the install page and let it carry the rest: progress, the two
-# credentials, and the finish card all happen there, so this console has
-# nothing left worth reading.
 $envDir  = Join-Path $env:USERPROFILE ".ocean-agent"
 New-Item -ItemType Directory -Force $envDir | Out-Null
 $envFile = Join-Path $envDir ".env"
+Report "python" "done"
+
+# 2) the package, downloaded BEFORE the window is asked for. On a machine
+# with nothing on it this pulls a Python and forty wheels, minutes on a slow
+# line, and the window cannot exist until it lands. Starting the window
+# first and waiting a fixed spell is how an install ends up looking finished
+# while the browser never opened.
+Report "package" "run"
+Status "Downloading Ocean Agent and its Python..."
+$prep = & $uvx --from $oaPkg python -c "import ocean_agent" 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Status ""
+    Bad "Could not install Ocean Agent."
+    Write-Host ""
+    Dim ($prep | Out-String).Trim()
+    Write-Host ""
+    Say "Nothing was saved. Check your connection and run the line again."
+    exit 1
+}
+Report "package" "done"
+
+# Bring up the install page and let it carry the rest: progress, the two
+# credentials, and the finish card all happen there, so this console has
+# nothing left worth reading. The package is already local by now, so the
+# window comes up in a second or two; the wait below is only a safety net.
 $uiOut = Join-Path $env:TEMP "ocean_agent_ui.txt"
 $uiProc = $global:oaUiProc
 try {
@@ -164,11 +190,11 @@ try {
     if ($env:OA_UI) { throw "reuse" }
     Remove-Item $uiOut -ErrorAction SilentlyContinue
     $uiProc = Start-Process -PassThru -WindowStyle Hidden -FilePath $uvx `
-        -ArgumentList @("--from", "ocean-agent", "python", "-m",
+        -ArgumentList @("--from", $oaPkg, "python", "-m",
             "ocean_agent.install_ui", "--env-file", "$envFile",
             "--stage", "install", "--timeout", "1800") `
         -RedirectStandardOutput $uiOut
-    for ($i = 0; $i -lt 90; $i++) {
+    for ($i = 0; $i -lt 240; $i++) {
         if (Test-Path $uiOut) {
             $line = (Get-Content $uiOut -ErrorAction SilentlyContinue |
                      Where-Object { $_ -like "URL *" } | Select-Object -First 1)
@@ -183,10 +209,8 @@ try {
     }
 } catch { }
 if ($env:OA_UI) { Status "A window just opened; it follows along." }
-Report "python" "done"
 
-# 2) terms of use (declining aborts the install; details: oceanagent.fi)
-Report "package" "run"
+# 3) terms of use (declining aborts the install; details: oceanagent.fi)
 $env:PACIFICA_ENV_FILE = $envFile
 $marker = Join-Path $env:USERPROFILE ".ocean_agent_builder_consent"
 if ($env:OA_UI) {
@@ -213,8 +237,7 @@ if ($env:OA_UI) {
     if ($LASTEXITCODE -eq 3) { exit 1 }
 }
 
-# 3) register in Claude Desktop config
-Report "package" "done"
+# 4) register in Claude Desktop config
 Report "register" "run"
 Status "Writing the Claude config."
 $cfgDir  = Join-Path $env:APPDATA "Claude"
@@ -270,7 +293,7 @@ if ($bakPath) {
 
 Report "register" "done"
 
-# 4) credentials, last, on the page that is already open
+# 5) credentials, last, on the page that is already open
 Status "Your account"
 $write = $true
 if (Test-Path $envFile) {
@@ -302,18 +325,30 @@ if ($write) {
         $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($keySec)
         $key  = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-        @(
-            "ADDRESS=$addr"
-            "PACIFICA_API_KEY=$key"
-            "PACIFICA_BASE_URL=https://api.pacifica.fi"
-        ) -join "`r`n" | Out-File -Encoding ascii $envFile
-        try {
-            icacls $envFile /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
-        } catch {
-            Bad "Could not restrict permissions on $envFile."
+        # An empty answer used to be written out as an empty .env, and the
+        # install then reported success while the tools had nothing to sign
+        # with. Say so instead, and leave the file alone.
+        if ([string]::IsNullOrWhiteSpace($addr) -or [string]::IsNullOrWhiteSpace($key)) {
+            Bad "No wallet address or key was entered, so nothing was saved."
+            Write-Host ""
+            Say "Ocean Agent is installed. To add your keys later, run:"
+            Dim "    uvx --from $oaPkg python -m ocean_agent.connect_ui --env-file `"$envFile`""
+            Write-Host ""
+            $write = $false
+        } else {
+            @(
+                "ADDRESS=$addr"
+                "PACIFICA_API_KEY=$key"
+                "PACIFICA_BASE_URL=https://api.pacifica.fi"
+            ) -join "`r`n" | Out-File -Encoding ascii $envFile
+            try {
+                icacls $envFile /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
+            } catch {
+                Bad "Could not restrict permissions on $envFile."
+            }
         }
     }
-    Status "Keys saved. Only you can read them."
+    if ($write) { Status "Keys saved. Only you can read them." }
 }
 $env:PACIFICA_ENV_FILE = $envFile
 
