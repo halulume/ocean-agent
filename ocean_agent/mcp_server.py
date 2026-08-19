@@ -998,6 +998,15 @@ def daily_picks(refresh: bool = False) -> str:
     import time as _time
     from .seal_maker import OUTPUTS_DIR, make_seal
 
+    # The ranked list is for connected accounts. Analysis tools stay open
+    # to everyone; this one asks for the wallet's public address first.
+    _base = os.environ.get("PACIFICA_BASE_URL", "https://api.pacifica.fi")
+    if not address_from_env(_base):
+        return ("추천픽은 지갑을 연결한 분께 제공됩니다. connect_pacifica "
+                "도구를 실행하면 브라우저 창에서 지갑 공개주소만 넣어도 "
+                "바로 열립니다 (조회 전용, 거래·출금 불가). 차트 분석과 "
+                "펀딩 조회 같은 다른 기능은 연결 없이 계속 쓰실 수 있습니다.")
+
     def newest():
         for p in reversed(sorted(_glob.glob(
                 os.path.join(OUTPUTS_DIR, "내일예측_*.json")))):
