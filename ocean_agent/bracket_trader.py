@@ -108,21 +108,29 @@ def bracket_mode(policy: dict) -> str:
     return m
 
 
-def use_mode(mode: str) -> None:
+def use_mode(mode: str, dry: bool = False) -> None:
     """Point the state and heartbeat files at this mode's own files.
 
     Base and hard trade different plans, so their positions and closed
     records must never share one file. Base keeps the original path.
+
+    A dry run is given its own names on top of that. Today it writes nothing
+    at all (BR1), so the separation costs nothing; the day someone lets a dry
+    run keep a ledger, it will land beside the live one instead of on top of
+    it.
     """
     global MODE, STATE_PATH, HEARTBEAT_PATH
     MODE = mode
     suffix = "" if mode == "base" else f"_{mode}"
+    if dry:
+        suffix += "_dry"
     STATE_PATH = os.path.join(OUTPUTS_DIR, f"bracket_state{suffix}.json")
-    HEARTBEAT_PATH = heartbeat_path(mode)
+    HEARTBEAT_PATH = heartbeat_path(mode, dry)
 
 
-def heartbeat_path(mode: str) -> str:
-    return os.path.join(OUTPUTS_DIR, f"bracket_alive_{mode}.json")
+def heartbeat_path(mode: str, dry: bool = False) -> str:
+    return os.path.join(OUTPUTS_DIR,
+                        f"bracket_alive_{mode}{'_dry' if dry else ''}.json")
 
 
 def write_heartbeat() -> None:
@@ -1205,7 +1213,7 @@ def main():
     _selfgen_enabled = bool(policy.get("bracket_selfgen_seal", True))
     if not _selfgen_enabled:
         log("봉인 자체 생성 꺼짐 (bracket_selfgen_seal: false), 외부 생성기를 기다립니다")
-    use_mode(bracket_mode(policy))      # before any file is read or written
+    use_mode(bracket_mode(policy), args.dry)   # before any file is touched
     # Every safety file (state, heartbeat, seals) lives under OUTPUTS_DIR.
     # If it cannot be written, the heartbeat and ledger the cross-bot guards
     # depend on cannot exist either, so refuse to run at all. (review N1)
