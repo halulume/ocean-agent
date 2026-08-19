@@ -75,3 +75,7 @@ vercel_token.txt
 추천픽.md
 홀드아웃_사전등록.md
 nul
+
+# review notes and simulation output stay local
+전수검토_*.md
+outputs/sim_report.txt
