@@ -80,12 +80,10 @@ _FORM = """
  (connect wallet)</div>
 <div class="msg"><b>2.</b> Open
  <a href="https://app.pacifica.fi/apikey" target="_blank">app.pacifica.fi/apikey</a>
- and make a key: press <b>Generate</b>, copy the key that appears on the
- left, then press <b>Create</b><br>
- <span class="ko">Generate 누르기 → 왼쪽에 뜬 키 복사 → Create 누르기</span>
+ and make a key<br>
+ <span class="ko">Generate &rarr; copy the key on the left &rarr; Create</span>
  <br>trade-only, cannot withdraw, revocable anytime</div>
-<div class="msg"><b>3.</b> Paste the copied key below &middot;
- 복사한 키를 아래에 붙여넣기</div>
+<div class="msg"><b>3.</b> Paste the copied key below</div>
 <form method="post" action="/submit?n={nonce}">
 <label>Wallet PUBLIC address (Solana) &middot; 지갑 공개주소</label>
 <input name="address" placeholder="e.g. 7Ncb...abcd" required
