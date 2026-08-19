@@ -2,8 +2,36 @@
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 $ErrorActionPreference = 'Stop'
 $oaPkg = "ocean-agent@0.4.29"
+
+# The console a new user lands in is the first impression, so it is dressed
+# as Claude instead of left as a black DOS box: light ground, dark text, the
+# amber mark. Colour goes through Write-Host and never ANSI, because an ANSI
+# reset returns the line to the console's ORIGINAL dark-blue attributes and
+# repaints half of every styled line in the old colours. DarkYellow and Gray
+# are avoided too: PowerShell's palette draws them near white, so anything
+# in them would vanish on this ground.
+$ui = $Host.UI.RawUI
+try {
+    $ui.WindowTitle = "Claude - Ocean Agent"
+    $ui.BackgroundColor = 'White'
+    $ui.ForegroundColor = 'Black'
+    Clear-Host
+} catch { }
+function Say($text)  { Write-Host "  $text" }
+function Dim($text)  { Write-Host "  $text" -ForegroundColor DarkGray }
+function Good($text) { Write-Host "  $text" -ForegroundColor DarkGreen }
+function Bad($text)  { Write-Host "  $text" -ForegroundColor Red }
+function Rule { Write-Host ("  " + ("-" * 66)) -ForegroundColor DarkGray }
+
 Write-Host ""
-Write-Host "=== Ocean Agent installer ===" -ForegroundColor DarkCyan
+Write-Host "  * " -ForegroundColor DarkRed -NoNewline
+Write-Host "Claude" -NoNewline
+Write-Host ("".PadLeft(46) + "Ocean Agent") -ForegroundColor DarkGray
+Rule
+Write-Host ""
+Say "Installing Ocean Agent. This takes a minute or two."
+Dim "Nothing to type here: a window opens and asks for what it needs."
+Write-Host ""
 
 # The install page (OA_UI, set by the launcher) shows progress in the
 # browser so nobody has to read a console. Reporting is best effort: if
@@ -18,11 +46,11 @@ function Report($step, $status) {
 
 # 1) uv (installs its own Python automatically)
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-    Write-Host "[1/4] Installing uv..."
+    Say "Preparing Python..."
     Report "python" "run"
     Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression
 } else {
-    Write-Host "[1/4] uv already installed"
+    Say "Python is ready."
 }
 $uvx = Join-Path $env:USERPROFILE ".local\bin\uvx.exe"
 if (-not (Test-Path $uvx)) {
@@ -63,13 +91,13 @@ try {
     }
 } catch { }
 if ($env:OA_UI) {
-    Write-Host "  Follow along in the browser window that just opened."
+    Dim "Follow along in the window that just opened."
 }
 Report "python" "done"
 
 # 2) terms of use (declining aborts the install; details: oceanagent.fi)
 Report "package" "run"
-Write-Host "[2/4] Terms of Use"
+Say "Terms of use"
 $env:PACIFICA_ENV_FILE = $envFile
 $marker = Join-Path $env:USERPROFILE ".ocean_agent_builder_consent"
 if ($env:OA_UI) {
@@ -77,7 +105,7 @@ if ($env:OA_UI) {
     # is looking at; the answer lands in the same marker file either way
     Remove-Item $marker -ErrorAction SilentlyContinue
     Report "terms" "run"
-    Write-Host "  Answer in the window, please."
+    Dim "Answer in the window, please."
     $answer = ""
     for ($i = 0; $i -lt 1200; $i++) {
         if (Test-Path $marker) {
@@ -87,7 +115,7 @@ if ($env:OA_UI) {
         Start-Sleep -Seconds 1
     }
     if ($answer -eq "declined") {
-        Write-Host "  Terms declined. Installation cancelled." -ForegroundColor DarkYellow
+        Bad "Terms declined. Installation cancelled."
         exit 1
     }
 } else {
@@ -98,7 +126,7 @@ if ($env:OA_UI) {
 # 3) register in Claude Desktop config
 Report "package" "done"
 Report "register" "run"
-Write-Host "[3/4] Registering with Claude Desktop"
+Say "Connecting to Claude..."
 $cfgDir  = Join-Path $env:APPDATA "Claude"
 $cfgPath = Join-Path $cfgDir "claude_desktop_config.json"
 $server  = [pscustomobject]@{
@@ -113,7 +141,7 @@ if (Test-Path $cfgPath) {
     try {
         $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
     } catch {
-        Write-Host "  WARNING: existing config is not valid JSON; rewriting it (original saved as .bak)" -ForegroundColor DarkYellow
+        Bad "The existing Claude config was not valid JSON; it was rewritten (original saved as .bak)."
         $cfg = $null
     }
     if ($null -eq $cfg) { $cfg = [pscustomobject]@{} }
@@ -145,30 +173,30 @@ try {
     exit 1
 }
 if ($bakPath) {
-    Write-Host "  updated $cfgPath (backup saved as .bak)"
+    Dim "Claude config updated."
 } else {
-    Write-Host "  updated $cfgPath"
+    Dim "Claude config updated."
 }
 
 Report "register" "done"
 
 # 4) credentials, last, on the page that is already open
-Write-Host "[4/4] Account setup"
+Say "Your account"
 $write = $true
 if (Test-Path $envFile) {
     $ans = Read-Host "  .env already exists. Overwrite? (y/N)"
-    if ($ans -notmatch '^[yY]') { $write = $false; Write-Host "  keeping existing .env" }
+    if ($ans -notmatch '^[yY]') { $write = $false; Dim "Keeping the keys already saved." }
 }
 if ($write) {
     $done = $false
     if ($env:OA_UI -and $uiProc -and -not $uiProc.HasExited) {
-        Write-Host "  Waiting for the browser window (wallet address + API key)..."
+        Dim "Waiting for the window: wallet address and API key."
         Report "keys" "run"
         $uiProc.WaitForExit()
         if (Test-Path $envFile) { $done = $true }
     }
     if (-not $done) {
-        Write-Host "  Opening a secure form in your browser..."
+        Dim "Opening a secure form..."
         try {
             & $uvx --from "ocean-agent" python -m ocean_agent.connect_ui `
                 --env-file "$envFile" --timeout 600
@@ -176,7 +204,7 @@ if ($write) {
         } catch { }
     }
     if (-not $done) {
-        Write-Host "  Browser form unavailable, asking here instead." -ForegroundColor DarkYellow
+        Dim "The form could not open, so this window asks instead."
         $addr = Read-Host "  Wallet public address (ADDRESS)"
         try { Start-Process "https://app.pacifica.fi/apikey" } catch {}
         $keySec = Read-Host "  Agent API key (input hidden)" -AsSecureString
@@ -191,10 +219,10 @@ if ($write) {
         try {
             icacls $envFile /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
         } catch {
-            Write-Host "  WARNING: could not restrict permissions on $envFile" -ForegroundColor DarkYellow
+            Bad "Could not restrict permissions on $envFile."
         }
     }
-    Write-Host "  saved to $envFile (readable only by you)"
+    Good "Saved. Only you can read it."
 }
 $env:PACIFICA_ENV_FILE = $envFile
 
@@ -202,7 +230,7 @@ $env:PACIFICA_ENV_FILE = $envFile
 # a restart. Doing it here saves the user a step they cannot skip; if
 # Claude was not running, it is simply started.
 Write-Host ""
-Write-Host "Restarting Claude Desktop so the tools load..."
+Say "Restarting Claude so the tools load..."
 $claudeExe = $null
 try {
     $running = Get-Process -Name "Claude" -ErrorAction SilentlyContinue
@@ -224,23 +252,23 @@ try {
     }
     if ($claudeExe -and (Test-Path $claudeExe)) {
         Start-Process $claudeExe
-        Write-Host "  Claude Desktop restarted." -ForegroundColor DarkGreen
+        Good "Claude restarted."
     } else {
-        Write-Host "  Could not find Claude Desktop. Open it yourself once." -ForegroundColor DarkYellow
+        Dim "Could not find Claude. Open it yourself once."
     }
 } catch {
-    Write-Host "  Could not restart Claude Desktop. Open it yourself once." -ForegroundColor DarkYellow
+    Dim "Could not restart Claude. Open it yourself once."
 }
 
 Write-Host ""
-Write-Host "==============================================" -ForegroundColor DarkGreen
-Write-Host "  INSTALL COMPLETE" -ForegroundColor DarkGreen
-Write-Host "==============================================" -ForegroundColor DarkGreen
-Write-Host "Nothing else to type in this window. You can close it."
+Rule
 Write-Host ""
-Write-Host "Now go to Claude Desktop and just talk to it:" -ForegroundColor DarkYellow
-Write-Host "       show me today's picks"
-Write-Host "       start auto trading"
+Good "Install complete."
 Write-Host ""
-Write-Host "Say hello in any language and it replies in yours."
-Write-Host "Your keys are already saved, so there is nothing more to set up."
+Say "Go to Claude and just talk to it:"
+Dim "    show me today's picks"
+Dim "    start auto trading"
+Write-Host ""
+Dim "Any language works, and your keys are already saved."
+Dim "Nothing else to type here. You can close this window."
+Write-Host ""
