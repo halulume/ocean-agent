@@ -638,13 +638,14 @@
       <br><button onclick="openTerms()">Review terms &amp; install</button>
     </div>
     <div class="istep">
-      <div class="ihead">Windows: paste into PowerShell</div>
-      <div class="iwrap gated"><pre><code>powershell -ExecutionPolicy ByPass -c "irm https://oceanagent.fi/install.ps1 | iex"</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+      <div class="ihead">Windows: press <b>Win + R</b>, paste, press Enter</div>
+      <div class="iwrap gated"><pre><code>powershell -NoExit -ExecutionPolicy ByPass -c "irm https://oceanagent.fi/install.ps1 | iex"</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+      <p class="body" style="margin-top:8px">No need to find a terminal: <b>Win + R</b> opens the Run box, and this line opens the window and installs in it. You type nothing else, anywhere.</p>
     </div>
     <div class="istep">
-      <div class="ihead">macOS / Linux: paste into Terminal</div>
+      <div class="ihead">macOS / Linux: open Terminal (<b>Cmd + Space</b>, type terminal), paste, press Enter</div>
       <div class="iwrap gated"><pre><code>sh -c "$(curl -LsSf https://oceanagent.fi/install.sh)"</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
-      <p class="body" style="margin-top:8px">It asks for your wallet public address and an agent key from <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a> (trade only, cannot withdraw, revocable any time). When it finishes, restart Claude, the trading tools appear in chat. <b>No bot required.</b></p>
+      <p class="body" style="margin-top:8px">A form then opens in your browser for your wallet public address and a key from <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a> (trade only, cannot withdraw, revocable any time). Claude restarts itself and the trading tools appear in chat. <b>No bot required.</b></p>
       <p class="body" style="margin-top:8px"><b>Works in your language.</b> You chat with your AI in any language: English, 中文, 日本語, 한국어, Tiếng Việt, Español and more. It drives the tools and explains every result in your language, and new version notices arrive in it too.</p>
     </div>
     <div class="istep">
