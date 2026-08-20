@@ -377,6 +377,29 @@ def _series(closes, highs=None, lows=None):
 
 
 # (이름, 방향, 판정함수), 매트릭스 실측에서 살아남은 계열만
+def _enter(cond):
+    """상태 조건을 '그 상태로 들어서는 첫 봉'으로 바꾼다.
+
+    RSI 가 70 위에 20봉 머물면 예전에는 20번 켜졌다. 그 20건은 사실상 같은
+    사건 하나인데, 조합 학습(co_active)에서는 20표를 던지고 승률 표본도 그만큼
+    부풀렸다. 표본 관문(_ni)만 겹침을 제거하고 승률·EV 는 전부 세던 불일치도
+    여기서 함께 사라진다.
+
+    극단 문턱의 성질은 그대로 남는다: RSI 80 을 넘는 첫 봉은 여전히 큰 움직임이
+    있어야 만들어진다. 이탈 순간(RSI 과열이탈)은 별개 신호로 따로 있다.
+    """
+    def fired(i):
+        if not cond(i):
+            return False
+        if i == 0:
+            return True
+        try:
+            return not cond(i - 1)
+        except (TypeError, IndexError):
+            return True
+    return fired
+
+
 def _signals(s):
     rsi, ma20, ma50, hist = s["rsi"], s["ma20"], s["ma50"], s["hist"]
     def x(i, arr):
@@ -394,12 +417,14 @@ def _signals(s):
         # 구간이 겹치지 않게 나눈다. 예전에는 RSI 82 면 70 과 80 이 동시에
         # 켜져서, 조합 학습(co_active)이 같은 정보를 두 번 세고 표본 관문도
         # 두 번 통과시켰다. 이제 70 은 70~80 구간만, 80 은 그 위만 맡는다.
-        "RSI>70 과열": ("short", lambda i: rsi[i] is not None
-                        and 70 < rsi[i] <= 80),
-        "RSI>80 극과열": ("short", lambda i: rsi[i] is not None and rsi[i] > 80),
-        "RSI<30 과매도": ("long", lambda i: rsi[i] is not None
-                        and 20 <= rsi[i] < 30),
-        "RSI<20 극과매도": ("long", lambda i: rsi[i] is not None and rsi[i] < 20),
+        "RSI>70 과열": ("short", _enter(lambda i: rsi[i] is not None
+                                   and 70 < rsi[i] <= 80)),
+        "RSI>80 극과열": ("short", _enter(lambda i: rsi[i] is not None
+                                    and rsi[i] > 80)),
+        "RSI<30 과매도": ("long", _enter(lambda i: rsi[i] is not None
+                                   and 20 <= rsi[i] < 30)),
+        "RSI<20 극과매도": ("long", _enter(lambda i: rsi[i] is not None
+                                    and rsi[i] < 20)),
         # 추세 전환 이벤트 (실측: '상태'보다 '발생 순간'이 유효)
         "MA 골든크로스": ("long", lambda i: i > 0 and x(i, ma20) and x(i, ma50)
                        and ma20[i] > ma50[i] and ma20[i-1] <= ma50[i-1]),
@@ -415,12 +440,12 @@ def _signals(s):
         # (research/fork_bollinger.py). 예전에는 반대 부호였다.
         # 주의: 뒤집어도 돈이 되지는 않는다. 12시간봉 2σ 엣지가 +0.135%p 로
         # 왕복 수수료 0.16%p 아래다. 부호를 맞춘 것이지 수익원이 아니다.
-        "볼린저 상단이탈": ("long", lambda i: bb[i] is not None and bb[i] > 2),
-        "볼린저 하단이탈": ("short", lambda i: bb[i] is not None and bb[i] < -2),
+        "볼린저 상단이탈": ("long", _enter(lambda i: bb[i] is not None and bb[i] > 2)),
+        "볼린저 하단이탈": ("short", _enter(lambda i: bb[i] is not None and bb[i] < -2)),
         # ── 아래는 매트릭스 검증 대기 중인 후보 계열 ──
         # 승률이 아니라 실측 EV가 마이너스면 _matrix_rejects가 자동 차단한다.
-        "sRSI>80 과열": ("short", lambda i: sk[i] is not None and sk[i] > 80),
-        "sRSI<20 과매도": ("long", lambda i: sk[i] is not None and sk[i] < 20),
+        "sRSI>80 과열": ("short", _enter(lambda i: sk[i] is not None and sk[i] > 80)),
+        "sRSI<20 과매도": ("long", _enter(lambda i: sk[i] is not None and sk[i] < 20)),
         # 게이트는 20/80. 40/60 은 중립 구간의 교차까지 잡아 표준의 두 배로
         # 헐거웠다 (한국투자증권: "골든크로스는 %K 가 %D 를 과매도 영역 20%
         # 이하에서 상향 돌파할 때")
