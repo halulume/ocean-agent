@@ -1671,7 +1671,7 @@ def _warn_duplicate_keys(path: str) -> None:
                 continue
             k = m.group(1)
             if k in seen:
-                log(f"경고: policy 중복 키 '{k}' — 마지막 값이 적용됩니다")
+                log(f"경고: policy 중복 키 '{k}', 마지막 값이 적용됩니다")
             seen.add(k)
     except OSError:
         pass

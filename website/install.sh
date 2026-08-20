@@ -44,7 +44,16 @@ ENVF="$ENVDIR/.env"
 echo "[2/4] Terms of Use"
 RC=0
 PACIFICA_ENV_FILE="$ENVF" "$UVX" --from "$OA_PKG" python -m ocean_agent.builder_consent </dev/tty || RC=$?
-if [ "$RC" = "3" ]; then exit 1; fi
+# Anything other than a clean accept stops the install. Checking only for 3
+# meant a crash in builder_consent -- an ImportError, a network failure, uvx
+# itself dying -- exited 1 or 2, did not match, and the install carried on to
+# attach live order tools under terms nobody agreed to.
+if [ "$RC" != "0" ]; then
+    echo ""
+    echo "  The terms step did not complete (exit $RC), so the install stopped here."
+    echo "  Nothing was connected. Run the line again when you are ready."
+    exit 1
+fi
 
 # 3) keys -> .env (after the terms, so declining leaves no key on disk)
 echo "[3/4] Account setup"

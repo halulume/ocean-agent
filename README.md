@@ -1,6 +1,6 @@
 # ocean-agent
 
-> **🌊 OPEN BETA** — Ocean Agent has been open to everyone since Aug 19, 2026.
+> **🌊 OPEN BETA**: Ocean Agent has been open to everyone since Aug 19, 2026.
 > No invitation and no waitlist: install it and connect your own account.
 > The bracket engine is still being live-validated with our own funds too.
 > Follow the daily scorecard on [Telegram](https://t.me/+V7wwRr6n4ZtmOGFl).

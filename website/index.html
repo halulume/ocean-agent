@@ -1557,14 +1557,14 @@ OKX_API_PASSPHRASE=...</code></pre>
 
           <h4>Tested and deliberately not changed</h4>
           <p>Nine ideas measured worse than what was already there. Recording them matters as
-            much as the changes &mdash; it stops us re litigating settled questions.</p>
+            much as the changes, because it stops us re litigating settled questions.</p>
           <div class="tbl-wrap"><table class="dtable">
             <thead><tr><th>Idea</th><th>Result</th></tr></thead><tbody>
             <tr><th>Fixed 1.5% stop / 5% target</th><td>Negative even under the most generous fill assumption</td></tr>
             <tr><th>Volume spike entry filter</th><td>Entering on volume spikes was worse by 1.8pp</td></tr>
             <tr><th>Lower the sample requirement</th><td>30 samples beat 20, 15, 10 and 5</td></tr>
             <tr><th>Cap holding time</th><td>A 6-hour cap erased 85% of profit</td></tr>
-            <tr><th>Size as a % of equity</th><td>Compounding blow up &mdash; impressive on paper, impossible in practice</td></tr>
+            <tr><th>Size as a % of equity</th><td>Compounding blow up: impressive on paper, impossible in practice</td></tr>
             <tr><th>Tighten the entry gates</th><td>Worse at three consecutive thresholds</td></tr>
             <tr><th>Shrink targets to correct bias</th><td>Narrower targets removed the room trailing stops need</td></tr>
             </tbody></table></div>
@@ -1572,11 +1572,11 @@ OKX_API_PASSPHRASE=...</code></pre>
           <h4>What actually produces the returns</h4>
           <div class="tbl-wrap"><table class="dtable">
             <thead><tr><th>Prediction</th><th>Accuracy</th><th>Role</th></tr></thead><tbody>
-            <tr><th>Direction &mdash; up or down</th><td>near a coin flip</td><td>Essentially none. Gone entirely one week out.</td></tr>
-            <tr><th>Magnitude &mdash; how far</th><td>weak but present</td><td>Enough to place the target and the stop.</td></tr>
+            <tr><th>Direction, up or down</th><td>near a coin flip</td><td>Essentially none. Gone entirely one week out.</td></tr>
+            <tr><th>Magnitude, how far</th><td>weak but present</td><td>Enough to place the target and the stop.</td></tr>
             </tbody></table></div>
           <p>Direction is close to a coin flip. Knowing <em>how far</em> price tends to travel is
-            what lets the agent place an asymmetric target and stop &mdash; and the trailing stop
+            what lets the agent place an asymmetric target and stop, and the trailing stop
             converts that asymmetry into profit. Disable trailing and most of the returns
             disappear, while drawdown grows sharply.</p>
           <blockquote>It is not a forecaster. It is a trend follower with a measured sense of scale.</blockquote>
@@ -1605,7 +1605,7 @@ OKX_API_PASSPHRASE=...</code></pre>
 
           <h4>Print evaluated and set aside</h4>
           <p>Pacifica&#39;s Print product pays a premium while a target order waits. We measured
-            every structure we could think of &mdash; single side, both sides, perp hedged,
+            every structure we could think of: single side, both sides, perp hedged,
             distance sweeps, leverage sweeps, BTC+ETH mixes, signal timing. All negative.</p>
           <p>The reason is one line: implied volatility sits below realised volatility.
             Selling that is a losing trade regardless of structure. A narrow calm-market
@@ -1627,7 +1627,7 @@ OKX_API_PASSPHRASE=...</code></pre>
           <h4>Profit and loss attributed to the wrong trade</h4>
           <p>A symbol&#39;s lifetime P&amp;L was being read as the result of the most recent
             trade. One winning BTC position was recorded as a $7.30 loss. Re grading the history
-            turned 1 win / 7 trades into 4 wins / 7 trades &mdash; which finally matched the
+            turned 1 win / 7 trades into 4 wins / 7 trades, which finally matched the
             account.</p>
 
           <h4>Risk sizing was 12&times; off</h4>

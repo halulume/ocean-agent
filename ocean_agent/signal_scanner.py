@@ -518,8 +518,19 @@ def _signals(s):
         # reason. Up-as-long looked like 4/8, but all four positives are
         # training halves and its test half is 0 of 4; the mirror is 4 of 4.
         # Down-as-short is 1/8 and its mirror is 7/8 with test 4 of 4.
-        "볼린저 스퀴즈 상방": ("short", lambda i: _squeeze_break(bw, bb, i, +1)),
-        "볼린저 스퀴즈 하방": ("long", lambda i: _squeeze_break(bw, bb, i, -1)),
+        #
+        # _enter, like the rest of the family. _squeeze_break is a state, true
+        # on every bar the price stays outside a band that was narrow, and
+        # these two were the only band signals left raw: on BTCUSDT 1h over
+        # 49,201 bars half their firings sit directly after another firing
+        # (50.1% and 50.3%), against 0.0% for the plain band exits. A squeeze
+        # break is a subset of bb > 2 yet fired more often than its own
+        # superset, purely from repeats, and that double weight flowed into
+        # _matrix_rejects' n >= 200, rematrix's MIN_N and the sample-weighted
+        # pooling in signal_ev. This is the duplication §108 removed, left
+        # behind inside one family.
+        "볼린저 스퀴즈 상방": ("short", _enter(lambda i: _squeeze_break(bw, bb, i, +1))),
+        "볼린저 스퀴즈 하방": ("long", _enter(lambda i: _squeeze_break(bw, bb, i, -1))),
         # 극단에서 '되돌아오는 순간', 극단 상태 자체보다 유효할 수 있음
         "RSI 과열이탈": ("short", lambda i: i > 0 and x(i, rsi)
                       and rsi[i] < 70 <= rsi[i-1]),

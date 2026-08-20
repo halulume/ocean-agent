@@ -314,7 +314,14 @@ if ($env:OA_UI) {
     }
 } else {
     & $uvx --from $oaPkg python -m ocean_agent.builder_consent
-    if ($LASTEXITCODE -eq 3) { exit 1 }
+    # Not just 3: a crash in the consent step exits 1 or 2, and treating that
+    # as "carry on" attaches live order tools under terms nobody answered.
+    if ($LASTEXITCODE -ne 0) {
+        Status ""
+        Bad "The terms step did not complete, so the install stopped here."
+        Say "Nothing was connected. Run the line again when you are ready."
+        exit 1
+    }
 }
 
 # 4) register in Claude Desktop config
