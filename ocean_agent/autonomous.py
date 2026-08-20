@@ -1696,6 +1696,7 @@ def load_policy() -> dict:
     for env_key, pol_key, cast in (
             ("BRACKET_CAPITAL_PCT", "bracket_capital_pct", float),
             ("BRACKET_NOTIONAL_USD", "bracket_notional_usd", float),
+            ("BRACKET_BUDGET_USD", "bracket_budget_usd", float),
             ("BRACKET_SLOTS", "bracket_slots", int)):
         raw = os.environ.get(env_key, "").strip()
         if raw:

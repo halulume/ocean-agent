@@ -235,8 +235,17 @@ def write_env(path: str, addr: str, key: str, extra: dict = None) -> None:
             out.append(f"{k}={v}")
         return out
 
-    lines = upsert(lines, "ADDRESS", addr)
-    lines = upsert(lines, "PACIFICA_API_KEY", key)
+    # An empty credential means "I do not have it here", never "erase the one
+    # on disk". A caller that only wants to add a setting (the budget tools)
+    # reads the keys out of its own environment, which is empty when the keys
+    # were written by a different process after this one started.
+    def keep(k, v):
+        if v:
+            return upsert(lines, k, v)
+        return lines
+
+    lines = keep("ADDRESS", addr)
+    lines = keep("PACIFICA_API_KEY", key)
     # anything else the setup asked for rides along, so an installed
     # user has one file to edit instead of a policy inside site-packages
     for k, v in (extra or {}).items():

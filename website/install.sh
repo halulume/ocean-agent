@@ -2,7 +2,7 @@
 # Ocean Agent one-command installer (macOS / Linux)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 set -e
-OA_PKG="ocean-agent@0.4.35"
+OA_PKG="ocean-agent@0.4.36"
 echo ""
 echo "=== Ocean Agent installer ==="
 
@@ -104,8 +104,13 @@ PY
 # Claude reads its config once at startup, so the tools only appear after
 # a restart. Doing it here saves a step the user cannot skip.
 echo ""
-echo "Restarting Claude Desktop so the tools load..."
-if [ "$(uname)" = "Darwin" ]; then
+# Quitting Claude is only safe when a person is watching this in a terminal.
+# With output captured, the thing running the installer may BE Claude, and
+# quitting it kills the session mid-install. Same rule as install.ps1.
+if [ ! -t 1 ]; then
+    echo "  Restart Claude Desktop yourself so the trading tools load."
+elif [ "$(uname)" = "Darwin" ]; then
+    echo "Restarting Claude Desktop so the tools load..."
     osascript -e 'tell application "Claude" to quit' >/dev/null 2>&1 || true
     sleep 3
     if open -a "Claude" >/dev/null 2>&1; then
@@ -114,14 +119,9 @@ if [ "$(uname)" = "Darwin" ]; then
         echo "  Could not find Claude Desktop. Open it yourself once."
     fi
 else
-    pkill -f -i "claude" >/dev/null 2>&1 || true
-    sleep 2
-    if command -v claude-desktop >/dev/null 2>&1; then
-        (claude-desktop >/dev/null 2>&1 &)
-        echo "  Claude Desktop restarted."
-    else
-        echo "  Open Claude Desktop yourself once."
-    fi
+    # No pkill here either: "pkill -f -i claude" matches every command line
+    # with claude anywhere in it, including this installer's own caller.
+    echo "  Restart Claude Desktop yourself so the trading tools load."
 fi
 
 echo ""

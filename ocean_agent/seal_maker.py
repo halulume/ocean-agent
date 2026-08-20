@@ -44,6 +44,7 @@ SLOTS = 10               # regular seats, filled by class score rank
 # operator's skip list both eat seats, and a seal with no bench leaves
 # them empty until the next hour. On 08-19 three of six were skipped
 # and three were already held, so nothing could be entered at all.
+SEATS = 6                # regular picks that rank ahead of the specials
 SPECIAL = 2              # extra seats for funding-extreme symbols
 SPECIAL_APR = 1.00       # minimum |funding| APR for a special seat
 SPECIAL_MOVE = 0.03      # specials also need this much expected move
@@ -456,10 +457,17 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
             "_apr": apr,
         })
     specials.sort(key=lambda x: -x["_apr"])
-    for sp in specials[:SPECIAL]:
+    chosen = specials[:SPECIAL]
+    for sp in chosen:
         sp.pop("_apr", None)
-        sp["trade_rank"] = len(picks) + 1
-        picks.append(sp)
+    # Specials sit at ranks 7 and 8, right behind the six regular seats, the
+    # way the engine's eight seats were always meant to be split. Appending
+    # them after the bench put them at 11 and 12, where the engine only ever
+    # reached them if three earlier picks were skipped, which silently
+    # retired the funding seat when SLOTS went from six to ten.
+    picks = picks[:SEATS] + chosen + picks[SEATS:]
+    for i, p in enumerate(picks, 1):
+        p["trade_rank"] = i
 
     now = datetime.now(KST)
     rec = {"made_at": now.isoformat(),

@@ -492,9 +492,6 @@ def connect_pacifica(ctx: Context) -> str:
             "완료 후 자동매매를 시작할 수 있습니다.")
 
 
-@mcp.tool(title="Start Auto Trading",
-          annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True,
-                                      idempotentHint=False, openWorldHint=True))
 def _env_file() -> str:
     """The one file an installed user can actually edit."""
     cand = os.environ.get("PACIFICA_ENV_FILE")
@@ -535,6 +532,9 @@ def _remember_budget(usd: float, per: float = 0) -> None:
               api_key_from_env(base) or "", extra)
 
 
+@mcp.tool(title="Start Auto Trading",
+          annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True,
+                                      idempotentHint=False, openWorldHint=True))
 def start_auto_trading(budget_usd: float = 0, confirm: bool = False) -> str:
     """Launch the bracket trading engine in the background on this machine,
     from this conversation - no separate program to run.

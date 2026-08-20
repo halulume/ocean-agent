@@ -195,7 +195,11 @@ def main() -> None:
         # that follows needs one and happens later on its own.
         client = None
     if client is None:
-        if ask_terms_only() == "declined":
+        # 'skipped' means nobody could be asked (no keyboard on this stdin).
+        # For the installer that is not permission to continue: it would
+        # connect a real account under terms nobody answered. Exit the same
+        # way a decline does, so the caller stops.
+        if ask_terms_only() in ("declined", "skipped"):
             print(_msgs()["must"])
             sys.exit(3)
         return

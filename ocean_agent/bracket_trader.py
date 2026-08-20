@@ -202,18 +202,31 @@ def save_state(st: dict) -> None:
             on_disk = json.load(f).get('closed', [])
     except (OSError, ValueError):
         on_disk = []
+    # keyed on the entry, not on the writer's clock: two processes grading
+    # the same close stamp different closed_at values and would each keep a row
+    def key_of(c):
+        return (c.get('sym'), c.get('opened_at') or c.get('closed_at'))
+
     if on_disk:
-        # keyed on the entry, not on the writer's clock: two processes
-        # grading the same close stamp different closed_at values and would
-        # each keep a row
-        def key(c):
-            return (c.get('sym'), c.get('opened_at') or c.get('closed_at'))
-        seen = {key(c) for c in st['closed']}
-        extra = [c for c in on_disk if key(c) not in seen]
+        seen = {key_of(c) for c in st['closed']}
+        extra = [c for c in on_disk if key_of(c) not in seen]
         if extra:
             st['closed'] = sorted(st['closed'] + extra,
                                   key=lambda c: c.get('closed_at', ''))
             log(f'다른 프로세스가 기록한 청산 {len(extra)}건을 합칩니다')
+    # The same key twice inside one list is the same trade booked twice: a
+    # flatten that wrote no sym, or a repair run against a live bot. The
+    # merge above already treats the key as the identity of an entry, so
+    # apply it here too rather than letting the average count it twice.
+    once, dedup = set(), []
+    for c in st['closed']:
+        k = key_of(c)
+        if k in once:
+            log(f'같은 청산이 두 번 기록돼 하나로 합칩니다: {k[0] or "?"}')
+            continue
+        once.add(k)
+        dedup.append(c)
+    st['closed'] = dedup
     tmp = STATE_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(st, f, ensure_ascii=False, indent=1)
@@ -504,7 +517,8 @@ def reconcile_pending(client, st: dict) -> None:
                     "recovered": True,
                 })
                 msg = (f"브래킷 복구: {sym} 은 봇이 꺼진 사이 이미 청산됨 "
-                       f"({done.get('cause')}, ${float(done.get('pnl') or 0):+.2f}). "
+                       f"({done.get('cause')}, "
+                       f"${float(done.get('pnl_usd') or 0):+.2f}). "
                        f"장부에 기록했습니다.")
                 log("⚠️ " + msg)
                 notify.send("⚠️ " + msg)
@@ -651,9 +665,11 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
     entered_n = 0
     # Transient failures (price feed, settings, rejected order) counted so
     # the seal is only consumed below when something real happened; a pick
-    # skipped deliberately (streak, slots, min order, invalid bracket) does
-    # not count as a failure.
+    # skipped deliberately (streak, slots, invalid bracket) does not count
+    # as a failure. Too small to trade does count: the account may be topped
+    # up within the seal's window, and burning the seal hides the reason.
     attempt_failed = 0
+    too_small = 0
     held_start = len(st["positions"])
     # After two consecutive stops in the same direction, stop chasing that
     # side. A win or a direction flip clears the block (tail-counted).
@@ -704,7 +720,13 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
         tick = float(m.get("tick_size") or 0.01)
         amount = _round_down_to_lot(margin_per * lev / px, lot)
         if amount <= 0 or amount * px < float(m.get("min_order_size") or 10):
+            # Counted as a failed attempt, not as a decision: the account is
+            # simply too small for this seat size. Without this the seal was
+            # marked used and the same silence repeated every hour, with a
+            # single log line as the only trace.
             log(f"{sym}: 최소 주문 미달 (명목 ${amount*px:.2f}), 건너뜀")
+            attempt_failed += 1
+            too_small += 1
             continue
         mv = p["exp_move_pct"] / 100
         long_ = direction == "long"
@@ -903,6 +925,13 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
         # seal stays open so the next loop retries it inside its 6h window;
         # the old unconditional append burned the whole day's picks on one
         # bad minute of API weather.
+        if entered_n == 0 and too_small == len(picks) and picks:
+            # Say it out loud once per seal: a silent skip every hour is how
+            # a small account learns nothing at all about why it never trades
+            _warn_once(st, f"too_small:{key}",
+                       f"진입 0건: 계좌가 이 자리 크기에 못 미칩니다 "
+                       f"(픽 {len(picks)}개 전부 최소 주문 미달). "
+                       f"입금하거나 픽당 금액을 낮추세요.")
         if entered_n > 0 or attempt_failed == 0:
             st["entered_seals"].append(key)
         else:
@@ -1429,6 +1458,15 @@ def main():
         notify.send("브래킷: " + msg)
         return
 
+    # Claim the account the moment the lock check passes. Everything below
+    # this line talks to the network first (client, reconcile), which took
+    # tens of seconds on 08-20 morning: in that window this bot did not
+    # exist yet, so the watchdog read "no heartbeat" and started a second
+    # one. The claim has to be the first thing, not the first thing in the
+    # loop. (--close-all skips the lock, so it must not claim either.)
+    if not args.dry and not args.close_all:
+        write_heartbeat()
+
     client = make_client(policy)
 
     # Crash recovery must run before --close-all too, or a position that was
@@ -1452,6 +1490,12 @@ def main():
                 # average that warns on a bad run never saw them, and neither
                 # did any later measurement.
                 st["closed"].append({
+                    # sym and dir belong here like every other close path:
+                    # without them the merge key is (None, time), so a live
+                    # bot's own record of the same trade counts twice, and
+                    # the trade drops out of per-symbol learning
+                    "sym": sym,
+                    "dir": pos.get("dir", ""),
                     "pnl_pct_est": _flat_pct(client, sym, pos, since_ms),
                     "cause": "manual_close",
                     "opened_at": pos.get("opened_at", ""),

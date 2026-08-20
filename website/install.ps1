@@ -1,7 +1,7 @@
 # Ocean Agent one-command installer (Windows)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 $ErrorActionPreference = 'Stop'
-$oaPkg = "ocean-agent@0.4.35"
+$oaPkg = "ocean-agent@0.4.36"
 
 # The console a new user lands in is the first impression, so it is dressed
 # as Claude instead of left as a black DOS box: light ground, dark text, the
@@ -39,13 +39,25 @@ $BL = [string][char]0x2514; $BR = [string][char]0x2518
 $W = 64                          # inner width of the card
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
 
+# Whether this host can redraw in place. An AI client running the install for
+# the user captures the output instead of showing a console, and there the
+# card would append a fresh copy on every update: thirteen lines per step,
+# unreadable. Setting the cursor is not the test, because it succeeds under
+# capture and simply has no effect; whether stdout is redirected is.
+$script:quiet = $false
+try { $script:quiet = [Console]::IsOutputRedirected } catch { }
+if ($env:OA_QUIET) { $script:quiet = $true }
+
 # The console cannot draw a rounded card with a shadow, but it can draw the
 # frame around one, which is what makes the window read as Claude's rather
-# than as a DOS box.
+# than as a DOS box. In quiet mode none of it is drawn: the steps speak for
+# themselves, one line each.
 function Edge($left, $right) {
+    if ($script:quiet) { return }
     Write-Host ("  " + $left + ($H * $W) + $right) -ForegroundColor DarkGray
 }
 function Line($text, $color) {
+    if ($script:quiet) { return }
     Write-Host ("  " + $V + " ") -ForegroundColor DarkGray -NoNewline
     if ($color) { Write-Host $text.PadRight($W - 2) -ForegroundColor $color -NoNewline }
     else { Write-Host $text.PadRight($W - 2) -NoNewline }
@@ -53,6 +65,7 @@ function Line($text, $color) {
 }
 function Blank { Line "" $null }
 
+if (-not $script:quiet) {
 Write-Host ""
 Edge $TL $TR
 Write-Host ("  " + $V + " ") -ForegroundColor DarkGray -NoNewline
@@ -65,6 +78,8 @@ Blank
 Line "Installing" $null
 Line "This usually takes a minute or two." DarkGray
 Blank
+}
+if ($script:quiet) { Write-Host "Installing Ocean Agent." }
 
 # The three rows mirror the browser window exactly, and they are redrawn in
 # place as each step lands. Where the cursor cannot be moved (redirected
@@ -73,6 +88,10 @@ $LABELS = @(@("python", "Preparing Python"),
             @("package", "Installing Ocean Agent"),
             @("register", "Connecting to Claude"))
 $script:stepState = @{ python = "wait"; package = "wait"; register = "wait" }
+# quiet mode is decided on the first draw; said[] keeps a step from being
+# announced twice, since Report and Status both redraw
+$script:said = @{ python = $false; package = $false; register = $false }
+$script:lastSaid = ""
 $script:rowsTop = $null
 $script:parked = $null
 $script:statusText = ""
@@ -95,6 +114,27 @@ function Draw-Rows {
         }
         $canMove = $true
     } catch { }
+    # A host that cannot move the cursor cannot redraw the card either, so
+    # every update would append a whole new copy. That is what an AI client
+    # sees when it runs this for you: pages of near-identical boxes. There,
+    # say one line per step and nothing else.
+    if (-not $canMove -and $null -eq $script:rowsTop) { $script:quiet = $true }
+    if ($script:quiet) {
+        foreach ($pair in $LABELS) {
+            $st = $script:stepState[$pair[0]]
+            if ($st -eq "done" -and -not $script:said[$pair[0]]) {
+                $script:said[$pair[0]] = $true
+                Write-Host ("  [done] " + $pair[1])
+            }
+        }
+        # the status line carries the two things the user must act on (the
+        # terms question and the window asking for keys), so it is said once
+        if ($script:statusText -and $script:statusText -ne $script:lastSaid) {
+            $script:lastSaid = $script:statusText
+            Write-Host ("  " + $script:statusText)
+        }
+        return
+    }
     foreach ($pair in $LABELS) {
         $st = $script:stepState[$pair[0]]
         if ($st -eq "done") { Row $CHK DarkCyan $pair[1] $null }
@@ -260,7 +300,16 @@ if ($env:OA_UI) {
     }
     if ($answer -eq "declined") {
         Status ""
-    Bad "Terms declined. Installation cancelled."
+        Bad "Terms declined. Installation cancelled."
+        exit 1
+    }
+    # No answer is not a yes. The loop above can also end because the window
+    # was closed or never seen, and continuing would install a thing that
+    # places real orders under terms nobody agreed to.
+    if ($answer -ne "approved") {
+        Status ""
+        Bad "The terms were never answered, so the install stopped here."
+        Say "Nothing was connected. Run the line again when you are ready."
         exit 1
     }
 } else {
@@ -328,8 +377,14 @@ Report "register" "done"
 Status "Your account"
 $write = $true
 if (Test-Path $envFile) {
-    $ans = Read-Host "  .env already exists. Overwrite? (y/N)"
-    if ($ans -notmatch '^[yY]') { $write = $false; Status "Keeping the keys already saved." }
+    # same reason as below: with no keyboard attached, take the safe answer
+    if ($script:quiet) {
+        $write = $false
+        Status "Keys already saved, so they were left alone."
+    } else {
+        $ans = Read-Host "  .env already exists. Overwrite? (y/N)"
+        if ($ans -notmatch '^[yY]') { $write = $false; Status "Keeping the keys already saved." }
+    }
 }
 if ($write) {
     $done = $false
@@ -346,6 +401,18 @@ if ($write) {
                 --env-file "$envFile" --timeout 600
             if ($LASTEXITCODE -eq 0) { $done = $true }
         } catch { }
+    }
+    # Asking here needs a keyboard on the other end of stdin. Under an AI
+    # client there is none: the question would either read end-of-file or
+    # sit waiting forever. Point at the command that opens the form instead.
+    if (-not $done -and $script:quiet) {
+        Write-Host ""
+        Say "Ocean Agent is installed, but no keys were entered."
+        Say "Run this to add them, in a terminal you can type into:"
+        Dim "    uvx --from $oaPkg python -m ocean_agent.connect_ui --env-file `"$envFile`""
+        Write-Host ""
+        $write = $false
+        $done = $true
     }
     if (-not $done) {
         Status ""
@@ -387,6 +454,14 @@ $env:PACIFICA_ENV_FILE = $envFile
 # a restart. Doing it here saves the user a step they cannot skip; if
 # Claude was not running, it is simply started.
 Write-Host ""
+# Never kill the app that is running this. When Claude itself was asked to
+# install (the Code tab route the site now offers first), closing "Claude"
+# closes the session mid-install: the user watches their own assistant
+# disappear and never learns whether it finished. Ask instead.
+if ($script:quiet) {
+    Status ""
+    Say "Restart Claude yourself so the trading tools load."
+} else {
 Status "Restarting Claude so the tools load..."
 $claudeExe = $null
 try {
@@ -415,6 +490,7 @@ try {
     }
 } catch {
     Status "Could not restart Claude. Open it yourself once."
+}
 }
 
 Status ""

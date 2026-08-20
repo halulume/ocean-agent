@@ -1,8 +1,8 @@
 # ocean-agent
 
-> **🧪 CLOSED BETA** — Ocean Agent is in closed beta as of Aug 11, 2026.
-> The measured bracket-trading engine is being live-validated with our own
-> funds first. Public beta opens next week, open beta the week after.
+> **🌊 OPEN BETA** — Ocean Agent has been open to everyone since Aug 19, 2026.
+> No invitation and no waitlist: install it and connect your own account.
+> The bracket engine is still being live-validated with our own funds too.
 > Follow the daily scorecard on [Telegram](https://t.me/+V7wwRr6n4ZtmOGFl).
 
 > English · [한국어](README.ko.md)

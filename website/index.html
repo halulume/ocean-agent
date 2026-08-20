@@ -608,7 +608,7 @@
   <section class="page" id="installation">
     <div class="eyebrow">Install</div>
     <h2>Install</h2>
-    <p class="sec-lede">First install the <a href="https://claude.ai/download" target="_blank" rel="noopener"><b>Claude desktop app</b></a>, then paste one command below. A form opens in your browser for your wallet address and API key; everything else, including Python and Claude's config, is set up for you.</p>
+    <p class="sec-lede">First install the <a href="https://claude.ai/download" target="_blank" rel="noopener"><b>Claude desktop app</b></a>, then take either route below: paste the line into PowerShell yourself, or hand it to Claude in the <b>Code</b> tab and let it run. Both end the same way, with a form in your browser for your wallet address and API key; everything else, including Python and Claude's config, is set up for you.</p>
     <style>
       .istep{margin:0 0 20px}
       .istep .ihead{font-weight:600;margin-bottom:8px;font-size:14.5px}
@@ -618,6 +618,15 @@
       .istep .cbtn:hover{color:var(--accent-deep);border-color:var(--accent-2)}
       .gated pre{filter:blur(5px);user-select:none;pointer-events:none}
       .gated .cbtn{pointer-events:none;opacity:.4}
+      /* the two routes side by side: the one anyone can use, and the one a
+         paid Claude plan shortens */
+      .iduo{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:0 0 24px}
+      .ipick{border:1px solid var(--line);border-radius:14px;background:var(--panel-2);padding:14px 14px 16px}
+      .ipick video{width:100%;border-radius:10px;border:1px solid var(--line);background:#16212c;display:block;margin-bottom:12px}
+      .ipick .itag{display:inline-block;font-size:11.5px;font-weight:650;letter-spacing:.02em;text-transform:uppercase;color:var(--accent-deep);background:var(--panel);border:1px solid var(--accent-2);border-radius:999px;padding:3px 10px;margin-bottom:10px}
+      .ipick .ihead{font-size:13.5px}
+      .ipick pre{font-size:11.5px}
+      @media (max-width:820px){.iduo{grid-template-columns:1fr}}
       #tgate{border:1px solid var(--line);border-radius:12px;background:var(--panel-2);padding:14px 16px;margin:0 0 20px;font-size:14px}
       #tgate button{font-family:'Inter',sans-serif;font-size:13px;font-weight:600;padding:8px 16px;border:1px solid var(--accent-2);border-radius:9px;background:var(--panel);color:var(--accent-deep);cursor:pointer;margin-top:10px}
       #tmodal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:60;align-items:center;justify-content:center;padding:20px}
@@ -637,16 +646,30 @@
       <b>One step before installing.</b> Please review the terms of use. Agreeing unlocks the install commands, and you can copy yours right from the window.
       <br><button onclick="openTerms()">Review terms &amp; install</button>
     </div>
+    <div class="iduo">
+      <div class="ipick">
+        <div class="itag">Any plan, including free</div>
+        <video src="/install_powershell.mp4" poster="/poster_powershell.jpg" playsinline controls preload="none" aria-label="Installing from PowerShell, start to finish"></video>
+        <div class="ihead">Windows: press <b>Win + R</b>, type <b>powershell</b>, press Enter. Then paste the line and press Enter</div>
+        <div class="iwrap gated"><pre><code>irm https://oceanagent.fi/install.ps1 | iex</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+        <p class="body" style="margin-top:8px">The window dresses itself as Claude and installs in place. You type nothing else, anywhere.</p>
+      </div>
+      <div class="ipick">
+        <div class="itag">Claude paid plan</div>
+        <video src="/install_code.mp4" poster="/poster_code.jpg" playsinline controls preload="none" aria-label="Installing from the Claude desktop app's Code tab"></video>
+        <div class="ihead">Paste it to Claude in the desktop app's <b>Code</b> tab</div>
+        <div class="iwrap gated"><pre><code>Install Ocean Agent: irm https://oceanagent.fi/install.ps1 | iex</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+        <p class="body" style="margin-top:8px">Claude runs it for you and reports each part as it lands, so no terminal to look at. The <b>Code</b> tab only comes with a paid plan, and only for this one install: afterwards you talk to Ocean Agent in the normal chat tab.</p>
+      </div>
+    </div>
+    <!-- true of both routes above, so it sits right under them -->
     <div class="istep">
-      <div class="ihead">Windows: open PowerShell (press <b>Start</b>, type <b>powershell</b>), paste, press Enter</div>
-      <div class="iwrap gated"><pre><code>irm https://oceanagent.fi/install.ps1 | iex</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
-      <p class="body" style="margin-top:8px">The window then dresses itself as Claude and installs in place. You type nothing else, anywhere.</p>
+      <p class="body">A form then opens in your browser for your wallet public address and a key from <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a> (trade only, cannot withdraw, revocable any time). Claude restarts itself and the trading tools appear in chat. <b>No bot required.</b></p>
+      <p class="body" style="margin-top:8px"><b>Works in your language.</b> You chat with your AI in any language: English, 中文, 日本語, 한국어, Tiếng Việt, Español and more. It drives the tools and explains every result in your language, and new version notices arrive in it too.</p>
     </div>
     <div class="istep">
       <div class="ihead">macOS / Linux: open Terminal (<b>Cmd + Space</b>, type terminal), paste, press Enter</div>
       <div class="iwrap gated"><pre><code>sh -c "$(curl -LsSf https://oceanagent.fi/install.sh)"</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
-      <p class="body" style="margin-top:8px">A form then opens in your browser for your wallet public address and a key from <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a> (trade only, cannot withdraw, revocable any time). Claude restarts itself and the trading tools appear in chat. <b>No bot required.</b></p>
-      <p class="body" style="margin-top:8px"><b>Works in your language.</b> You chat with your AI in any language: English, 中文, 日本語, 한국어, Tiếng Việt, Español and more. It drives the tools and explains every result in your language, and new version notices arrive in it too.</p>
     </div>
     <div class="istep">
       <div class="ihead">Optional: run the autonomous bot</div>
@@ -1142,7 +1165,7 @@ OKX_API_PASSPHRASE=...</code></pre>
           <tr><th>Two step confirm</th><td>Every money moving tool previews first and executes only on explicit confirmation.</td></tr>
           <tr><th>Trading only keys</th><td>API keys can trade but cannot move funds out. Revocable any time.</td></tr>
           <tr><th>Key separation</th><td>Testnet and mainnet keys and data are kept apart.</td></tr>
-          <tr><th>Hard sizing guard</th><td>Any order above a notional ceiling is rejected at the API layer, whatever the source.</td></tr>
+          <tr><th>Hard sizing guard</th><td>An order whose notional cannot be priced is rejected outright, and a notional ceiling applies once you set <code>order_cap_usd</code> in your policy. Chat orders carry no fixed dollar cap by default.</td></tr>
           <tr><th>Liquidity gate</th><td>Skips markets where your own order would be a large share of daily volume.</td></tr>
           <tr><th>Native stops</th><td>Exchange native TP and SL on every entry, so they fire with your machine off.</td></tr>
         </tbody>
@@ -1444,13 +1467,13 @@ OKX_API_PASSPHRASE=...</code></pre>
             it with Claude, and keeps it updated.</p>
 
           <p>Until now the only way to run it was to clone the repository. It now ships on PyPI
-            as <b>ocean-agent</b>, currently at version 0.3.3. Install with the one line
+            as <b>ocean-agent</b>, currently at version 0.4.36. Install with the one line
             installer on this site, which sets up uv, Python, your keys and Claude&#39;s MCP
             config in a single paste, or with <b>pip install ocean-agent</b> if you already have
             a Python environment.</p>
 
           <div class="upd-stats">
-            <div><b>0.3.3</b><span>current version</span></div>
+            <div><b>0.4.36</b><span>current version</span></div>
             <div><b>3,700+</b><span>measured combinations bundled</span></div>
             <div><b>9 years</b><span>of walk forward data shipped</span></div>
             <div><b>100</b><span>markets scanned</span></div>
@@ -1786,9 +1809,11 @@ OKX_API_PASSPHRASE=...</code></pre>
       <button class="tno" onclick="declineTerms()">Not now</button>
     </div>
     <div id="tdone" style="display:none">
-      <p style="font-size:13.5px;margin:0 0 14px">You're set. Copy the command for your system and paste it into a terminal:</p>
-      <div class="ihead" style="font-weight:600;font-size:13.5px;margin-bottom:6px">Windows (PowerShell)</div>
-      <div class="iwrap" style="position:relative;margin-bottom:14px"><pre style="font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;margin:0"><code>powershell -ExecutionPolicy ByPass -c "irm https://oceanagent.fi/install.ps1 | iex"</code></pre><button class="cbtn" style="position:absolute;top:6px;right:6px;font-family:'Inter',sans-serif;font-size:11px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink-2);cursor:pointer" onclick="copyCode(this)">Copy</button></div>
+      <p style="font-size:13.5px;margin:0 0 14px">You're set. Copy the line for where you are:</p>
+      <div class="ihead" style="font-weight:600;font-size:13.5px;margin-bottom:6px">Claude desktop app, <b>Code</b> tab (paid plan)</div>
+      <div class="iwrap" style="position:relative;margin-bottom:14px"><pre style="font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;margin:0"><code>Install Ocean Agent: irm https://oceanagent.fi/install.ps1 | iex</code></pre><button class="cbtn" style="position:absolute;top:6px;right:6px;font-family:'Inter',sans-serif;font-size:11px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink-2);cursor:pointer" onclick="copyCode(this)">Copy</button></div>
+      <div class="ihead" style="font-weight:600;font-size:13.5px;margin-bottom:6px">Windows (Win + R, type powershell, Enter)</div>
+      <div class="iwrap" style="position:relative;margin-bottom:14px"><pre style="font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;margin:0"><code>irm https://oceanagent.fi/install.ps1 | iex</code></pre><button class="cbtn" style="position:absolute;top:6px;right:6px;font-family:'Inter',sans-serif;font-size:11px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink-2);cursor:pointer" onclick="copyCode(this)">Copy</button></div>
       <div class="ihead" style="font-weight:600;font-size:13.5px;margin-bottom:6px">macOS / Linux (Terminal)</div>
       <div class="iwrap" style="position:relative"><pre style="font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;margin:0"><code>sh -c "$(curl -LsSf https://oceanagent.fi/install.sh)"</code></pre><button class="cbtn" style="position:absolute;top:6px;right:6px;font-family:'Inter',sans-serif;font-size:11px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink-2);cursor:pointer" onclick="copyCode(this)">Copy</button></div>
       <div class="tbtns"><button class="tno" onclick="declineTerms()">Close</button></div>
