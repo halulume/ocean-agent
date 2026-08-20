@@ -16,6 +16,15 @@ fi
 UV="$HOME/.local/bin/uv";  command -v uv  >/dev/null 2>&1 && UV="$(command -v uv)"
 UVX="$HOME/.local/bin/uvx"; command -v uvx >/dev/null 2>&1 && UVX="$(command -v uvx)"
 
+# The .env path is settled before the terms step, which passes it in
+# PACIFICA_ENV_FILE. It used to be assigned in step 3 and the terms ran with
+# an empty value; that fell through to the default path so a standard install
+# was unaffected, but a custom location would have been ignored. install.ps1
+# has always defined it first. Only the directory is made here, no key is
+# written until after the terms are accepted.
+ENVDIR="$HOME/.ocean-agent"; mkdir -p "$ENVDIR"
+ENVF="$ENVDIR/.env"
+
 # 2) terms of use (declining aborts the install; details: oceanagent.fi)
 echo "[2/4] Terms of Use"
 RC=0
@@ -24,8 +33,6 @@ if [ "$RC" = "3" ]; then exit 1; fi
 
 # 3) keys -> .env (after the terms, so declining leaves no key on disk)
 echo "[3/4] Account setup"
-ENVDIR="$HOME/.ocean-agent"; mkdir -p "$ENVDIR"
-ENVF="$ENVDIR/.env"
 WRITE=1
 if [ -f "$ENVF" ]; then
     printf "  .env already exists. Overwrite? (y/N) "
