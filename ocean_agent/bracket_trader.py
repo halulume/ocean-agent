@@ -574,8 +574,16 @@ def reconcile_pending(client, st: dict) -> None:
                     float(q.get("entry_intent") or 0)
                 _rc = done.get("cause") or ""
                 if _rc in ("", "normal"):
-                    _rc = ("take_profit" if float(done.get("pnl_usd") or 0) >= 0
-                           else "stop_loss")
+                    # The venue labels every close "normal", so the sign of the
+                    # result is a guess, and watch_positions was taught not to
+                    # state a guess as fact: a hand-closed loss became a
+                    # "stop_loss", which fed _stop_streak and blocked that
+                    # direction for the rest of the day. This path kept the old
+                    # certainty, so the hole reopened every time the bot came
+                    # back from a crash. Same names as the other path, so the
+                    # streak counter can tell a guess from a stop.
+                    _rc = ("추정:이익" if float(done.get("pnl_usd") or 0) >= 0
+                           else "추정:손실")
                 st["closed"].append({
                     "sym": sym, "dir": q.get("dir"),
                     "cause": _rc,
@@ -663,9 +671,26 @@ def apply_budget(cfg: dict) -> dict:
     if budget <= 0:
         return cfg
     per = cfg.get("notional_usd") or 50.0
+    # A budget smaller than one pick used to still open one pick at full size:
+    # $30 with a $50 notional traded $50, 167% of what was asked for. Shrink
+    # the pick instead, and say so, because silently trading more than the
+    # number a person typed is the one thing this function must not do.
+    if budget < per:
+        log(f"예산 ${budget:,.0f} 가 픽 하나({per:,.0f})보다 작아 "
+            f"픽 크기를 ${budget:,.0f} 로 줄입니다")
+        per = budget
     cfg["notional_usd"] = per
     cfg["slots"] = max(1, min(int(budget // per), 8))
-    cfg["capital_pct"] = 100.0        # the budget is the limit, not a share
+    # capital_pct is deliberately replaced, not merged: the budget is an
+    # absolute limit, so a percentage of the balance on top of it would mean
+    # two different answers to "how much". policy.yaml's bracket_capital_pct
+    # is therefore ignored whenever a budget is set, which was happening
+    # silently before.
+    if cfg.get("capital_pct", 100.0) != 100.0:
+        log(f"예산이 설정돼 있어 bracket_capital_pct "
+            f"{cfg['capital_pct']:.0f}% 는 쓰지 않습니다 "
+            f"(예산 ${budget:,.0f} 가 상한)")
+    cfg["capital_pct"] = 100.0
     return cfg
 
 

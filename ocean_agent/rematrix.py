@@ -512,6 +512,20 @@ def load_matrix() -> dict | None:
     c["data"] = data
     c["ev_memo"] = {}          # 파일이 바뀌면 파생 메모도 함께 버린다
     c["base_memo"] = {}
+    # The gate reads this table without checking the stamp, on purpose: fail
+    # closed and every signal is blocked while a rebuild runs. But that window
+    # is exactly the 08-20 accident, a table measured under one set of
+    # definitions admitting entries under another, so it should not pass in
+    # silence. Once per file, because this is called hundreds of times a cycle.
+    try:
+        from .signal_scanner import DEFS_VERSION
+        if data.get("defs_version") != DEFS_VERSION:
+            print(f"⚠️ 매트릭스가 옛 정의로 잰 표다 "
+                  f"(파일 {data.get('defs_version')} vs 코드 {DEFS_VERSION}). "
+                  f"재측정이 끝날 때까지 관문은 이 표를 그대로 쓴다.",
+                  flush=True)
+    except Exception:
+        pass
     return data
 
 

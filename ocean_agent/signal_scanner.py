@@ -452,12 +452,24 @@ def _enter(cond, approach=None):
             return False
         if i == 0:
             return True
+        # Two guards, two failure modes. A previous bar that cannot be read
+        # means "no evidence it was already on", which is the old fail-open
+        # and is fine on its own. But approach failing is different: it is
+        # the thing that keeps a cooling RSI from counting as a fresh
+        # overheat, and swallowing it would drop both guards at once and
+        # silently restore the bug. Neither lambda raises for j >= 0 today;
+        # this keeps it that way if one ever does.
         try:
             if cond(i - 1):
                 return False
-            return approach(i - 1) if approach else True
         except (TypeError, IndexError):
             return True
+        if approach is None:
+            return True
+        try:
+            return bool(approach(i - 1))
+        except (TypeError, IndexError):
+            return False
     return fired
 
 
