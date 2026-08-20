@@ -356,6 +356,22 @@ def _universe(client, log=print, use_underlying=False) -> list[str]:
     return keep or list(COINS)
 
 
+TF_HOURS = {"15m": 0.25, "30m": 0.5, "1h": 1, "2h": 2,
+            "4h": 4, "8h": 8, "12h": 12, "1d": 24}
+
+
+def _fwd_for(tf: str, fwd_hours: int = 24) -> int:
+    """몇 봉 앞을 보아야 그 시간봉에서 fwd_hours 가 되는가.
+
+    fwd 는 캔들 수였다. 그래서 4시간봉은 96시간, 12시간봉은 288시간 뒤를 보고
+    채점했는데 실제 매매는 24시간 만기다. 시간봉마다 지평이 다른 표를 한 장으로
+    읽고 있었던 것이고, 22신호가 전부 기대값 마이너스라는 §105 의 판정도 그
+    표에서 나왔다. 최소 1봉은 봐야 하므로 짧은 봉만 그대로 캔들 수가 커진다.
+    """
+    h = TF_HOURS.get(tf)
+    return max(1, round(fwd_hours / h)) if h else fwd_hours
+
+
 def run_measurement(base_url="https://api.pacifica.fi", fwd=24,
                     log=print, use_extended=False, symbols=None,
                     use_underlying=False, out_path=None) -> dict:
@@ -387,7 +403,7 @@ def run_measurement(base_url="https://api.pacifica.fi", fwd=24,
                 log(f"  {sym} {tf}: 조회실패 {e}")
                 time.sleep(4)
                 continue
-            r, b = _measure_series(closes, fwd, bars)
+            r, b = _measure_series(closes, _fwd_for(tf, fwd), bars)
             if not r:
                 time.sleep(2)
                 continue

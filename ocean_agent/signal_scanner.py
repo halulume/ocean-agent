@@ -284,9 +284,17 @@ def fetch_closes(client, symbol, interval, max_bars=1500):
     return [b[4] for b in fetch_bars(client, symbol, interval, max_bars)]
 
 
-def _series(closes):
-    """신호 판정에 필요한 시계열 일괄 계산."""
+def _series(closes, highs=None, lows=None):
+    """신호 판정에 필요한 시계열 일괄 계산.
+
+    highs/lows 는 프랙탈 전용이다. Williams 의 원안은 5봉 중앙의 **고가**가
+    좌우보다 높은 것을 고점 프랙탈로 본다. 종가로 근사하면 다른 사건 집합이
+    되므로, 호출부가 OHLC 를 갖고 있으면 넘겨준다. 안 넘기면 예전처럼 종가로
+    근사하되 그 사실이 아래 주석에 남는다.
+    """
     n = len(closes)
+    highs = highs if highs and len(highs) == n else closes
+    lows = lows if lows and len(lows) == n else closes
     rs = rsi_series(closes, 14)
     rsi = [None] * (n - len(rs)) + list(rs)
     ma20 = [None] * n
@@ -321,7 +329,7 @@ def _series(closes):
             ma200[i] = run / 200
     # 스토캐스틱 RSI, 대중적으로 가장 인기 있는 보조지표.
     # 과거 측정에선 성적이 최하였으나, 국면이 바뀌므로 후보로 넣고 매트릭스가 판정한다.
-    srsi_k = [None] * n
+    raw_k = [None] * n
     for i in range(n):
         if rsi[i] is None or i < 14:
             continue
@@ -329,8 +337,19 @@ def _series(closes):
         if len(w) < 14:
             continue
         lo, hi = min(w), max(w)
-        srsi_k[i] = (rsi[i] - lo) / (hi - lo) * 100 if hi > lo else 50.0
-    srsi_d = [None] * n       # %K의 3기간 평균
+        raw_k[i] = (rsi[i] - lo) / (hi - lo) * 100 if hi > lo else 50.0
+    # %K 를 3기간 평활한다. 표준 StochRSI 는 (14, 14, 3, 3) 이고 %K 도 평활
+    # 대상이다. 평활하지 않은 raw 값은 한국에서 '패스트'라 부르며 HTS 기본으로
+    # 주지도 않는다: "변화가 너무 잦고 급격하여 가짜 신호가 많아 참고하기
+    # 어렵다"(한국어 위키백과). 우리는 패스트보다도 빨랐다. 08-20 조사에서
+    # 20/80 게이트를 말하는 곳이 영어권 5 + 한국어 8 로 13곳인데 우리 40/60 을
+    # 쓰는 곳은 한 곳도 없었다. 신호공부.md 참조.
+    srsi_k = [None] * n
+    for i in range(2, n):
+        w = [v for v in raw_k[i-2:i+1] if v is not None]
+        if len(w) == 3:
+            srsi_k[i] = sum(w) / 3
+    srsi_d = [None] * n       # 평활된 %K 의 3기간 평균
     for i in range(2, n):
         w = [v for v in srsi_k[i-2:i+1] if v is not None]
         if len(w) == 3:
@@ -341,13 +360,18 @@ def _series(closes):
     frac_up = [False] * n     # i에서 '방금 확정된' 고점 프랙탈
     frac_dn = [False] * n
     for i in range(4, n):
-        c2 = closes[i-2]      # 가운데
-        if c2 > closes[i-4] and c2 > closes[i-3] and c2 > closes[i-1] and c2 > closes[i]:
+        h2, l2 = highs[i-2], lows[i-2]      # 가운데 봉의 고가·저가
+        if (h2 > highs[i-4] and h2 > highs[i-3]
+                and h2 > highs[i-1] and h2 > highs[i]):
             frac_up[i] = True
-        if c2 < closes[i-4] and c2 < closes[i-3] and c2 < closes[i-1] and c2 < closes[i]:
+        if (l2 < lows[i-4] and l2 < lows[i-3]
+                and l2 < lows[i-1] and l2 < lows[i]):
             frac_dn[i] = True
+    # macd 선 자체도 돌려준다. 0선 위/아래 판정에 필요한데 지금까지 히스토그램만
+    # 나가서, 0선 필터를 재려면 다른 값으로 근사할 수밖에 없었다
     return {"rsi": rsi, "ma20": ma20, "ma50": ma50, "ma200": ma200,
-            "hist": hist, "bbpos": bbpos, "bbw": bbw,
+            "hist": hist, "macd": macd, "signal": sg,
+            "bbpos": bbpos, "bbw": bbw,
             "srsi_k": srsi_k, "srsi_d": srsi_d,
             "frac_up": frac_up, "frac_dn": frac_dn}
 
@@ -367,9 +391,14 @@ def _signals(s):
     fd = s.get("frac_dn") or [False] * n
     return {
         # 모멘텀 극단 (실측: 시간봉별로 유효 구간 다름, 승률로 자동 필터됨)
-        "RSI>70 과열": ("short", lambda i: rsi[i] is not None and rsi[i] > 70),
+        # 구간이 겹치지 않게 나눈다. 예전에는 RSI 82 면 70 과 80 이 동시에
+        # 켜져서, 조합 학습(co_active)이 같은 정보를 두 번 세고 표본 관문도
+        # 두 번 통과시켰다. 이제 70 은 70~80 구간만, 80 은 그 위만 맡는다.
+        "RSI>70 과열": ("short", lambda i: rsi[i] is not None
+                        and 70 < rsi[i] <= 80),
         "RSI>80 극과열": ("short", lambda i: rsi[i] is not None and rsi[i] > 80),
-        "RSI<30 과매도": ("long", lambda i: rsi[i] is not None and rsi[i] < 30),
+        "RSI<30 과매도": ("long", lambda i: rsi[i] is not None
+                        and 20 <= rsi[i] < 30),
         "RSI<20 극과매도": ("long", lambda i: rsi[i] is not None and rsi[i] < 20),
         # 추세 전환 이벤트 (실측: '상태'보다 '발생 순간'이 유효)
         "MA 골든크로스": ("long", lambda i: i > 0 and x(i, ma20) and x(i, ma50)
@@ -380,17 +409,25 @@ def _signals(s):
                          and hist[i] > 0 >= hist[i-1]),
         "MACD 데드크로스": ("short", lambda i: i > 0 and x(i, hist)
                          and hist[i] < 0 <= hist[i-1]),
-        # 변동성 밴드 이탈
-        "볼린저 상단이탈": ("short", lambda i: bb[i] is not None and bb[i] > 2),
-        "볼린저 하단이탈": ("long", lambda i: bb[i] is not None and bb[i] < -2),
+        # 변동성 밴드 이탈: 지속 신호다. 볼린저 본인의 규칙 8 이 "밴드 밖 종가는
+        # 일차적으로 지속이지 반전이 아니다"라고 하고, 2026-08-20 실측이 같은
+        # 답을 냈다: 표류를 뺀 시장제거 축 18칸 중 15칸이 지속, 반전은 0칸
+        # (research/fork_bollinger.py). 예전에는 반대 부호였다.
+        # 주의: 뒤집어도 돈이 되지는 않는다. 12시간봉 2σ 엣지가 +0.135%p 로
+        # 왕복 수수료 0.16%p 아래다. 부호를 맞춘 것이지 수익원이 아니다.
+        "볼린저 상단이탈": ("long", lambda i: bb[i] is not None and bb[i] > 2),
+        "볼린저 하단이탈": ("short", lambda i: bb[i] is not None and bb[i] < -2),
         # ── 아래는 매트릭스 검증 대기 중인 후보 계열 ──
         # 승률이 아니라 실측 EV가 마이너스면 _matrix_rejects가 자동 차단한다.
         "sRSI>80 과열": ("short", lambda i: sk[i] is not None and sk[i] > 80),
         "sRSI<20 과매도": ("long", lambda i: sk[i] is not None and sk[i] < 20),
+        # 게이트는 20/80. 40/60 은 중립 구간의 교차까지 잡아 표준의 두 배로
+        # 헐거웠다 (한국투자증권: "골든크로스는 %K 가 %D 를 과매도 영역 20%
+        # 이하에서 상향 돌파할 때")
         "sRSI 골든크로스": ("long", lambda i: i > 0 and x(i, sk) and x(i, sd)
-                        and sk[i] > sd[i] and sk[i-1] <= sd[i-1] and sk[i] < 40),
+                        and sk[i] > sd[i] and sk[i-1] <= sd[i-1] and sk[i] < 20),
         "sRSI 데드크로스": ("short", lambda i: i > 0 and x(i, sk) and x(i, sd)
-                        and sk[i] < sd[i] and sk[i-1] >= sd[i-1] and sk[i] > 60),
+                        and sk[i] < sd[i] and sk[i-1] >= sd[i-1] and sk[i] > 80),
         # 장기 추세 전환 (MA20/50보다 느리지만 신호가 강함)
         "MA200 골든크로스": ("long", lambda i: i > 0 and x(i, ma50) and x(i, m200)
                          and ma50[i] > m200[i] and ma50[i-1] <= m200[i-1]),
@@ -412,7 +449,12 @@ def _signals(s):
 
 
 def _squeeze_break(bw, bb, i, direction):
-    """밴드 폭이 최근 50봉 중 하위 20%로 수축(스퀴즈)한 뒤 밴드를 이탈하는 순간."""
+    """밴드 폭이 최근 50봉 중 하위 20%로 수축(스퀴즈)한 뒤 밴드를 이탈하는 순간.
+
+    문턱은 2σ 다. 밴드가 2σ 이므로 1.5σ 는 밴드 안이고, 그것을 "이탈"이라
+    부르고 있었다. 2026-08-20 실측에서도 2σ 가 낫다: 지속 방향 Δ 가 4시간봉
+    +0.345 대 +0.239, 12시간봉 +0.486 대 +0.180 (research/fork_bollinger.py).
+    """
     if i < 50 or bw[i] is None or bb[i] is None:
         return False
     w = [v for v in bw[i-50:i] if v is not None]
@@ -422,7 +464,7 @@ def _squeeze_break(bw, bb, i, direction):
     prev_squeezed = any(v is not None and v <= thresh for v in bw[i-5:i])
     if not prev_squeezed:
         return False
-    return bb[i] > 1.5 if direction > 0 else bb[i] < -1.5
+    return bb[i] > 2.0 if direction > 0 else bb[i] < -2.0
 
 
 @dataclass
@@ -489,7 +531,7 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
             n = len(closes)
             if n < 220 + FWD:   # 채점 시작(220) + 전방지평 이후가 있어야 표본 생김
                 continue
-            s = _series(closes)
+            s = _series(closes, [b[2] for b in ohlc], [b[3] for b in ohlc])
             sigs = _signals(s)
             # same warm-up cut as the signal sample below: bars before 220
             # are indicator warm-up and early-listing drift, and a baseline
