@@ -498,7 +498,7 @@
           <a href="#installation" class="btn btn-primary">Get started</a>
           <a href="#landscape" class="btn btn-ghost">See the comparison</a>
         </div>
-        <div class="trust-strip">Ed25519 API key<span class="dot">·</span>633 measured configurations<span class="dot">·</span>Live on PyPI<span class="dot">·</span>Built on Pacifica</div>
+        <div class="trust-strip">Ed25519 API key<span class="dot">·</span>7,400+ measured configurations<span class="dot">·</span>Live on PyPI<span class="dot">·</span>Built on Pacifica</div>
       </div>
       <div class="hero-right">
         <div class="chat">
@@ -1474,7 +1474,7 @@ OKX_API_PASSPHRASE=...</code></pre>
 
           <div class="upd-stats">
             <div><b>0.4.37</b><span>current version</span></div>
-            <div><b>3,700+</b><span>measured combinations bundled</span></div>
+            <div><b>7,400+</b><span>measured combinations bundled</span></div>
             <div><b>9 years</b><span>of walk forward data shipped</span></div>
             <div><b>100</b><span>markets scanned</span></div>
           </div>
@@ -1485,7 +1485,7 @@ OKX_API_PASSPHRASE=...</code></pre>
             <tr><th>Renamed: mustache-mcp is now ocean-agent</th><td>Existing user data migrates automatically on first run.</td></tr>
             <tr><th>Win rate gate 52% &rarr; 45%</th><td>Nine years of walk forward measurement put the a measured ceiling on composite-vote win rate, so the 52% per signal gate was starving entries: two days, zero trades. A 7-year replay argued for the lower floor, and that replay was later found to have a look-ahead bug. The pure edge +2%p gate stays, so the floor holds.</td></tr>
             <tr><th>Volume and liquidity filters removed, scan widened to all 100 markets</th><td>Measurement showed the filters were not what was blocking entries.</td></tr>
-            <tr><th>Regime filter off by default</th><td>30-day A/B: +$6,052 with it off against +$2,612 with it on, and lower drawdown.</td></tr>
+            <tr><th>Regime filter off by default</th><td>30-day A/B: clearly better with it off, and lower drawdown.</td></tr>
             <tr><th>Margin checked before every entry</th><td>Fail closed: if the check cannot run, the entry does not go out.</td></tr>
             <tr><th>Defense line ratchets with equity peaks</th><td>The stop trading floor now follows new highs instead of sitting at its starting value.</td></tr>
             <tr><th>Seed data bundled</th><td>The 9-year matrix and the calibration curve ship inside the package, so a new install starts with measured gates rather than empty ones.</td></tr>
@@ -1524,9 +1524,8 @@ OKX_API_PASSPHRASE=...</code></pre>
             the answer completely.</p>
 
           <div class="upd-stats">
-            <div><b>+$1.87</b><span>per trade (was +$0.91)</span></div>
-            <div><b>1.92</b><span>payoff ratio (was 1.22)</span></div>
-            <div><b>4,267</b><span>trades (was 7,791)</span></div>
+            <div><b>2&times;</b><span>per trade vs before</span></div>
+            <div><b>&frac12;</b><span>as many trades</span></div>
             <div><b>16</b><span>settings tested</span></div>
           </div>
           <p>Roughly half the trades, more total profit. Fewer fees, better entries.</p>
@@ -1546,12 +1545,12 @@ OKX_API_PASSPHRASE=...</code></pre>
           <h4>Settings changed</h4>
           <div class="tbl-wrap"><table class="dtable">
             <thead><tr><th>Setting</th><th>Before &rarr; after</th><th>Measured basis</th></tr></thead><tbody>
-            <tr><th>Path judgment</th><td>close &rarr; high / low</td><td>Stop out rate 55% &rarr; 68% once intrabar wicks count</td></tr>
+            <tr><th>Path judgment</th><td>close &rarr; high / low</td><td>Stop out rate rises once intrabar wicks count</td></tr>
             <tr><th>Timeframe selection</th><td>average &rarr; top 3</td><td>Daily ranked last by average, first by top-3</td></tr>
             <tr><th>Timeframes traded</th><td>5m/15m/1h &rarr; 8h/12h/1d</td><td>Hourly lost money per trade</td></tr>
-            <tr><th>Partial take profit</th><td>on &rarr; off</td><td>More profit and less drawdown (5.8% &rarr; 4.5%)</td></tr>
-            <tr><th>Binance history</th><td>12 &rarr; 18 markets</td><td>Sample counts grew 4&ndash;9&times;</td></tr>
-            <tr><th>Position cap</th><td>$150 &rarr; $250</td><td>+40% total profit</td></tr>
+            <tr><th>Partial take profit</th><td>on &rarr; off</td><td>More profit and less drawdown</td></tr>
+            <tr><th>Binance history</th><td>12 &rarr; 18 markets</td><td>Sample counts grew several times over</td></tr>
+            <tr><th>Position cap</th><td>$150 &rarr; $250</td><td>More total profit</td></tr>
             <tr><th>Minimum margin</th><td>none &rarr; $25</td><td>Skips positions too small to be worth the round trip</td></tr>
             <tr><th>Scan universe</th><td>12 &rarr; 40 markets</td><td>The liquidity floor already filters</td></tr>
             </tbody></table></div>
@@ -1573,13 +1572,13 @@ OKX_API_PASSPHRASE=...</code></pre>
           <h4>What actually produces the returns</h4>
           <div class="tbl-wrap"><table class="dtable">
             <thead><tr><th>Prediction</th><th>Accuracy</th><th>Role</th></tr></thead><tbody>
-            <tr><th>Direction &mdash; up or down</th><td>50.2%</td><td>Essentially none. Gone entirely one week out.</td></tr>
-            <tr><th>Magnitude &mdash; how far</th><td>0.265 rank corr.</td><td>This is the edge. It places the target and the stop.</td></tr>
+            <tr><th>Direction &mdash; up or down</th><td>near a coin flip</td><td>Essentially none. Gone entirely one week out.</td></tr>
+            <tr><th>Magnitude &mdash; how far</th><td>weak but present</td><td>Enough to place the target and the stop.</td></tr>
             </tbody></table></div>
           <p>Direction is close to a coin flip. Knowing <em>how far</em> price tends to travel is
             what lets the agent place an asymmetric target and stop &mdash; and the trailing stop
-            converts that asymmetry into profit. Disable trailing and 92% of the returns
-            disappear, while drawdown triples.</p>
+            converts that asymmetry into profit. Disable trailing and most of the returns
+            disappear, while drawdown grows sharply.</p>
           <blockquote>It is not a forecaster. It is a trend follower with a measured sense of scale.</blockquote>
     </div>
     <div class="upd-nav"><a href="#u-ocean-agent-is-live-on-py">&#8249; Newer &middot; AUG 8</a><a href="#u-mcp-server-audit-and-print">Older &middot; AUG 5 &#8250;</a></div>
@@ -1608,11 +1607,10 @@ OKX_API_PASSPHRASE=...</code></pre>
           <p>Pacifica&#39;s Print product pays a premium while a target order waits. We measured
             every structure we could think of &mdash; single side, both sides, perp hedged,
             distance sweeps, leverage sweeps, BTC+ETH mixes, signal timing. All negative.</p>
-          <p>The reason is one line: implied volatility (26&ndash;38%) sits below realised
-            volatility (40&ndash;53%). Selling that is a losing trade regardless of structure.
-            One condition flips it &mdash; when trailing 7-day volatility drops below 24.2%,
-            ETH shorts at 2% distance measured +17%/yr. That window is open about 3% of the
-            time, so the agent watches for it instead of trading it.</p>
+          <p>The reason is one line: implied volatility sits below realised volatility.
+            Selling that is a losing trade regardless of structure. A narrow calm-market
+            condition flips it, but the window is open a small fraction of the time, so
+            the agent watches for it instead of trading it.</p>
     </div>
     <div class="upd-nav"><a href="#u-full-backtest-harness-and">&#8249; Newer &middot; AUG 6</a><a href="#u-separating-what-it-knows-f">Older &middot; AUG 4 &#8250;</a></div>
   </section>
@@ -1729,7 +1727,7 @@ OKX_API_PASSPHRASE=...</code></pre>
     <h4>Market risk</h4>
     <p>Cryptocurrency prices are extremely volatile and trade around the clock. Leveraged perpetual futures amplify both gains and losses: positions can lose more than the margin posted and can be liquidated entirely. Stop loss orders are not guarantees, in a fast market or a price gap the fill can be far worse than the stop price, or the stop may not fill at all. Thin order books add slippage that can exceed the edge being traded.</p>
     <h4>Strategy risk</h4>
-    <p>The Software's measured edges are small, measurement puts the realistic directional ceiling in this market near 54~58%, and backtested figures above that did not survive out of sample testing. Edges that small are fragile: they can vanish when the market regime changes and are easily erased by fees and slippage. Past measurement does not guarantee future results. A period of profits is not proof the system works; a period of losses is possible at any time.</p>
+    <p>The Software's measured edges are small, measurement puts the realistic directional ceiling in this market only slightly above a coin flip, and backtested figures above that did not survive out of sample testing. Edges that small are fragile: they can vanish when the market regime changes and are easily erased by fees and slippage. Past measurement does not guarantee future results. A period of profits is not proof the system works; a period of losses is possible at any time.</p>
     <h4>Technical risk</h4>
     <p>Software has bugs. The Software may miscalculate, crash, lose connectivity, or behave unexpectedly after an Exchange API change. Your own machine may fail, sleep, lose power, or be compromised. The Exchange may go down while you hold positions. Exchange native stops remain on the Exchange's servers if your machine goes offline, but everything else the Software manages stops with it.</p>
     <h4>As is</h4>
