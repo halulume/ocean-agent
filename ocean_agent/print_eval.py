@@ -36,7 +36,15 @@ def deep_prices(client: PacificaClient, symbol: str, log=lambda *a: None):
     기존 경로(펀딩 히스토리)는 약 167일뿐이라 2018 하락장·2021 상승장·2022 붕괴
     같은 구간이 통째로 빠진다. Print는 '꼬리에서 체결되는' 상품이라 그 구간이
     빠지면 체결 확률과 오버슛을 실제보다 낙관하게 된다. 매매 쪽에서 이미 받아
-    캐시해 둔 9년치를 그대로 재사용한다(추가 다운로드 없음)."""
+    캐시해 둔 9년치를 그대로 재사용한다(추가 다운로드 없음).
+
+    Closes only, by design. §108 moved fractals onto the wick and every other
+    _series() caller now passes highs and lows, but this module cannot: it
+    scores Print fills against an hourly close series, and the three
+    _series(...) calls below have no OHLC to hand over. That is not an
+    oversight to be fixed by threading bars in here. Fractal signals read from
+    this path are the close approximation, and Print only uses them to decide
+    which side is safer to quote, never to size or direct a trade."""
     from .rematrix import _fetch
     return _fetch(client, symbol, "1h", use_extended=True, log=log)
 

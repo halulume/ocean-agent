@@ -144,7 +144,13 @@ def precompute(bars: list[dict]):
     발생 목록만 만들어 두고 백테스트 진행에 맞춰 포인터를 밀며 누적한다.
     """
     closes = [b["c"] for b in bars]
-    sigs = ss._signals(ss._series(closes))
+    # Pass the wicks so the harness scores the same fractal definition the
+    # bot fires on (§108). bars already carries them.
+    if all("h" in b and "l" in b for b in bars):
+        s = ss._series(closes, [b["h"] for b in bars], [b["l"] for b in bars])
+    else:
+        s = ss._series(closes)
+    sigs = ss._signals(s)
     n = len(closes)
     out = {}
     for name, (side, cond) in sigs.items():

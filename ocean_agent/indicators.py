@@ -235,20 +235,24 @@ def analyze_multi(client: PacificaClient, symbol: str,
       신호들의 과거 승률, 지금 점등 중이면 🔆 표시
     """
     from .signal_scanner import (FEE_RT, FWD, MIN_EDGE, MIN_N, _series,
-                                 _signals, fetch_closes)
+                                 _signals, fetch_bars)
 
     lines = [f"{symbol} 멀티 시간봉 분석, 실측 적중률 포함", ""]
     live_picks = []
 
     for tf in intervals:
-        closes = fetch_closes(client, symbol, tf, max_bars=1500)
+        # fetch_bars, not fetch_closes: the wrapper drops the wicks and the
+        # fractals shown to the user would then be a different definition
+        # from the one the bot trades on (§108).
+        ohlc = fetch_bars(client, symbol, tf, max_bars=1500)
+        closes = [b[4] for b in ohlc]
         n = len(closes)
         label = f"[{tf} · {TF_LABEL.get(tf, tf)}]"
         if n < 200 + FWD:
             lines.append(f"{label} 캔들 부족 ({n}개), 통계 생략")
             lines.append("")
             continue
-        s = _series(closes)
+        s = _series(closes, [b[2] for b in ohlc], [b[3] for b in ohlc])
 
         # --- 현재 상태 스냅샷 ---
         rsi_v = s["rsi"][-1]

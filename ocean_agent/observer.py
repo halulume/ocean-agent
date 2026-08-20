@@ -20,7 +20,8 @@ import time
 from . import data_file
 from .api_client import PacificaClient
 from .indicators import INTERVAL_MS
-from .signal_scanner import FWD, _series, _signals, current_horizons, fetch_closes
+from .signal_scanner import (FWD, _series, _signals, current_horizons,
+                             fetch_bars)
 
 _HOME = os.path.expanduser("~")
 
@@ -136,12 +137,16 @@ def observe(client: PacificaClient, universe: int = 15,
         sym = p["symbol"]
         for tf in _observe_tfs():
             try:
-                closes = fetch_closes(client, sym, tf)
+                # fetch_closes is a wrapper that throws the wicks away, and
+                # this is where win rates are learned, so the definition here
+                # has to be the one that fires in signal_scanner (§108).
+                ohlc = fetch_bars(client, sym, tf)
             except Exception:
                 continue
+            closes = [b[4] for b in ohlc]
             if len(closes) < 60:
                 continue
-            s = _series(closes)
+            s = _series(closes, [b[2] for b in ohlc], [b[3] for b in ohlc])
             n = len(closes)
             # 이 심볼·시간봉에서 지금 동시에 켜진 신호들 수집
             active = []   # (name, side)

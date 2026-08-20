@@ -47,17 +47,21 @@ STEP_BARS = 250          # re-predict every N bars (mirrors periodic re-measure)
 WARMUP = 220             # bars needed before indicators are valid
 
 
-def _firings(closes, fwd=FWD):
+def _firings(closes, fwd=FWD, highs=None, lows=None):
     """{signal: (side, [(index, won), ...])} over the whole series.
 
     Computed once per series. Each firing carries the outcome of the trade the
     bot would have taken, so the walk-forward pass is pure bookkeeping after
-    this, no re-running indicators per checkpoint."""
+    this, no re-running indicators per checkpoint.
+
+    highs/lows are the fractal definition (§108). This table calibrates live
+    win rates, so measuring a different definition than the one that fires
+    would miscalibrate every signal that uses a wick."""
     from .signal_scanner import _series, _signals
     n = len(closes)
     if n < WARMUP + fwd + MIN_TRAIN:
         return {}
-    s = _series(closes)
+    s = _series(closes, highs, lows)
     out = {}
     for name, (side, cond) in _signals(s).items():
         hits = []
@@ -75,7 +79,8 @@ def _firings(closes, fwd=FWD):
     return out
 
 
-def walk_series(closes, symbol, tf, fwd=FWD, step=STEP_BARS):
+def walk_series(closes, symbol, tf, fwd=FWD, step=STEP_BARS,
+                highs=None, lows=None):
     """Replay history forward, predicting then checking.
 
     Yields (signal, pred, n_train, won) one at a time instead of returning a
@@ -83,7 +88,7 @@ def walk_series(closes, symbol, tf, fwd=FWD, step=STEP_BARS):
     them costs gigabytes, and nothing downstream needs an individual record,
     only the counts. Streaming keeps memory flat regardless of history length."""
     n = len(closes)
-    for name, (side, hits) in _firings(closes, fwd).items():
+    for name, (side, hits) in _firings(closes, fwd, highs, lows).items():
         # hits is ordered by index; walk a cursor for the training set so the
         # whole pass stays linear instead of re-scanning per checkpoint.
         train_w = train_n = 0
@@ -236,7 +241,7 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
     out of memory before it could write anything. The counters answer every
     question the raw records did and fit in tens of KB."""
     from .api_client import PacificaClient
-    from .rematrix import COINS, TFS, _fetch
+    from .rematrix import COINS, TFS, _fetch_ohlc
     symbols = symbols or COINS
     tfs = tfs or TFS
     # 항상 메인넷 가격으로 잰다(테스트넷 설정으로 돌려도 마찬가지). 이 표는
@@ -248,7 +253,10 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
     for sym in symbols:
         for tf in tfs:
             try:
-                closes = _fetch(client, sym, tf, use_extended=True, log=log)
+                # _fetch returns closes only; the fractal definition needs the
+                # wicks, so pull whole bars (§108).
+                bars = _fetch_ohlc(client, sym, tf, use_extended=True, log=log)
+                closes = [x["c"] for x in bars]
             except Exception as e:
                 log(f"  {sym} {tf}: 조회 실패 {e}")
                 continue
@@ -256,7 +264,10 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
                 log(f"  {sym} {tf}: 데이터 부족 ({len(closes)}봉), 건너뜀")
                 continue
             before = agg.n
-            for sig, pred, n_train, won in walk_series(closes, sym, tf, fwd=fwd):
+            for sig, pred, n_train, won in walk_series(
+                    closes, sym, tf, fwd=fwd,
+                    highs=[x["h"] for x in bars],
+                    lows=[x["l"] for x in bars]):
                 agg.add(sig, tf, pred, n_train, won)
             log(f"  {sym} {tf}: {len(closes):,}봉 → 검증표본 {agg.n - before:,}건")
     payload = {"measured_at": int(time.time() * 1000), "fwd": fwd,

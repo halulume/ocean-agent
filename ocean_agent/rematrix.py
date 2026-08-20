@@ -275,7 +275,16 @@ def _measure_series(closes, fwd, bars=None):
             if cnt >= 50:
                 ev = tot / cnt
         base[side] = {"wr": wr, "n": len(mv), "ev": ev, "ev_end": ev_end}
-    s = _series(closes)
+    # Fractals need the wick, not the close. §108 fixed that in the scanner
+    # but this call kept passing closes only, so the gate that decides which
+    # signals may trade was built from a different definition than the one
+    # that fires. On 1000BONKUSDT 1h over 6,000 bars the two definitions
+    # overlap on 329 of 819 close-based and 788 wick-based highs, so three
+    # quarters of the events were not the same events.
+    if bars and len(bars) == len(closes):
+        s = _series(closes, [b["h"] for b in bars], [b["l"] for b in bars])
+    else:
+        s = _series(closes)
     res = {}
     for name, (side, cond) in _signals(s).items():
         moves, fired = [], []
