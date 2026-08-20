@@ -340,8 +340,15 @@ def build_curve(agg, save: bool = True) -> dict:
     # symbol's luck; a signal's skill transfers across symbols.
     sig_tf = {k: [round(v[0] / v[1], 4), v[1]]
               for k, v in agg.sig_tf.items() if v[1] >= SIG_MIN_N}
+    # The stamp goes on this file too. _load_curve reads CURVE_FILE and
+    # rejects anything whose defs_version does not match, but only run()
+    # stamped RESULT_FILE, so the curve was born stale and could never be
+    # used again: calibrated() and measured_winrate() returned None forever,
+    # calibrated_ok stayed False, and every prediction took evidence
+    # shrinkage permanently rather than only while definitions were behind.
+    from .signal_scanner import DEFS_VERSION
     out = {"measured_at": int(time.time() * 1000), "n": agg.n,
-           "curve": curve, "sig_tf": sig_tf}
+           "defs_version": DEFS_VERSION, "curve": curve, "sig_tf": sig_tf}
     if save:
         tmp = CURVE_FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:

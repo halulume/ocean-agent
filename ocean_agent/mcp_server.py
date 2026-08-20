@@ -912,11 +912,10 @@ def evaluate_print(symbol: str = "BTC", distance_pct: float = 1.0,
     verdict: favorable or negative expected value.
     distance_pct is the target's distance from mark (0.5–5).
 
-    Measured result as of 2026-08-05: Print is unfavorable in normal
-    conditions (Pacifica implied vol 26-38% vs realized 40-53%). The one
-    exception found is ETH short at 2% distance while the trailing 7-day
-    realized vol is under 24.2% (~+17%/yr, about 3% of the time). print_eval's
-    vol_gate() reports whether that window is open right now."""
+    Measured result: Print is unfavorable in normal conditions, because
+    implied volatility sits below realised. A narrow calm-market exception
+    exists and the window is open a small fraction of the time; print_eval's
+    vol_gate() reports whether it is open right now."""
     if side not in ("long", "short"):
         raise ToolError("side must be 'long' or 'short'")
     from .print_eval import evaluate_symbol, format_report

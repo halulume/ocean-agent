@@ -320,6 +320,27 @@ def grade(client: PacificaClient) -> dict:
 MIN_SPAN_DAYS = 5      # 관측이 이 일수 이상에 걸쳐야 신뢰 (독립성 확보)
 
 
+def _side_current(entry) -> bool:
+    """Was this record graded on the side the signal now trades?
+
+    observer.grade() scores won = move > 0 for a long and move < 0 for a
+    short, but signal_winrate and pooled_winrate returned win/total without
+    asking which side produced it. When §110 flipped the lower Bollinger band
+    and its squeeze to long, 1,343 gradings kept their short verdicts and were
+    read as long win rates, i.e. exactly inverted. Records whose side no longer
+    matches are dropped rather than flipped: a definition change moves which
+    bars fire as well as which way they point, so the old counts are not a
+    mirror of the new ones.
+    """
+    try:
+        from .signal_scanner import _signal_side
+        now = _signal_side(entry.get("sig"))
+    except Exception:
+        return True
+    rec = entry.get("side")
+    return not (now and rec and now != rec)
+
+
 def signal_winrate(symbol: str, interval: str, signal: str):
     """축적된 실전 승률 조회 (표본이 부족하거나 시간적으로 뭉쳐 있으면 None).
 
@@ -330,7 +351,7 @@ def signal_winrate(symbol: str, interval: str, signal: str):
     """
     stats = _load_stats()
     e = stats.get(f"{symbol}|{interval}|{signal}")
-    if not e or e["total"] < 10:
+    if not e or e["total"] < 10 or not _side_current(e):
         return None
     if _span_days(e) < MIN_SPAN_DAYS:
         return None
@@ -363,6 +384,8 @@ def pooled_winrate(interval: str, signal: str):
             try:
                 _, tf, sig = k.split("|", 2)
             except ValueError:
+                continue
+            if not _side_current(v):
                 continue
             a = pooled.setdefault((tf, sig), [0, 0, None, None])
             a[0] += v.get("win", 0)
