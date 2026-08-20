@@ -481,9 +481,20 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
     now = datetime.now(KST)
     rec = {"made_at": now.isoformat(),
            "horizon_h": 24,
+           # Every pick is filed under this sentence, so it has to describe
+           # what actually chose the direction. §100 cut cross-sectional
+           # ranking back to one class and the sentence kept claiming it for
+           # all of them; §83⑥ had already fixed this once. Built from the
+           # live constants rather than typed out, so it cannot drift again.
+           # bracket_trader.latest_seal() matches on "자산군" only, so the
+           # rest of the line is record, not behaviour.
            "rule": ("자산군별 점수(예상변동×신뢰도) → 호가 관문(슬리피지) → "
-                    "횡단면 24h 상대순위 방향(중앙값 위 롱·아래 숏) → "
-                    "베이스 모드 변동성 브래킷"),
+                    + (f"{'·'.join(sorted(XSEC_DIR_CLASSES))} 는 횡단면 24h "
+                       "상대순위 방향(중앙값 위 롱·아래 숏), 나머지는 "
+                       "도달률 방향" if XSEC_DIR_CLASSES else "도달률 방향")
+                    + (f" (예외 종목: {'·'.join(sorted(XSEC_DIR_SYMS))})"
+                       if XSEC_DIR_SYMS else "")
+                    + " → 베이스 모드 변동성 브래킷"),
            "picks": picks, "scores": {}}
     out_dir = out_dir or OUTPUTS_DIR
     os.makedirs(out_dir, exist_ok=True)

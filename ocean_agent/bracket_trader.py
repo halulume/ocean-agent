@@ -358,6 +358,37 @@ def bracket_prices(px: float, direction: str, mv: float, cfg: dict,
     return tp_s, sl_s
 
 
+def _recorded_distances(pos: dict, cfg: dict) -> tuple[float, float]:
+    """This position's own take-profit and stop distances, in percent.
+
+    Read off the prices the orders were actually placed at, not recomputed
+    from today's multipliers. §100 made the same point about the ledger: on a
+    day the geometry changes, the book holds two generations and reading one
+    with the other's ruler is wrong. The code had the same bug. It matters for
+    the slippage breaker, which asks whether a stop filled worse than its own
+    distance, and for the estimated-PnL cap.
+
+    Tick rounding alone already moves these: SKHYNIX opened at 1.5x/1.0x with
+    an expected move of 3.98% and sits at 6.002% and 3.955%, not 5.970% and
+    3.980%. Across a geometry change the gap is the whole change.
+
+    Falls back to the config when a position predates the recorded prices or
+    carries an unusable entry.
+    """
+    entry = pos.get("entry_fill") or pos.get("entry_intent") or 0
+    tp, sl = pos.get("tp"), pos.get("sl")
+    try:
+        if entry > 0 and tp and sl:
+            tp_d = abs(float(tp) / entry - 1.0) * 100
+            sl_d = abs(float(sl) / entry - 1.0) * 100
+            if tp_d > 0 and sl_d > 0:
+                return tp_d, sl_d
+    except (TypeError, ValueError, ZeroDivisionError):
+        pass
+    exp = pos.get("exp_move_pct") or 0
+    return tp_distance_pct(cfg, exp), cfg["sl_mult"] * exp
+
+
 def _settings_confirmed(client, sym: str, lev: int) -> bool:
     """Does the exchange itself say this market is isolated at `lev`?
 
@@ -648,7 +679,6 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
     # seven held plus one free put 97% of the account into that one
     # entry. Anyone running the shipped defaults (no fixed notional)
     # met that on their first refill.
-    open_slots = max(1, cfg["slots"] - len(st["positions"]))
     margin_per = funds * cfg["deploy_pct"] / max(1, cfg["slots"])
     if cfg["notional_usd"] > 0:
         # fixed notional wins over the proportional split, but never exceeds
@@ -1049,8 +1079,7 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                 notify.send(f"브래킷: {sym} 실현손익 조회 {fails}회 연속 실패, "
                             f"추정 채점으로 내려갑니다 (청산 여부 판정 불가)")
                 real = None
-            tp_d = tp_distance_pct(cfg, pos["exp_move_pct"])
-            sl_d = cfg["sl_mult"] * pos["exp_move_pct"]
+            tp_d, sl_d = _recorded_distances(pos, cfg)
             if real and notional > 0:
                 est = real["pnl_usd"] / notional * 100
                 cause = real["cause"]
@@ -1190,9 +1219,15 @@ def _warn_once(st, key: str, msg: str) -> None:
     itself to a console window nobody is watching. The account's real
     protection is the exchange-side stop on every position, not this flag,
     so the conditions now warn instead of blocking.
+
+    Suppression is per key, not per message. The average warning carries the
+    running figure, so comparing message text meant every close that moved the
+    average by a thousandth counted as a new condition and Telegram fired
+    again on the next 30-minute pass. The state file still held -1.516 while
+    the average had already walked to -1.279.
     """
     seen = st.setdefault("warned", {})
-    if seen.get(key) == msg:
+    if key in seen:
         return
     seen[key] = msg
     log(f"⚠️ {msg}")
@@ -1202,7 +1237,14 @@ def _warn_once(st, key: str, msg: str) -> None:
 def circuit_breakers(st, cfg) -> None:
     if st["halted"]:
         return
-    closed = st["closed"]
+    # Operator closes are not strategy results. --close-all books its exits
+    # here like any other, so a breaker meant to ask "is the strategy paying"
+    # was averaging in whatever the operator did by hand, and the answer moved
+    # with it: on the 08-20 book the same 30 rows read -1.279%p with them and
+    # -1.415%p without. Count the last HALT_AVG_AFTER *strategy* closes rather
+    # than filtering inside a fixed window, or the sample silently shrinks on
+    # a day with many manual exits.
+    closed = [c for c in st["closed"] if c.get("cause") != "manual_close"]
     if len(closed) >= HALT_AVG_AFTER:
         recent = closed[-HALT_AVG_AFTER:]
         avg = sum(c["pnl_pct_est"] for c in recent) / len(recent)
@@ -1464,10 +1506,20 @@ def main():
     # exist yet, so the watchdog read "no heartbeat" and started a second
     # one. The claim has to be the first thing, not the first thing in the
     # loop. (--close-all skips the lock, so it must not claim either.)
-    if not args.dry and not args.close_all:
+    claimed = not args.dry and not args.close_all
+    if claimed:
         write_heartbeat()
 
-    client = make_client(policy)
+    try:
+        client = make_client(policy)
+    except Exception:
+        # The claim above is written before the network is touched on purpose,
+        # but a claim for a bot that never came up blocks a restart for the
+        # whole freshness window. Hand it back on the way out; a crash later
+        # still lets the heartbeat expire on its own.
+        if claimed:
+            clear_heartbeat()
+        raise
 
     # Crash recovery must run before --close-all too, or a position that was
     # opened but never booked would survive a "close everything". (review H9)
