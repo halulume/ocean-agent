@@ -21,6 +21,19 @@ from dataclasses import asdict, dataclass
 from .api_client import PacificaClient
 from .indicators import INTERVAL_MS, ema_series, rsi_series
 
+# Bump this whenever a signal's definition or side changes. Tables measured
+# under an older number are not comparable and must not be read: on 08-20 a
+# matrix measured at 17:25 was gating signals whose sign had moved at 19:58,
+# so "short made money" was approving a long entry. rematrix stamps it and
+# rebuilds on mismatch; walkforward stamps it and refuses to answer, which
+# drops the caller back to evidence shrinkage rather than to a wrong number.
+#   1  ~2026-08-19  original definitions
+#   2   2026-08-20  §108: sRSI smoothing, wick fractals, RSI band split,
+#                   entry form, hour-based horizon
+#   3   2026-08-20  §110: lower Bollinger band and squeeze flip to long;
+#                   band entry guarded by approach side
+DEFS_VERSION = 3
+
 FWD = 24                 # 평가 지평: 24캔들 (자기 스케일)
 FEE_RT = 0.0008          # 시장가 왕복 수수료 (0.04% × 2, 명목 기준)
 MIN_N = 30               # 최소 표본, 이 미만이면 진입하지 않는다

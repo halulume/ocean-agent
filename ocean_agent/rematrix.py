@@ -432,11 +432,17 @@ def run_measurement(base_url="https://api.pacifica.fi", fwd=24,
                 bases.append(bs)
             time.sleep(3)
     from .signal_scanner import SL_WIDTH_MULT as _slw_tag
+    from .signal_scanner import DEFS_VERSION as _defs_tag
     out = {"measured_at": int(time.time() * 1000), "fwd": fwd,
            # which stop-width convention measured this file: without the tag
            # a 1x-measured matrix is indistinguishable from a 2x one and the
            # two get mixed silently for up to rematrix_every_days (review P5)
            "sl_width_mult": _slw_tag,
+           # same argument for the signal definitions themselves. On 08-20 a
+           # matrix measured at 17:25 gated signals whose sign moved at 19:58,
+           # so a cell reading "short made money" approved a long entry and
+           # nothing in the file said the two disagreed.
+           "defs_version": _defs_tag,
            "rows": rows, "bases": bases, "extended": use_extended,
            # 어떤 구간·어떤 종목으로 잰 값인지 파일에 남긴다. 나중에 두 매트릭스를
            # 비교할 때 "표본이 왜 줄었나"를 파일만 보고 알 수 있어야 한다.
@@ -508,6 +514,13 @@ def load_matrix() -> dict | None:
 def age_days(m: dict | None = None) -> float:
     m = m or load_matrix()
     if not m:
+        return 1e9
+    # A matrix measured under older signal definitions is as good as absent,
+    # so report it as infinitely old and let ensure_fresh rebuild it. Reporting
+    # it as missing instead would block every signal at the gate; reporting it
+    # as fresh is what let the 08-20 sign mismatch stand for two hours.
+    from .signal_scanner import DEFS_VERSION
+    if m.get("defs_version") != DEFS_VERSION:
         return 1e9
     return (time.time() * 1000 - float(m.get("measured_at", 0))) / 86_400_000
 

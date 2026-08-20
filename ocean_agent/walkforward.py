@@ -270,8 +270,10 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
                     lows=[x["l"] for x in bars]):
                 agg.add(sig, tf, pred, n_train, won)
             log(f"  {sym} {tf}: {len(closes):,}봉 → 검증표본 {agg.n - before:,}건")
+    from .signal_scanner import DEFS_VERSION
     payload = {"measured_at": int(time.time() * 1000), "fwd": fwd,
-               "step": STEP_BARS, "min_train": MIN_TRAIN, **agg.to_dict()}
+               "step": STEP_BARS, "min_train": MIN_TRAIN,
+               "defs_version": DEFS_VERSION, **agg.to_dict()}
     tmp = RESULT_FILE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(payload, f)
@@ -369,8 +371,17 @@ def _load_curve():
     if c.get("path") != path or c["mtime"] != mt:
         with open(path, encoding="utf-8") as f:
             d = json.load(f)
-        c["pts"] = [(p, a) for p, a, _ in d.get("curve", [])]
-        c["sig_tf"] = d.get("sig_tf") or {}
+        # A table measured under older signal definitions is not a calibration
+        # of the current ones. The 08-05 table scored the lower Bollinger band
+        # as a short and fractals off closes; feeding those win rates to
+        # today's definitions would also set calibrated_ok, which switches the
+        # per-symbol baseline to a flat 0.5 and skips evidence shrinkage. Empty
+        # is the safe answer: the caller falls back to shrinkage.
+        from .signal_scanner import DEFS_VERSION
+        stale = d.get("defs_version") != DEFS_VERSION
+        c["pts"] = [] if stale else [(p, a) for p, a, _ in d.get("curve", [])]
+        c["sig_tf"] = {} if stale else (d.get("sig_tf") or {})
+        c["stale"] = stale
         c["mtime"] = mt
         c["path"] = path
     return c
