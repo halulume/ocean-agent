@@ -32,7 +32,11 @@ from .indicators import INTERVAL_MS, ema_series, rsi_series
 #                   entry form, hour-based horizon
 #   3   2026-08-20  §110: lower Bollinger band and squeeze flip to long;
 #                   band entry guarded by approach side
-DEFS_VERSION = 3
+#   4   2026-08-21  §111: all four band signals take the reversal sign, the
+#                   two squeeze signals go through _enter (firings halve),
+#                   and the scoring horizon becomes 24 hours on every
+#                   timeframe instead of 24 candles
+DEFS_VERSION = 4
 
 # Which signals actually changed meaning at DEFS_VERSION 3. A file-level stamp
 # is right for the matrix, which is remeasured whole, but wrong for the live
@@ -51,6 +55,11 @@ CHANGED_AT_DEFS_3 = frozenset({
     "볼린저 상단이탈", "볼린저 하단이탈",
     "볼린저 스퀴즈 상방", "볼린저 스퀴즈 하방",
 })
+# DEFS_VERSION 4 changed the same family again (all four take the reversal
+# sign, both squeezes go through _enter) and moved the horizon on every
+# signal, so from here the whole set is behind. Kept as one name because the
+# observation filter only asks "is this record's stamp current".
+CHANGED_AT_DEFS_4 = CHANGED_AT_DEFS_3
 
 FWD = 24                 # 평가 지평: 24캔들 (자기 스케일)
 FEE_RT = 0.0008          # 시장가 왕복 수수료 (0.04% × 2, 명목 기준)
@@ -621,19 +630,29 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
         sym = p["symbol"]
         max_lev = int(markets.get(sym, {}).get("max_leverage", 10))
         for hz, tf in horizons.items():
+            # The horizon is 24 hours, the bracket's expiry, not FWD candles.
+            # FWD is a bar count, so a 4h scan scored 96 hours ahead, an 8h
+            # scan 192 and a daily scan 576, while the gate that admits the
+            # signal, the observation that grades it and the bracket that
+            # actually opens all use 24. One decision was carrying three
+            # different horizons at once. _fwd_for converts hours to this
+            # timeframe's bar count, the same function rematrix uses, so the
+            # two sides of the comparison finally measure the same thing.
+            from .rematrix import _fwd_for
+            fwd = _fwd_for(tf)
             ohlc = fetch_bars(client, sym, tf)
             closes = [b[4] for b in ohlc]
             n = len(closes)
-            if n < 220 + FWD:   # 채점 시작(220) + 전방지평 이후가 있어야 표본 생김
+            if n < 220 + fwd:   # 채점 시작(220) + 전방지평 이후가 있어야 표본 생김
                 continue
             s = _series(closes, [b[2] for b in ohlc], [b[3] for b in ohlc])
             sigs = _signals(s)
             # same warm-up cut as the signal sample below: bars before 220
             # are indicator warm-up and early-listing drift, and a baseline
             # measured on a different sample skews every pass/fail (S2)
-            ups = sum(1 for i in range(220, n - FWD)
-                      if closes[i + FWD] > closes[i])
-            base_up = ups / max(1, n - FWD - 220)
+            ups = sum(1 for i in range(220, n - fwd)
+                      if closes[i + fwd] > closes[i])
+            base_up = ups / max(1, n - fwd - 220)
 
             # 지금 동시에 켜진 신호 집합 (조합 학습 참조용)
             co_active = []
@@ -656,13 +675,13 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 # 서로 다른 표본으로 계산돼 어긋난다.
                 moves = []
                 fires = []
-                for i in range(220, n - FWD):
+                for i in range(220, n - fwd):
                     try:
                         if not cond(i):
                             continue
                     except (TypeError, IndexError):
                         continue
-                    m = closes[i + FWD] / closes[i] - 1
+                    m = closes[i + fwd] / closes[i] - 1
                     moves.append(m if side == "long" else -m)
                     fires.append(i)
                 _ni = 0
@@ -670,7 +689,7 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                     _ni = 1
                     _lf = fires[0]
                     for _f in fires[1:]:
-                        if _f - _lf >= FWD:
+                        if _f - _lf >= fwd:
                             _ni += 1
                             _lf = _f
                 if _ni < MIN_N:      # gate on independent observations (S3)
@@ -790,7 +809,7 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 # 그건 보정표가 직접 잰다. 수축은 보정표가 없을 때의 대비책으로 남긴다.
                 if not calibrated_ok:
                     # overlapping fires within one forward horizon are one
-                    # observation, not many: thin them to FWD spacing before
+                    # observation, not many: thin them to horizon spacing before
                     # they feed shrinkage and the MIN_N gate (S3)
                     n_eff = _ni + live_n * LIVE_SAMPLE_WEIGHT
                     pwin = target + (pwin - target) * (n_eff / (n_eff + EVIDENCE_PRIOR))
@@ -814,7 +833,7 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 # per occurrence from data available at that occurrence.
                 sl = max(avg_loss, 0.005) * SL_WIDTH_MULT
                 tp = avg_win
-                horizon_h = INTERVAL_MS[tf] * FWD / 3_600_000
+                horizon_h = INTERVAL_MS[tf] * fwd / 3_600_000
                 # ── 24시간 이상 지평은 '스윙'으로 다르게 잡는다 ──
                 # 실측(2026-08-05, 1시간봉 장기 이력, 겹침 제거):
                 # 손절을 좁히고 익절을 넓히면 승률은 55%→39%로 떨어지지만
@@ -860,9 +879,9 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 # target is fitted on bars that had not printed yet.
                 # So each occurrence is scored with an expanding window of
                 # only the occurrences that had already resolved when it
-                # fired. An occurrence at index fk is known at fk + FWD,
-                # so the usable set is {k: fires[k] + FWD <= fi}, the same
-                # rule harness._advance applies (f[p][0] + FWD <= i).
+                # fired. An occurrence at index fk is known at fk + fwd,
+                # so the usable set is {k: fires[k] + fwd <= fi}, the same
+                # rule harness._advance applies (f[p][0] + fwd <= i).
                 # fires is ascending, so that set is a prefix and one
                 # moving pointer with running sums keeps this O(n).
                 path = []
@@ -870,7 +889,7 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 w_cnt = l_cnt = 0
                 ptr = 0
                 for fi in fires:
-                    while ptr < len(fires) and fires[ptr] + FWD <= fi:
+                    while ptr < len(fires) and fires[ptr] + fwd <= fi:
                         mv_p = moves[ptr]
                         if mv_p > 0:
                             w_sum += mv_p
@@ -893,7 +912,7 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                     if e0 <= 0:
                         continue
                     r = None
-                    for k in range(1, FWD + 1):
+                    for k in range(1, fwd + 1):
                         hi = ohlc[fi + k][2] / e0 - 1.0
                         lo = ohlc[fi + k][3] / e0 - 1.0
                         adverse = -lo if side == "long" else hi
@@ -905,7 +924,7 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                             r = tp_i
                             break
                     if r is None:
-                        mv = closes[fi + FWD] / e0 - 1.0
+                        mv = closes[fi + fwd] / e0 - 1.0
                         r = mv if side == "long" else -mv
                     path.append(r)
                 # The path sample is now necessarily smaller than the moves

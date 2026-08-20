@@ -137,12 +137,18 @@ def load_bars(client, symbol: str, interval: str, start_year: int, log=_log):
 
 # ─────────────────────── 신호 사전계산 ───────────────────────
 
-def precompute(bars: list[dict]):
+def precompute(bars: list[dict], tf: str = "1h"):
     """이 심볼·시간봉의 신호별 발생 지점과 지평 결과를 미리 계산.
+
+    tf is needed because the horizon is 24 hours, not 24 bars: a harness that
+    scored a 4h replay 96 hours out was not replaying what the live scanner
+    does, which is the parity this module exists to keep.
 
     승률은 '그 시점까지 알 수 있던 것'만으로 재야 하므로(미래참조 금지),
     발생 목록만 만들어 두고 백테스트 진행에 맞춰 포인터를 밀며 누적한다.
     """
+    from .rematrix import _fwd_for
+    _fwd = _fwd_for(tf)
     closes = [b["c"] for b in bars]
     # Pass the wicks so the harness scores the same fractal definition the
     # bot fires on (§108). bars already carries them.
@@ -162,12 +168,12 @@ def precompute(bars: list[dict]):
             except (TypeError, IndexError):
                 on = False
             live.append(on)
-            if on and 220 <= i < n - ss.FWD and closes[i] > 0:
-                m = closes[i + ss.FWD] / closes[i] - 1.0
+            if on and 220 <= i < n - _fwd and closes[i] > 0:
+                m = closes[i + _fwd] / closes[i] - 1.0
                 fires.append((i, m if side == "long" else -m))
         if fires:
             out[name] = {"side": side, "fires": fires, "live": live, "ptr": 0,
-                         "closes": closes,
+                         "fwd": _fwd, "closes": closes,
                          "n": 0, "wins": [], "losses": [],
                          # 경로 EV 누적, 발생분 하나를 딱 한 번만 평가한다
                          "path_ptr": 0, "path_sum": 0.0, "path_n": 0}
@@ -179,7 +185,7 @@ def _advance(st: dict, i: int) -> None:
     fire + FWD <= i 조건이 미래참조를 막는 핵심이다."""
     f = st["fires"]
     p = st["ptr"]
-    while p < len(f) and f[p][0] + ss.FWD <= i:
+    while p < len(f) and f[p][0] + st.get("fwd", ss.FWD) <= i:
         m = f[p][1]
         (st["wins"] if m > 0 else st["losses"]).append(abs(m))
         st["n"] += 1
@@ -192,18 +198,23 @@ def _advance(st: dict, i: int) -> None:
 _BASE_CACHE = {}
 
 
-def _baseline_up(closes: list, i: int) -> float:
+def _baseline_up(closes: list, i: int, fwd: int = ss.FWD) -> float:
     """직전 3000봉에서 '그냥 롱'의 승률. 500봉 단위로만 다시 센다,
-    이 값은 천천히 변하는데 봉마다 계산하면 그 자체가 O(n²)이다."""
-    key = (id(closes), i // 500)
+    이 값은 천천히 변하는데 봉마다 계산하면 그 자체가 O(n²)이다.
+
+    fwd is the caller's horizon in bars, so the baseline is measured over the
+    same span as the signal it is compared against. The cache key carries it
+    for the same reason.
+    """
+    key = (id(closes), i // 500, fwd)
     hit = _BASE_CACHE.get(key)
     if hit is not None:
         return hit
     seg = closes[max(0, i - 3000):i]
-    if len(seg) > ss.FWD + 50:
-        ups = sum(1 for k in range(len(seg) - ss.FWD)
-                  if seg[k + ss.FWD] > seg[k])
-        val = ups / (len(seg) - ss.FWD)
+    if len(seg) > fwd + 50:
+        ups = sum(1 for k in range(len(seg) - fwd)
+                  if seg[k + fwd] > seg[k])
+        val = ups / (len(seg) - fwd)
     else:
         val = 0.5
     if len(_BASE_CACHE) > 5000:
@@ -225,7 +236,7 @@ def evaluate(st: dict, name: str, tf: str, bars: list[dict], i: int,
 
     # 기준선: 이 구간에서 그냥 롱/숏 했을 때의 승률 (실력인지 시장 덕인지 분리)
     # 봉마다 3000봉을 다시 세면 이것만으로도 O(n²)이라 500봉 단위로 캐시한다.
-    base_up = _baseline_up(closes, i)
+    base_up = _baseline_up(closes, i, st.get("fwd", ss.FWD))
     base = base_up if side == "long" else 1 - base_up
     if pwin - base < ss.MIN_EDGE:
         return None
@@ -237,7 +248,7 @@ def evaluate(st: dict, name: str, tf: str, bars: list[dict], i: int,
     avg_loss = (sum(losses) / len(losses) if losses else max(avg_win, 0.005))
     sl = max(avg_loss * SIZE_SCALE, 0.005) * ss.SL_WIDTH_MULT  # live parity
     tp = avg_win * SIZE_SCALE
-    horizon_h = INTERVAL_MS[tf] * ss.FWD / 3_600_000
+    horizon_h = INTERVAL_MS[tf] * st.get("fwd", ss.FWD) / 3_600_000
     # swing fixed SL/TP + volatility gate removed 2026-08-09: live withdrew
     # them on 2026-08-05 (signal_scanner:641) - keeping them here made the
     # harness replay a config the bot no longer runs (parity bug).
@@ -257,7 +268,7 @@ def evaluate(st: dict, name: str, tf: str, bars: list[dict], i: int,
         if e0 <= 0:
             continue
         r = None
-        for k in range(1, ss.FWD + 1):
+        for k in range(1, st.get("fwd", ss.FWD) + 1):
             if fi + k >= len(bars):
                 break
             hi, lo = bars[fi + k]["h"], bars[fi + k]["l"]
@@ -270,8 +281,8 @@ def evaluate(st: dict, name: str, tf: str, bars: list[dict], i: int,
             if favor >= tp:
                 r = tp
                 break
-        if r is None and fi + ss.FWD < len(closes):
-            mv = closes[fi + ss.FWD] / e0 - 1.0
+        if r is None and fi + st.get("fwd", ss.FWD) < len(closes):
+            mv = closes[fi + st.get("fwd", ss.FWD)] / e0 - 1.0
             r = mv if side == "long" else -mv
         if r is not None:
             st["path_sum"] += r
@@ -568,7 +579,7 @@ def run(coins, intervals, start_year, capital, adaptive, log=_log,
             if len(bars) < 400:
                 log(f"  {sym} {tf}: 봉 {len(bars)}개, 건너뜀")
                 continue
-            data[(sym, tf)] = {"bars": bars, "sig": precompute(bars)}
+            data[(sym, tf)] = {"bars": bars, "sig": precompute(bars, tf)}
             log(f"  {sym} {tf}: {len(bars)}봉 · 신호 {len(data[(sym,tf)]['sig'])}종")
     if not data:
         log("데이터가 없어 중단")

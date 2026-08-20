@@ -234,13 +234,17 @@ def analyze_multi(client: PacificaClient, symbol: str,
     - 이 코인·이 시간봉에서 통계 관문(표본30+/엣지+5%p/EV>0)을 통과한
       신호들의 과거 승률, 지금 점등 중이면 🔆 표시
     """
-    from .signal_scanner import (FEE_RT, FWD, MIN_EDGE, MIN_N, _series,
+    from .signal_scanner import (FEE_RT, MIN_EDGE, MIN_N, _series,
                                  _signals, fetch_bars)
+    # 24 hours per timeframe, matching the bracket and the gate, instead
+    # of 24 candles, which showed a daily chart a 576-hour statistic.
+    from .rematrix import _fwd_for
 
     lines = [f"{symbol} 멀티 시간봉 분석, 실측 적중률 포함", ""]
     live_picks = []
 
     for tf in intervals:
+        fwd = _fwd_for(tf)
         # fetch_bars, not fetch_closes: the wrapper drops the wicks and the
         # fractals shown to the user would then be a different definition
         # from the one the bot trades on (§108).
@@ -248,7 +252,7 @@ def analyze_multi(client: PacificaClient, symbol: str,
         closes = [b[4] for b in ohlc]
         n = len(closes)
         label = f"[{tf} · {TF_LABEL.get(tf, tf)}]"
-        if n < 200 + FWD:
+        if n < 200 + fwd:
             lines.append(f"{label} 캔들 부족 ({n}개), 통계 생략")
             lines.append("")
             continue
@@ -271,22 +275,22 @@ def analyze_multi(client: PacificaClient, symbol: str,
         lines.append(f"{label} " + " · ".join(snap))
 
         # --- 실측 적중률 (이 코인·이 시간봉) ---
-        ups = sum(1 for i in range(n - FWD) if closes[i + FWD] > closes[i])
-        base_up = ups / (n - FWD)
-        horizon_h = INTERVAL_MS[tf] * FWD / 3_600_000
+        ups = sum(1 for i in range(n - fwd) if closes[i + fwd] > closes[i])
+        base_up = ups / (n - fwd)
+        horizon_h = INTERVAL_MS[tf] * fwd / 3_600_000
         hz_txt = (f"{horizon_h:.0f}시간" if horizon_h < 24
                   else f"{horizon_h/24:.0f}일")
 
         found = []
         for name, (side, cond) in _signals(s).items():
             moves = []
-            for i in range(60, n - FWD):
+            for i in range(60, n - fwd):
                 try:
                     if not cond(i):
                         continue
                 except (TypeError, IndexError):
                     continue
-                m = closes[i + FWD] / closes[i] - 1
+                m = closes[i + fwd] / closes[i] - 1
                 moves.append(m if side == "long" else -m)
             if len(moves) < MIN_N:
                 continue

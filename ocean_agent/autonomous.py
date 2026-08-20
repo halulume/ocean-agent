@@ -525,8 +525,15 @@ def is_soft_halted(st: dict) -> bool:
 
 
 def _hz_ms(interval: str) -> int:
+    """How long a setup on this timeframe is given, in milliseconds.
+
+    24 hours, the bracket's expiry, not 24 candles. The old multiplier made a
+    4h setup wait 96 hours and a daily one 576, so review_and_adapt graded
+    against a horizon the trade never had.
+    """
     from .indicators import INTERVAL_MS
-    return INTERVAL_MS.get(interval, 3_600_000) * 24  # FWD=24
+    from .rematrix import _fwd_for
+    return INTERVAL_MS.get(interval, 3_600_000) * _fwd_for(interval)
 
 
 def review_and_adapt(client: PacificaClient, policy: dict, st: dict) -> None:

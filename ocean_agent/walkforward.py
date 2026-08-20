@@ -241,7 +241,7 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
     out of memory before it could write anything. The counters answer every
     question the raw records did and fit in tens of KB."""
     from .api_client import PacificaClient
-    from .rematrix import COINS, TFS, _fetch_ohlc
+    from .rematrix import COINS, TFS, _fetch_ohlc, _fwd_for
     symbols = symbols or COINS
     tfs = tfs or TFS
     # 항상 메인넷 가격으로 잰다(테스트넷 설정으로 돌려도 마찬가지). 이 표는
@@ -260,12 +260,17 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
             except Exception as e:
                 log(f"  {sym} {tf}: 조회 실패 {e}")
                 continue
-            if len(closes) < WARMUP + fwd + MIN_TRAIN:
+            # 24 hours on every timeframe, not 24 bars. The calibration this
+            # file builds is read by a scanner whose gate, observation and
+            # bracket all end at 24h, so measuring a daily signal 576 hours
+            # out calibrated the wrong thing.
+            tf_fwd = _fwd_for(tf) if fwd == FWD else fwd
+            if len(closes) < WARMUP + tf_fwd + MIN_TRAIN:
                 log(f"  {sym} {tf}: 데이터 부족 ({len(closes)}봉), 건너뜀")
                 continue
             before = agg.n
             for sig, pred, n_train, won in walk_series(
-                    closes, sym, tf, fwd=fwd,
+                    closes, sym, tf, fwd=tf_fwd,
                     highs=[x["h"] for x in bars],
                     lows=[x["l"] for x in bars]):
                 agg.add(sig, tf, pred, n_train, won)
