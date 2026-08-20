@@ -478,21 +478,25 @@ def _signals(s):
                          and hist[i] > 0 >= hist[i-1]),
         "MACD 데드크로스": ("short", lambda i: i > 0 and x(i, hist)
                          and hist[i] < 0 <= hist[i-1]),
-        # The two bands do NOT get the same sign, and the reason is measured.
-        # §107 set both to continuation on per-trade money. §110 rescored them
-        # on market-removed direction, where the goal now sits, and the two
-        # bands part ways once both universes are read:
+        # Band exits are reversal, all four of them, on the one standard 작업
+        # 규칙 §11 sets: train AND test both positive, never the raw count.
+        # §110's 43-symbol boundary table, read as 학습/시험 per boundary:
         #
-        #   lower-as-short   17 syms -2.6 (0/8)   43 syms -1.2, t -3.13 (0/8)
-        #   upper-as-long    17 syms -1.9 (0/8)   43 syms -0.5, t -1.65 (3/8)
+        #   upper as long    train +0.1 +0.2 +0.3 -0.1   test -0.8 -1.1 -1.6 -1.5
+        #   upper as short   (exact mirror)              test +0.8 +1.1 +1.6 +1.5
+        #   lower as long    train +0.8 +0.3 +0.6 +0.6   test +1.3 +1.9 +2.0 +2.4
         #
-        # Only the lower band is wrong in both universes, so only it flips.
-        # The upper band is consistent in the 17-symbol set alone and dies at
-        # three times the sample, which is the older lesson that a reading
-        # surviving one universe is not a reading.
-        # An earlier revision of this comment claimed 0/8 in both universes
-        # for all four band signals; that quoted the 17-symbol column only.
-        "볼린저 상단이탈": ("long", _enter(lambda i: bb[i] is not None and bb[i] > 2)),
+        # A first pass kept the upper band at continuation because its raw
+        # count read 3/8 against the lower band's 0/8, but every one of those
+        # three sits in a training half and its test half is 0 of 4, which is
+        # the shape §11 exists to reject. Δ is an exact mirror on one sample,
+        # so "not enough evidence to flip" is the same sentence as "not enough
+        # evidence to keep", and the point estimate favours the flip.
+        #
+        # Weak family either way: on the 08-21 Bonferroni line of |t| > 3.62,
+        # none of the four clear it, the best being the lower band at 3.13.
+        # Recorded as the best available sign, not as an established edge.
+        "볼린저 상단이탈": ("short", _enter(lambda i: bb[i] is not None and bb[i] > 2)),
         "볼린저 하단이탈": ("long", _enter(lambda i: bb[i] is not None and bb[i] < -2)),
         # ── 아래는 매트릭스 검증 대기 중인 후보 계열 ──
         # 승률이 아니라 실측 EV가 마이너스면 _matrix_rejects가 자동 차단한다.
@@ -510,11 +514,11 @@ def _signals(s):
                          and ma50[i] > m200[i] and ma50[i-1] <= m200[i-1]),
         "MA200 데드크로스": ("short", lambda i: i > 0 and x(i, ma50) and x(i, m200)
                          and ma50[i] < m200[i] and ma50[i-1] >= m200[i-1]),
-        # Squeeze breaks split the same way as the plain bands, for the same
-        # reason: down-as-short is -2.5 (0/8) at 17 symbols and -1.0, t -2.44
-        # (1/8) at 43, so it flips; up-as-long is -1.8 (0/8) at 17 but -0.5,
-        # t -1.17 (4/8) at 43, which is exactly a coin, so it stays.
-        "볼린저 스퀴즈 상방": ("long", lambda i: _squeeze_break(bw, bb, i, +1)),
+        # Squeeze breaks take the same sign as the plain bands and for the same
+        # reason. Up-as-long looked like 4/8, but all four positives are
+        # training halves and its test half is 0 of 4; the mirror is 4 of 4.
+        # Down-as-short is 1/8 and its mirror is 7/8 with test 4 of 4.
+        "볼린저 스퀴즈 상방": ("short", lambda i: _squeeze_break(bw, bb, i, +1)),
         "볼린저 스퀴즈 하방": ("long", lambda i: _squeeze_break(bw, bb, i, -1)),
         # 극단에서 '되돌아오는 순간', 극단 상태 자체보다 유효할 수 있음
         "RSI 과열이탈": ("short", lambda i: i > 0 and x(i, rsi)
@@ -659,6 +663,18 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                             _ni += 1
                             _lf = _f
                 if _ni < MIN_N:      # gate on independent observations (S3)
+                    # Measured 2026-08-21, 43 symbols x 1,500 bars, the live
+                    # fetch_bars default: only 8 of the 22 signals clear this
+                    # on any symbol, and the same 8 at 4h, 8h and 1d. MACD
+                    # both ways, sRSI all four, and the two fractals. The
+                    # other 14 never reach evaluate_setups at all, so the
+                    # Bollinger family, the RSI extremes, both MA crosses,
+                    # MA200 and the two exit signals contribute nothing to
+                    # this path however their signs are set. They still feed
+                    # the matrix, chart_forecast and combination learning.
+                    # Thinning is why: a signal that fires 35 times a symbol
+                    # collapses to about 20 independent observations once
+                    # overlaps inside one forward horizon are merged.
                     continue
                 wins = [m for m in moves if m > 0]
                 losses = [-m for m in moves if m <= 0]
