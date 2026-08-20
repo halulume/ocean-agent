@@ -94,6 +94,11 @@ _dry_logged: set[str] = set()
 # arm this cooldown; the seal wakeup honors it. (review P4)
 _retry_not_before: float = 0.0
 ENTRY_RETRY_COOLDOWN_SEC = 300
+# How long a warning key stays quiet after ringing (2026-08-21 user choice).
+# The two ends were both wrong: comparing message text re-sent every cycle
+# because the text carries a running average, and suppressing on the key
+# alone silenced it forever, since nothing clears `warned`.
+WARN_COOLDOWN_SEC = 6 * 3600
 
 
 def _now():
@@ -985,29 +990,53 @@ def realized_close(client, sym: str, since_ms: int) -> dict | None:
     position. A failed or unparseable query raises PacificaError instead:
     swallowing it here let a 429 on the same cycle as a real liquidation
     silently disable the liquidation halt. (review H7)
+
+    Opening rows count too. The venue reports every row with cause "normal"
+    (100 of 100 on 08-21), so the cause branch never fired and only close
+    rows were summed. But an open row's pnl IS the opening fee as a negative
+    number, and dropping it made every trade look better than it was by one
+    side of the round trip: FARTCOIN booked +3.943% where the real result was
+    +3.903%. Across the book that is 0.04%p a trade, turning -0.5304%p into
+    -0.5704%p. The round trip is 0.08%, not the 0.07% 작업규칙 §11 records.
+
+    The cause and price still come from the last close, because an open row
+    describes an entry, not an ending.
+
+    The window ends at this position's own close. since_ms opens it, but the
+    same symbol is often re-entered minutes later, and those rows belong to
+    the next position: counting them pulled a second opening fee in and made
+    one FARTCOIN round trip read -0.081%p instead of its true -0.040%p.
     """
     rows = client._get("positions/history", {"account": client.address})
     try:
-        evs = []
+        seq = []
         for h in rows:
             if h.get("symbol") != sym:
                 continue
             t = int(h.get("created_at") or 0)
             if t < since_ms:
                 continue
+            side = str(h.get("side", ""))
             cause = h.get("cause") or ""
-            if str(h.get("side", "")).startswith("close") or \
-                    cause in ("take_profit", "stop_loss", "liquidation"):
-                evs.append((t, float(h.get("pnl") or 0), cause,
+            ending = (side.startswith("close")
+                      or cause in ("take_profit", "stop_loss", "liquidation"))
+            if ending or side.startswith("open"):
+                seq.append((t, float(h.get("pnl") or 0), ending, cause,
                             float(h.get("price") or 0)))
     except Exception as e:
         raise PacificaError(
             f"positions/history 파싱 실패 ({type(e).__name__}: {e})") from e
-    if not evs:
+    seq.sort()
+    total, last = 0.0, None
+    for t, pnl, ending, cause, price in seq:
+        if last is not None and not ending:
+            break                       # a re-entry: the next position's row
+        total += pnl
+        if ending:
+            last = (cause, price)
+    if last is None:
         return None
-    evs.sort()
-    return {"pnl_usd": sum(e[1] for e in evs), "cause": evs[-1][2],
-            "price": evs[-1][3]}
+    return {"pnl_usd": total, "cause": last[0], "price": last[1]}
 
 
 def _flat_pct(client, sym: str, pos: dict, since_ms: int) -> float:
@@ -1220,16 +1249,26 @@ def _warn_once(st, key: str, msg: str) -> None:
     protection is the exchange-side stop on every position, not this flag,
     so the conditions now warn instead of blocking.
 
-    Suppression is per key, not per message. The average warning carries the
-    running figure, so comparing message text meant every close that moved the
-    average by a thousandth counted as a new condition and Telegram fired
-    again on the next 30-minute pass. The state file still held -1.516 while
-    the average had already walked to -1.279.
+    Suppressed per key on a cooldown, which is the middle these warnings need.
+    Comparing message text fired every 30-minute pass, because the average
+    warning carries the running average and any close moves it a thousandth;
+    the state file held -1.516 while the number had walked to -1.279.
+    Suppressing on the key alone went too far the other way: nothing in the
+    codebase clears `warned`, --resume included, so a key that rang once went
+    silent for the life of the state file. It had already happened, and with
+    it the account had neither a halt nor a warning. 의도적결정 13 traded the
+    halt away for the warning, so the warning has to keep working.
+
+    Six hours, so a worsening account is told again up to four times a day.
+    Old entries were plain strings; those count as "rang, time unknown" and
+    are allowed to ring once more.
     """
     seen = st.setdefault("warned", {})
-    if key in seen:
+    now = time.time()
+    prev = seen.get(key)
+    if isinstance(prev, dict) and now - float(prev.get("at") or 0) < WARN_COOLDOWN_SEC:
         return
-    seen[key] = msg
+    seen[key] = {"msg": msg, "at": now}
     log(f"⚠️ {msg}")
     notify.send(f"브래킷 경고: {msg}")
 
