@@ -99,6 +99,11 @@ ENTRY_RETRY_COOLDOWN_SEC = 300
 # because the text carries a running average, and suppressing on the key
 # alone silenced it forever, since nothing clears `warned`.
 WARN_COOLDOWN_SEC = 6 * 3600
+# Taker round trip, in percentage points of notional. Measured on the venue's
+# own history 2026-08-21: an opening row and a closing row each carry about
+# 0.04% of notional as a negative pnl. 작업규칙 §11 records 0.07%, which is
+# one side short of what the exchange actually charges.
+FEE_RT_PCT = 0.08
 
 
 def _now():
@@ -391,7 +396,37 @@ def _recorded_distances(pos: dict, cfg: dict) -> tuple[float, float]:
     except (TypeError, ValueError, ZeroDivisionError):
         pass
     exp = pos.get("exp_move_pct") or 0
-    return tp_distance_pct(cfg, exp), cfg["sl_mult"] * exp
+    if exp > 0:
+        return tp_distance_pct(cfg, exp), cfg["sl_mult"] * exp
+    # Nothing to measure against, so say so instead of answering (0, 0). The
+    # caller caps its estimate at min(move, tp_d) and max(move, -sl_d), so
+    # zeros would book every close, win or loss, as exactly 0.00%p and make
+    # the slippage counter read every stop as slipped. No position on file
+    # lacks these fields; this is a guard, not a path.
+    return None, None
+
+
+def _close_row(sym: str, pos: dict, est, cause: str) -> dict:
+    """One shape for every booked close, carrying its own geometry.
+
+    The book used to keep eight fields, none of them the bracket the trade
+    actually wore, so a row could not be re-read later: -3.155% might be a
+    stop hit cleanly or a stop slipped through, and nothing on the row said
+    which. §100 made this point about reading a book that spans a geometry
+    change, and the analysis side was corrected while the writing side was
+    not. Additive, so nothing that reads the old eight fields changes.
+    """
+    row = {"sym": sym, "dir": pos.get("dir", ""),
+           "pnl_pct_est": est, "cause": cause,
+           "opened_at": pos.get("opened_at"),
+           "closed_at": _now().isoformat(),
+           "trade_rank": pos.get("trade_rank"),
+           "basis": pos.get("basis")}
+    for k in ("tp", "sl", "entry_fill", "amount", "exp_move_pct", "leverage"):
+        v = pos.get(k)
+        if v is not None:
+            row[k] = v
+    return row
 
 
 def _settings_confirmed(client, sym: str, lev: int) -> bool:
@@ -1109,6 +1144,13 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                             f"추정 채점으로 내려갑니다 (청산 여부 판정 불가)")
                 real = None
             tp_d, sl_d = _recorded_distances(pos, cfg)
+            if tp_d is None:
+                # Leave it on the book rather than grade it at zero. Nothing
+                # writes a position without these fields, so this means the
+                # record is damaged, and the next cycle can try again.
+                log(f"⚠️ {sym}: 브래킷 거리를 못 읽어 채점을 미룹니다 "
+                    f"(tp/sl/진입가·예상변동 없음)")
+                continue
             if real and notional > 0:
                 est = real["pnl_usd"] / notional * 100
                 cause = real["cause"]
@@ -1153,13 +1195,8 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                     if mark > 0 and entry > 0 else 0.0
                 est = min(move, tp_d) if move > 0 else max(move, -sl_d)
                 cause = "추정(이력 조회 실패)"
-            st["closed"].append({"sym": sym, "dir": pos["dir"],
-                                 "pnl_pct_est": round(est, 3),
-                                 "cause": cause,
-                                 "opened_at": pos["opened_at"],
-                                 "closed_at": _now().isoformat(),
-                                 "trade_rank": pos.get("trade_rank"),
-                                 "basis": pos.get("basis")})
+            st["closed"].append(
+                _close_row(sym, pos, round(est, 3), cause))
             del st["positions"][sym]
             save_state(st)
             notify.send(f"브래킷 청산: {sym} {est:+.2f}% ({cause})")
@@ -1190,17 +1227,14 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                            f"즉시 시장가 청산")
                     log("⚠️ " + msg)
                     try:
+                        since_ms = int(time.time() * 1000) - 60_000
                         close_market(client, policy, sym, pos, live)
-                        move = (mark / entry - 1) * 100 \
-                            * (1 if long_ else -1) if mark > 0 else 0.0
+                        move, tag = _booked_pct(client, sym, pos, mark,
+                                                since_ms)
                         st["closed"].append(
-                            {"sym": sym, "dir": pos["dir"],
-                             "pnl_pct_est": round(move, 3),
-                             "cause": "역전 즉시청산",
-                             "opened_at": pos["opened_at"],
-                             "closed_at": _now().isoformat(),
-                             "trade_rank": pos.get("trade_rank"),
-                             "basis": pos.get("basis")})
+                            _close_row(sym, pos, move,
+                                       "역전 즉시청산"
+                                       + (":" + tag if tag else "")))
                         del st["positions"][sym]
                         save_state(st)
                         notify.send(msg)
@@ -1222,21 +1256,42 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
             why = ("만기" if held_h >= cfg["horizon_h"]
                    else "손절 트리거 잔류" if hit_sl else "익절 트리거 잔류")
             try:
+                since_ms = int(time.time() * 1000) - 60_000
                 close_market(client, policy, sym, pos, live)
-                move = (mark / entry - 1) * 100 * (1 if long_ else -1) \
-                    if entry > 0 and mark > 0 else 0.0
-                st["closed"].append({"sym": sym, "dir": pos["dir"],
-                                     "pnl_pct_est": round(move, 3),
-                                     "cause": why,
-                                     "opened_at": pos["opened_at"],
-                                     "closed_at": _now().isoformat(),
-                                     "trade_rank": pos.get("trade_rank"),
-                                     "basis": pos.get("basis")})
+                move, tag = _booked_pct(client, sym, pos, mark, since_ms)
+                st["closed"].append(
+                    _close_row(sym, pos, move,
+                               why + (":" + tag if tag else "")))
                 del st["positions"][sym]
                 save_state(st)
                 notify.send(f"브래킷 {why} 청산: {sym} {move:+.2f}%")
             except PacificaError as e:
                 notify.send(f"브래킷 청산 실패 {sym}: {str(e)[:120]}")
+
+
+def _booked_pct(client, sym: str, pos: dict, mark: float, since_ms: int):
+    """What a self-initiated close is worth, preferring the venue to the mark.
+
+    A close the bot observed was read from positions/history; a close the bot
+    sent itself was booked straight off the mark with no fees and no slippage
+    in it. Same ledger, two accounting standards, and the self-closed rows
+    read better by a full round trip. Expiry is about to become the common
+    case, so this takes the venue's number once the history has caught up and
+    the mark less the round trip when it has not, marking which in the label.
+    """
+    try:
+        real = realized_close(client, sym, since_ms)
+    except PacificaError:
+        real = None
+    entry = pos.get("entry_fill") or 0
+    notional = entry * (pos.get("amount") or 0)
+    if real and notional > 0:
+        return round(real["pnl_usd"] / notional * 100, 3), ""
+    if entry > 0 and mark > 0:
+        gross = (mark / entry - 1) * 100 * (1 if pos.get("dir") == "long"
+                                            else -1)
+        return round(gross - FEE_RT_PCT, 3), "추정"
+    return 0.0, "추정"
 
 
 def _warn_once(st, key: str, msg: str) -> None:
@@ -1310,9 +1365,22 @@ def status(st) -> str:
                      + (" ⚠️ 미보호(거래소 TP/SL 미확인)"
                         if p.get("unprotected") else ""))
     if st["closed"]:
-        wins = sum(1 for c in st["closed"] if c["pnl_pct_est"] > 0)
-        tot = sum(c["pnl_pct_est"] for c in st["closed"])
-        lines.append(f"  승률 {wins}/{len(st['closed'])} · 합계 {tot:+.2f}%")
+        # Same separation the breaker makes, because this is the line a person
+        # actually reads every cycle. Operator exits are not strategy results:
+        # on the 08-21 book they moved the score from 19/47 to 20/57 and the
+        # total from -23.41%p to -30.24%p, mostly because --close-all books
+        # eight fee-only closes. 작업규칙 §11 grades on per-trade return, so
+        # that goes first and the sum second.
+        strat = [c for c in st["closed"] if c.get("cause") != "manual_close"]
+        manual = len(st["closed"]) - len(strat)
+        if strat:
+            wins = sum(1 for c in strat if c["pnl_pct_est"] > 0)
+            tot = sum(c["pnl_pct_est"] for c in strat)
+            lines.append(f"  전략 {wins}/{len(strat)} · 건당 "
+                         f"{tot / len(strat):+.3f}%p · 합계 {tot:+.2f}%p"
+                         + (f" (수동청산 {manual}건 제외)" if manual else ""))
+        elif manual:
+            lines.append(f"  전략 청산 0건 (수동청산 {manual}건뿐)")
     if st["halted"]:
         lines.append(f"  ⛔ 정지됨: {st['halt_reason']}")
     return "\n".join(lines)
@@ -1580,19 +1648,16 @@ def main():
                 # flatten erased those trades from the ledger, so the running
                 # average that warns on a bad run never saw them, and neither
                 # did any later measurement.
-                st["closed"].append({
-                    # sym and dir belong here like every other close path:
-                    # without them the merge key is (None, time), so a live
-                    # bot's own record of the same trade counts twice, and
-                    # the trade drops out of per-symbol learning
-                    "sym": sym,
-                    "dir": pos.get("dir", ""),
-                    "pnl_pct_est": _flat_pct(client, sym, pos, since_ms),
-                    "cause": "manual_close",
-                    "opened_at": pos.get("opened_at", ""),
-                    "closed_at": _now().isoformat(),
-                    "trade_rank": pos.get("trade_rank", 0),
-                    "basis": "--close-all 전량 청산 (손익은 거래소 이력에서 확인)"})
+                # _close_row carries sym and dir like every other close path:
+                # without them the merge key is (None, time), so a live bot's
+                # own record of the same trade counts twice and the trade
+                # drops out of per-symbol learning.
+                row = _close_row(sym, pos,
+                                 _flat_pct(client, sym, pos, since_ms),
+                                 "manual_close")
+                row["basis"] = ("--close-all 전량 청산 "
+                                "(손익은 거래소 이력에서 확인)")
+                st["closed"].append(row)
                 del st["positions"][sym]
                 log(f"청산: {sym}")
             except PacificaError as e:
