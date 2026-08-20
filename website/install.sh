@@ -15,6 +15,21 @@ else
 fi
 UV="$HOME/.local/bin/uv";  command -v uv  >/dev/null 2>&1 && UV="$(command -v uv)"
 UVX="$HOME/.local/bin/uvx"; command -v uvx >/dev/null 2>&1 && UVX="$(command -v uvx)"
+# Stop here if uv is not actually there. install.ps1 has said so since it was
+# written; this side carried on and failed later with a stranger message.
+if [ ! -x "$UVX" ] && ! command -v uvx >/dev/null 2>&1; then
+    echo ""
+    echo "  uv could not be installed, so nothing else can run."
+    echo "  Check your internet connection and run the line again."
+    echo "  If it keeps failing, install uv yourself and retry:"
+    echo "      curl -LsSf https://astral.sh/uv/install.sh | sh"
+    echo ""
+    exit 1
+fi
+# Let uv bring its own Python, the same reason install.ps1 does: a system
+# interpreter on PATH can be one uv cannot launch.
+UV_PYTHON_PREFERENCE=only-managed
+export UV_PYTHON_PREFERENCE
 
 # The .env path is settled before the terms step, which passes it in
 # PACIFICA_ENV_FILE. It used to be assigned in step 3 and the terms ran with
@@ -54,15 +69,27 @@ if [ "$WRITE" = "1" ]; then
         read KEY </dev/tty
         stty echo </dev/tty 2>/dev/null || true
         echo ""
-        (umask 177; printf 'ADDRESS=%s
+        # An empty answer used to be written out as an empty .env, and the
+        # install then reported success while the tools had nothing to sign
+        # with. install.ps1 was fixed for this; the shell side was not.
+        if [ -z "$ADDR" ] || [ -z "$KEY" ]; then
+            echo "  No wallet address or key was entered, so nothing was saved."
+            echo "  Ocean Agent is installed. To add your keys later, run:"
+            echo "    uvx --from $OA_PKG python -m ocean_agent.connect_ui --env-file \"$ENVF\""
+            WRITE=0
+        else
+            (umask 177; printf 'ADDRESS=%s
 PACIFICA_API_KEY=%s
 PACIFICA_BASE_URL=https://api.pacifica.fi
 ' "$ADDR" "$KEY" > "$ENVF")
+        fi
     fi
-    if ! chmod 600 "$ENVF" 2>/dev/null; then
-        echo "  WARNING: chmod 600 failed; $ENVF may be readable by other users on this machine"
+    if [ "$WRITE" = "1" ]; then
+        if ! chmod 600 "$ENVF" 2>/dev/null; then
+            echo "  WARNING: chmod 600 failed; $ENVF may be readable by other users on this machine"
+        fi
+        echo "  saved to $ENVF (readable only by you)"
     fi
-    echo "  saved to $ENVF (readable only by you)"
 fi
 
 # 4) register in Claude Desktop config (uses uv's Python for a safe JSON merge)

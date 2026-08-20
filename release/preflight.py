@@ -242,8 +242,16 @@ def check_pins(whl: str) -> None:
     # MCPB is a third installer and was not checked here, so its pin sat at
     # 0.3.2 for 34 releases while its manifest advertised the current version:
     # that install reported a version it was not running.
+    # Every place a version is written, not just the two installers. The
+    # page is what a user reads, and it drifting means "installs 0.4.36 while
+    # the screen says 0.4.37"; the READMEs said @latest, which is a different
+    # policy from the pinned installers and resolved to the broken build.
     for path, pat in (("mcpb/pyproject.toml", r'ocean-agent==([\d.]+)'),
-                      ("mcpb/manifest.json", r'"version":\s*"([\d.]+)"')):
+                      ("mcpb/manifest.json", r'"version":\s*"([\d.]+)"'),
+                      ("README.md", r'ocean-agent@([\d.]+)'),
+                      ("README.ko.md", r'ocean-agent@([\d.]+)'),
+                      ("website/index.html", r'currently at version (\d+(?:\.\d+)+)'),
+                      ("website/index.html", r'<div><b>([\d.]+)</b><span>current version')):
         full = os.path.join(ROOT, path)
         try:
             text = open(full, encoding="utf-8").read()
