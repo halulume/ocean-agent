@@ -434,14 +434,18 @@ def _signals(s):
                          and hist[i] > 0 >= hist[i-1]),
         "MACD 데드크로스": ("short", lambda i: i > 0 and x(i, hist)
                          and hist[i] < 0 <= hist[i-1]),
-        # 변동성 밴드 이탈: 지속 신호다. 볼린저 본인의 규칙 8 이 "밴드 밖 종가는
-        # 일차적으로 지속이지 반전이 아니다"라고 하고, 2026-08-20 실측이 같은
-        # 답을 냈다: 표류를 뺀 시장제거 축 18칸 중 15칸이 지속, 반전은 0칸
-        # (research/fork_bollinger.py). 예전에는 반대 부호였다.
-        # 주의: 뒤집어도 돈이 되지는 않는다. 12시간봉 2σ 엣지가 +0.135%p 로
-        # 왕복 수수료 0.16%p 아래다. 부호를 맞춘 것이지 수익원이 아니다.
-        "볼린저 상단이탈": ("long", _enter(lambda i: bb[i] is not None and bb[i] > 2)),
-        "볼린저 하단이탈": ("short", _enter(lambda i: bb[i] is not None and bb[i] < -2)),
+        # Band exits are mean reversion, on direction. §107 set these to
+        # continuation because per-trade money said so; §110 scored the same
+        # events on market-removed direction and got the opposite, at 0/8
+        # sign consistency across two universes and four boundaries:
+        # upper-as-long -1.9 (t -3.41), lower-as-short -2.6 (t -4.47).
+        # Flipping makes both 8/8 positive, +1.9 and +2.6.
+        # The two readings disagree because reversion is frequent but small
+        # and the failures keep running, which is §11's rule that hit rate
+        # and money move in opposite directions. Direction is the goal now
+        # (2026-08-20 user decision), so the sign follows direction.
+        "볼린저 상단이탈": ("short", _enter(lambda i: bb[i] is not None and bb[i] > 2)),
+        "볼린저 하단이탈": ("long", _enter(lambda i: bb[i] is not None and bb[i] < -2)),
         # ── 아래는 매트릭스 검증 대기 중인 후보 계열 ──
         # 승률이 아니라 실측 EV가 마이너스면 _matrix_rejects가 자동 차단한다.
         "sRSI>80 과열": ("short", _enter(lambda i: sk[i] is not None and sk[i] > 80)),
@@ -458,9 +462,11 @@ def _signals(s):
                          and ma50[i] > m200[i] and ma50[i-1] <= m200[i-1]),
         "MA200 데드크로스": ("short", lambda i: i > 0 and x(i, ma50) and x(i, m200)
                          and ma50[i] < m200[i] and ma50[i-1] >= m200[i-1]),
-        # 변동성 수축 후 이탈, '상태'가 아닌 '발생' 신호라 실측 기대가 있는 계열
-        "볼린저 스퀴즈 상방": ("long", lambda i: _squeeze_break(bw, bb, i, +1)),
-        "볼린저 스퀴즈 하방": ("short", lambda i: _squeeze_break(bw, bb, i, -1)),
+        # Squeeze breaks carry the same reversal sign as plain band exits,
+        # measured the same way and also 0/8 as continuation: up-as-long
+        # -1.8 (t -2.91), down-as-short -2.5 (t -3.84). Same flip.
+        "볼린저 스퀴즈 상방": ("short", lambda i: _squeeze_break(bw, bb, i, +1)),
+        "볼린저 스퀴즈 하방": ("long", lambda i: _squeeze_break(bw, bb, i, -1)),
         # 극단에서 '되돌아오는 순간', 극단 상태 자체보다 유효할 수 있음
         "RSI 과열이탈": ("short", lambda i: i > 0 and x(i, rsi)
                       and rsi[i] < 70 <= rsi[i-1]),
