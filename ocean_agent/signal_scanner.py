@@ -31,7 +31,8 @@ from .indicators import INTERVAL_MS, ema_series, rsi_series
 #   2   2026-08-20  §108: sRSI smoothing, wick fractals, RSI band split,
 #                   entry form, hour-based horizon
 #   3   2026-08-20  §110: lower Bollinger band and squeeze flip to long;
-#                   band entry guarded by approach side
+#                   RSI band entry guarded by approach side (the guard is on
+#                   the RSI 70-80 and 20-30 bands, not on Bollinger)
 #   4   2026-08-21  §111: all four band signals take the reversal sign, the
 #                   two squeeze signals go through _enter (firings halve),
 #                   and the scoring horizon becomes 24 hours on every
@@ -432,10 +433,19 @@ def _enter(cond, approach=None):
     for bands closed at both ends. "cond now, not cond before" is enough for
     a one-sided condition, but the 70-to-80 band is also un-set above 80, so
     a fall from 85 to 75 read as a fresh entry into overheat while the move
-    was a cooling one. On four coins at 1h that was 443 of 2,994 firings,
-    14.8%, and the mirror case was 12.0% of the oversold band. Those bars
+    was a cooling one. Across all 43 cached symbols at 1h that is 2,599 of
+    19,976 band entries, 13.0%, and 11.3% on the oversold mirror. Those bars
     also fire RSI 과열이탈, so the same information voted twice on the way
     down, which is the duplication §108 set out to remove.
+
+    Its effect is narrower than the firing counts suggest. MIN_N counts
+    deduplicated observations, not firings, and the guard moves those by only
+    1 to 3 percent; no signal crosses the gate in either direction because of
+    it. What it removes is a duplicate vote in combination learning.
+
+    An earlier version of this comment said 14.8% and 12.0%. Those came from
+    four symbols and sit at the p95 of the four-symbol distribution, whose
+    90% interval is 11.0 to 14.9.
     """
     def fired(i):
         if not cond(i):
@@ -556,8 +566,14 @@ def _squeeze_break(bw, bb, i, direction):
     """밴드 폭이 최근 50봉 중 하위 20%로 수축(스퀴즈)한 뒤 밴드를 이탈하는 순간.
 
     문턱은 2σ 다. 밴드가 2σ 이므로 1.5σ 는 밴드 안이고, 그것을 "이탈"이라
-    부르고 있었다. 2026-08-20 실측에서도 2σ 가 낫다: 지속 방향 Δ 가 4시간봉
-    +0.345 대 +0.239, 12시간봉 +0.486 대 +0.180 (research/fork_bollinger.py).
+    부르고 있었다. 그 이유 하나로 충분하다.
+
+    The measurement quoted here before, 4h +0.345 against +0.239 and 12h
+    +0.486 against +0.180, is the per-trade money column of
+    research/fork_bollinger.log, not a direction column, and it was labelled
+    as direction. On the market-removed direction column the two thresholds
+    split: 4h reads 2σ +0.051 against 1.5σ +0.057, and 12h reads +0.135
+    against +0.124. Direction does not pick 2σ; the definition does.
     """
     if i < 50 or bw[i] is None or bb[i] is None:
         return False
