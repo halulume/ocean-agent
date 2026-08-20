@@ -578,14 +578,22 @@ def _squeeze_break(bw, bb, i, direction):
     """밴드 폭이 최근 50봉 중 하위 20%로 수축(스퀴즈)한 뒤 밴드를 이탈하는 순간.
 
     문턱은 2σ 다. 밴드가 2σ 이므로 1.5σ 는 밴드 안이고, 그것을 "이탈"이라
-    부르고 있었다. 그 이유 하나로 충분하다.
+    부르고 있었다.
 
-    The measurement quoted here before, 4h +0.345 against +0.239 and 12h
+    ⚠️ The measurement once quoted here, 4h +0.345 against +0.239 and 12h
     +0.486 against +0.180, is the per-trade money column of
-    research/fork_bollinger.log, not a direction column, and it was labelled
-    as direction. On the market-removed direction column the two thresholds
-    split: 4h reads 2σ +0.051 against 1.5σ +0.057, and 12h reads +0.135
-    against +0.124. Direction does not pick 2σ; the definition does.
+    research/fork_bollinger.log and was labelled as direction. Direction is
+    the criterion now, so here is that log's market-removed test column, the
+    direction one, for the continuation reading: 1h 2σ +0.019 against 1.5σ
+    +0.012, 4h +0.051 against +0.057, 12h +0.135 against +0.124. Two of three
+    favour 2σ.
+
+    But that log ran at 16:00 on 08-20 and the definition fixes landed at
+    16:11, so every number in it predates smoothed sRSI, wick fractals and
+    the RSI band split, and it pools the upper and lower bands into one row
+    where §110 later found they disagree. **The threshold has not been tested
+    on direction under the current definitions.** Until it is, 2σ stands on
+    the definition alone: a band is 2σ, so 1.5σ is inside it.
     """
     if i < 50 or bw[i] is None or bb[i] is None:
         return False
