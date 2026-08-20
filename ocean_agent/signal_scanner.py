@@ -377,7 +377,7 @@ def _series(closes, highs=None, lows=None):
 
 
 # (이름, 방향, 판정함수), 매트릭스 실측에서 살아남은 계열만
-def _enter(cond):
+def _enter(cond, approach=None):
     """상태 조건을 '그 상태로 들어서는 첫 봉'으로 바꾼다.
 
     RSI 가 70 위에 20봉 머물면 예전에는 20번 켜졌다. 그 20건은 사실상 같은
@@ -387,6 +387,15 @@ def _enter(cond):
 
     극단 문턱의 성질은 그대로 남는다: RSI 80 을 넘는 첫 봉은 여전히 큰 움직임이
     있어야 만들어진다. 이탈 순간(RSI 과열이탈)은 별개 신호로 따로 있다.
+
+    approach guards which side the band is entered from, and is only needed
+    for bands closed at both ends. "cond now, not cond before" is enough for
+    a one-sided condition, but the 70-to-80 band is also un-set above 80, so
+    a fall from 85 to 75 read as a fresh entry into overheat while the move
+    was a cooling one. On four coins at 1h that was 443 of 2,994 firings,
+    14.8%, and the mirror case was 12.0% of the oversold band. Those bars
+    also fire RSI 과열이탈, so the same information voted twice on the way
+    down, which is the duplication §108 set out to remove.
     """
     def fired(i):
         if not cond(i):
@@ -394,7 +403,9 @@ def _enter(cond):
         if i == 0:
             return True
         try:
-            return not cond(i - 1)
+            if cond(i - 1):
+                return False
+            return approach(i - 1) if approach else True
         except (TypeError, IndexError):
             return True
     return fired
@@ -418,11 +429,13 @@ def _signals(s):
         # 켜져서, 조합 학습(co_active)이 같은 정보를 두 번 세고 표본 관문도
         # 두 번 통과시켰다. 이제 70 은 70~80 구간만, 80 은 그 위만 맡는다.
         "RSI>70 과열": ("short", _enter(lambda i: rsi[i] is not None
-                                   and 70 < rsi[i] <= 80)),
+                                   and 70 < rsi[i] <= 80,
+                                   lambda j: rsi[j] is None or rsi[j] <= 70)),
         "RSI>80 극과열": ("short", _enter(lambda i: rsi[i] is not None
                                     and rsi[i] > 80)),
         "RSI<30 과매도": ("long", _enter(lambda i: rsi[i] is not None
-                                   and 20 <= rsi[i] < 30)),
+                                   and 20 <= rsi[i] < 30,
+                                   lambda j: rsi[j] is None or rsi[j] >= 30)),
         "RSI<20 극과매도": ("long", _enter(lambda i: rsi[i] is not None
                                     and rsi[i] < 20)),
         # 추세 전환 이벤트 (실측: '상태'보다 '발생 순간'이 유효)
