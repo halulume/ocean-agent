@@ -485,7 +485,7 @@ def connect_pacifica(ctx: Context) -> str:
             break
     if not url:
         return f"연결 창을 여는 데 실패했습니다. {fallback}"
-    return ("A connect window opened in the browser. If it did not appear, "
+    return ("연결 창이 브라우저에 열렸습니다. 안 보이면 이 주소를 직접 "
             "여세요: " + url + "\n창에서 지갑 공개주소와 API 키를 넣으면 "
             "이 컴퓨터의 .env 에만 저장되고(대화에 안 남음) 연결 테스트와 "
             "잔고 확인까지 그 자리에서 끝납니다. 10분 안에 입력하면 되고, "
@@ -1226,12 +1226,11 @@ def top_setups(top: int = 3, budget_usd: float = 100) -> str:
     re-measurement job. Ask analyze_chart if you need a specific timeframe.
 
     The win rate shown is MEASURED, not a backtest number: it comes from
-    walk-forward validation over ~9 years (Binance history joined to Pacifica),
-    where a prediction is formed using only data available at that moment and
-    then checked against what actually happened. That measurement found the
-    realistic ceiling in this market is far below what a backtest suggests, and raw backtest values
-    above ~55% do not survive out of sample (a backtest claiming 73% came out at
-    51% in reality). So expect numbers in the low-to-mid 50s. A setup showing
+    walk-forward validation, where a prediction is formed using only data
+    available at that moment and then checked against what actually happened.
+    That measurement found the realistic ceiling in this market to be far
+    below what a backtest suggests, and high backtest values do not survive
+    out of sample. So expect numbers in the low-to-mid 50s. A setup showing
     "70%" would be a bug, not an opportunity.
 
     STRICT honesty gates: 30+ occurrences on that exact coin+timeframe, at least
