@@ -20,8 +20,19 @@ import time
 from . import data_file
 from .api_client import PacificaClient
 from .indicators import INTERVAL_MS
-from .signal_scanner import (FWD, _series, _signals, current_horizons,
+from .signal_scanner import (_series, _signals, current_horizons,
                              fetch_bars)
+
+
+def _due_ms(tf: str) -> int:
+    """How long until this observation is graded, in milliseconds.
+
+    24 hours, the bracket's expiry, rounded to whole candles so grading lands
+    on a bar boundary for _close_near(). Reuses rematrix._fwd_for so there is
+    one definition of the horizon rather than two that drift apart.
+    """
+    from .rematrix import _fwd_for
+    return INTERVAL_MS[tf] * _fwd_for(tf)
 
 _HOME = os.path.expanduser("~")
 
@@ -163,8 +174,13 @@ def observe(client: PacificaClient, universe: int = 15,
             shorts = len(active) - longs
             combo_side = "long" if longs > shorts else ("short" if shorts > longs else "")
             sig_names = sorted(nm for nm, _ in active)
+            # Score at 24 hours, the bracket's expiry, not at FWD candles.
+            # FWD is a candle count, so the old line graded a 12h signal 288
+            # hours out and an 8h signal 192, while the same decision's pwin
+            # and raw_ev came from a matrix cut to 24 hours (rematrix._fwd_for).
+            # One decision was mixing two horizons.
             base = {"sym": sym, "tf": tf, "entry": closes[-1], "ts": now_ms,
-                    "due": now_ms + INTERVAL_MS[tf] * FWD, "regime": regime}
+                    "due": now_ms + _due_ms(tf), "regime": regime}
             # 개별 신호 기록 (기존 학습 유지)
             for name, side in active:
                 recs.append({**base, "sig": name, "side": side})
