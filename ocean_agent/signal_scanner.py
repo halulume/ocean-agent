@@ -34,6 +34,24 @@ from .indicators import INTERVAL_MS, ema_series, rsi_series
 #                   band entry guarded by approach side
 DEFS_VERSION = 3
 
+# Which signals actually changed meaning at DEFS_VERSION 3. A file-level stamp
+# is right for the matrix, which is remeasured whole, but wrong for the live
+# observation database, which accumulates one grading at a time: rejecting the
+# whole file there would throw away MA and MACD samples that still describe
+# exactly the same event. §108 and §110 touched these fourteen; the other
+# eight fire on identical bars and their history stays valid.
+CHANGED_AT_DEFS_3 = frozenset({
+    # sRSI: unsmoothed fast %K to a 3-period slow %K, gates 40/60 to 20/80
+    "sRSI>80 과열", "sRSI<20 과매도", "sRSI 골든크로스", "sRSI 데드크로스",
+    # fractals: close-based to wick-based (three quarters different events)
+    "프랙탈 고점", "프랙탈 저점",
+    # RSI: 70 and 80 split into bands, state form to entry form with a guard
+    "RSI>70 과열", "RSI>80 극과열", "RSI<30 과매도", "RSI<20 극과매도",
+    # Bollinger: sign, and the squeeze threshold 1.5 sigma to 2.0
+    "볼린저 상단이탈", "볼린저 하단이탈",
+    "볼린저 스퀴즈 상방", "볼린저 스퀴즈 하방",
+})
+
 FWD = 24                 # 평가 지평: 24캔들 (자기 스케일)
 FEE_RT = 0.0008          # 시장가 왕복 수수료 (0.04% × 2, 명목 기준)
 MIN_N = 30               # 최소 표본, 이 미만이면 진입하지 않는다

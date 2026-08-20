@@ -294,6 +294,14 @@ def grade(client: PacificaClient) -> dict:
                                    "side": o["side"], "regime": reg})
         e["win"] += int(won)
         e["total"] += 1
+        # Which definition produced this count. Without it a bucket that
+        # straddles a definition change looks like one measurement of one
+        # thing. Recorded per bucket, so a bucket that keeps accumulating
+        # across a change is marked by the newest definition in it, which is
+        # why _usable also drops buckets whose signal changed and whose stamp
+        # is behind: a mixed bucket cannot be split after the fact.
+        from .signal_scanner import DEFS_VERSION
+        e["defs"] = DEFS_VERSION
         # 관측이 언제부터 언제까지 걸쳐 모였는지, 표본 독립성 판정용.
         # (하루에 몰린 20건은 사실상 1건이므로 signal_winrate가 이를 거른다)
         obs_ms = float(o.get("ts") or now_ms)
@@ -333,12 +341,24 @@ def _side_current(entry) -> bool:
     mirror of the new ones.
     """
     try:
-        from .signal_scanner import _signal_side
-        now = _signal_side(entry.get("sig"))
+        from .signal_scanner import (CHANGED_AT_DEFS_3, DEFS_VERSION,
+                                     _signal_side)
     except Exception:
         return True
-    rec = entry.get("side")
-    return not (now and rec and now != rec)
+    sig = entry.get("sig")
+    now, rec = _signal_side(sig), entry.get("side")
+    if now and rec and now != rec:
+        return False
+    # A matching side is not enough. Fourteen signals fire on different bars
+    # than they did before 08-20: wick fractals share about a quarter of their
+    # events with the close-based ones, and the sRSI gates moved from 40/60 to
+    # 20/80. Counts collected under the old meaning describe a different
+    # signal wearing the same name. The other eight are unchanged and keep
+    # their history, which is why this is a per-signal set and not a file
+    # stamp: rejecting the whole file would discard valid MA and MACD samples.
+    if sig in CHANGED_AT_DEFS_3 and entry.get("defs") != DEFS_VERSION:
+        return False
+    return True
 
 
 def signal_winrate(symbol: str, interval: str, signal: str):
