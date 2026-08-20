@@ -741,17 +741,27 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                             _lf = _f
                 if _ni < MIN_N:      # gate on independent observations (S3)
                     # Measured 2026-08-21, 43 symbols x 1,500 bars, the live
-                    # fetch_bars default: only 8 of the 22 signals clear this
-                    # on any symbol, and the same 8 at 4h, 8h and 1d. MACD
-                    # both ways, sRSI all four, and the two fractals. The
-                    # other 14 never reach evaluate_setups at all, so the
-                    # Bollinger family, the RSI extremes, both MA crosses,
-                    # MA200 and the two exit signals contribute nothing to
-                    # this path however their signs are set. They still feed
-                    # the matrix, chart_forecast and combination learning.
-                    # Thinning is why: a signal that fires 35 times a symbol
-                    # collapses to about 20 independent observations once
-                    # overlaps inside one forward horizon are merged.
+                    # fetch_bars default. Under the 24-hour horizon:
+                    #   4h  11/22   8h  13/22   1d  11/22, and the three
+                    # lists differ. MACD both ways, all four sRSI, both
+                    # fractals and both plain Bollinger band exits clear it
+                    # everywhere; the RSI extremes clear only at 8h and the
+                    # squeezes only at 4h and 1d.
+                    #
+                    # Under the old FWD-as-candles horizon the same gate let
+                    # exactly 8 through at all three timeframes, and an
+                    # earlier version of this comment recorded that as the
+                    # standing fact, concluding that the Bollinger signs
+                    # could not touch money. Unifying the horizon changed it:
+                    # a 4h signal is now scored 6 bars ahead rather than 24,
+                    # so overlapping firings merge far less and the
+                    # deduplicated count roughly triples. The band exits do
+                    # reach evaluate_setups now, so their sign does matter.
+                    #
+                    # Thinning is still what decides membership: a signal
+                    # firing 35 times a symbol can collapse below 30
+                    # independent observations once overlaps inside one
+                    # horizon merge.
                     continue
                 wins = [m for m in moves if m > 0]
                 losses = [-m for m in moves if m <= 0]
