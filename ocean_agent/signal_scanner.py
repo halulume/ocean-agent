@@ -434,17 +434,21 @@ def _signals(s):
                          and hist[i] > 0 >= hist[i-1]),
         "MACD 데드크로스": ("short", lambda i: i > 0 and x(i, hist)
                          and hist[i] < 0 <= hist[i-1]),
-        # Band exits are mean reversion, on direction. §107 set these to
-        # continuation because per-trade money said so; §110 scored the same
-        # events on market-removed direction and got the opposite, at 0/8
-        # sign consistency across two universes and four boundaries:
-        # upper-as-long -1.9 (t -3.41), lower-as-short -2.6 (t -4.47).
-        # Flipping makes both 8/8 positive, +1.9 and +2.6.
-        # The two readings disagree because reversion is frequent but small
-        # and the failures keep running, which is §11's rule that hit rate
-        # and money move in opposite directions. Direction is the goal now
-        # (2026-08-20 user decision), so the sign follows direction.
-        "볼린저 상단이탈": ("short", _enter(lambda i: bb[i] is not None and bb[i] > 2)),
+        # The two bands do NOT get the same sign, and the reason is measured.
+        # §107 set both to continuation on per-trade money. §110 rescored them
+        # on market-removed direction, where the goal now sits, and the two
+        # bands part ways once both universes are read:
+        #
+        #   lower-as-short   17 syms -2.6 (0/8)   43 syms -1.2, t -3.13 (0/8)
+        #   upper-as-long    17 syms -1.9 (0/8)   43 syms -0.5, t -1.65 (3/8)
+        #
+        # Only the lower band is wrong in both universes, so only it flips.
+        # The upper band is consistent in the 17-symbol set alone and dies at
+        # three times the sample, which is the older lesson that a reading
+        # surviving one universe is not a reading.
+        # An earlier revision of this comment claimed 0/8 in both universes
+        # for all four band signals; that quoted the 17-symbol column only.
+        "볼린저 상단이탈": ("long", _enter(lambda i: bb[i] is not None and bb[i] > 2)),
         "볼린저 하단이탈": ("long", _enter(lambda i: bb[i] is not None and bb[i] < -2)),
         # ── 아래는 매트릭스 검증 대기 중인 후보 계열 ──
         # 승률이 아니라 실측 EV가 마이너스면 _matrix_rejects가 자동 차단한다.
@@ -462,10 +466,11 @@ def _signals(s):
                          and ma50[i] > m200[i] and ma50[i-1] <= m200[i-1]),
         "MA200 데드크로스": ("short", lambda i: i > 0 and x(i, ma50) and x(i, m200)
                          and ma50[i] < m200[i] and ma50[i-1] >= m200[i-1]),
-        # Squeeze breaks carry the same reversal sign as plain band exits,
-        # measured the same way and also 0/8 as continuation: up-as-long
-        # -1.8 (t -2.91), down-as-short -2.5 (t -3.84). Same flip.
-        "볼린저 스퀴즈 상방": ("short", lambda i: _squeeze_break(bw, bb, i, +1)),
+        # Squeeze breaks split the same way as the plain bands, for the same
+        # reason: down-as-short is -2.5 (0/8) at 17 symbols and -1.0, t -2.44
+        # (1/8) at 43, so it flips; up-as-long is -1.8 (0/8) at 17 but -0.5,
+        # t -1.17 (4/8) at 43, which is exactly a coin, so it stays.
+        "볼린저 스퀴즈 상방": ("long", lambda i: _squeeze_break(bw, bb, i, +1)),
         "볼린저 스퀴즈 하방": ("long", lambda i: _squeeze_break(bw, bb, i, -1)),
         # 극단에서 '되돌아오는 순간', 극단 상태 자체보다 유효할 수 있음
         "RSI 과열이탈": ("short", lambda i: i > 0 and x(i, rsi)
