@@ -52,12 +52,21 @@ SIZE = 300               # USD walked against the live book for the gate
 MAX_SLIP = 0.005         # slippage cap for the gate
 MIN_ROWS = 25            # refuse to seal on a thinner cross-section
 # Classes that ride the cross-sectional side rather than the touch side.
-# Stocks joined after the touch side put the engine long into a falling
-# stock session the cross-sectional side had called short.
-XSEC_DIR_CLASSES = {"기타·RWA", "주식"}
-# Individual symbols that ride it regardless of class: thin-book names that
-# trend like unlisted coins even when their class label says otherwise.
-XSEC_DIR_SYMS = {"CHIP"}
+#
+# Stocks were moved here on 08-19 after two picks (SAMSUNG, SKHYNIX) fell
+# hard on a day the cross-section had called short. On 08-20 the same
+# question was asked of 71 stock picks where the two sides actually
+# disagreed: the touch side averaged +2.05%p at 62% and the cross-section
+# -1.48%p at 28%, and it held in both halves of the period. Two picks in
+# one falling session were a regime, not a rule (§100), so stocks are back
+# on the touch side. RWA stays: it is the one class where the cross-section
+# wins over the whole period (§90), and its 34 split picks are too thin and
+# too mixed to move it either way.
+XSEC_DIR_CLASSES = {"기타·RWA"}
+# Individual symbols that ride it regardless of class. CHIP was here for
+# the same one-day reason as stocks and left with them; it is on the skip
+# list anyway (one tick is 0.392%, wider than any stop can hold).
+XSEC_DIR_SYMS: set[str] = set()
 
 # Default seal directory: <project root>/outputs, next to the package.
 # Same expression bracket_trader uses, so the bot finds what this writes.
