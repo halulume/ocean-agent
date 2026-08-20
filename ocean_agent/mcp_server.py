@@ -621,9 +621,12 @@ def set_trading_budget(budget_usd: float = 0, per_pick_usd: float = 0) -> str:
 
     budget_usd: total to keep in positions. per_pick_usd: size of one
     position (default 50). The bot divides one by the other for the number
-    of slots, up to eight: $300 at $50 is six. Takes effect on the next
-    cycle for a running bot; positions already open are left alone. Call
-    with no arguments to see the current setting."""
+    of slots, up to eight: $300 at $50 is six. The setting is saved
+    immediately, but a bot that is already running built its slot count once
+    at startup and does not rebuild it per cycle, so tell the user to restart
+    the engine for a new amount to take effect. Positions already open are
+    left alone either way. Call with no arguments to see the current
+    setting."""
     saved, per = _saved_budget()
     if budget_usd <= 0 and per_pick_usd <= 0:
         slots = max(1, min(int(saved // per), 8)) if saved > 0 else 0

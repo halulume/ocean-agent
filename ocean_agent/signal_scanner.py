@@ -334,6 +334,17 @@ def _series(closes, highs=None, lows=None):
     근사하되 그 사실이 아래 주석에 남는다.
     """
     n = len(closes)
+    # Passing nothing is the documented close approximation and stays quiet.
+    # Passing arrays of the wrong length is a caller bug, and falling back
+    # silently would hand back a different signal under the same name, which
+    # is the failure this whole family of fixes was about. Say it and carry
+    # on rather than raising, so one bad call cannot stop a trading cycle.
+    if highs and len(highs) != n:
+        print(f"⚠️ _series: highs 길이 {len(highs)} != closes {n}, "
+              f"프랙탈이 종가로 떨어진다", flush=True)
+    if lows and len(lows) != n:
+        print(f"⚠️ _series: lows 길이 {len(lows)} != closes {n}, "
+              f"프랙탈이 종가로 떨어진다", flush=True)
     highs = highs if highs and len(highs) == n else closes
     lows = lows if lows and len(lows) == n else closes
     rs = rsi_series(closes, 14)
