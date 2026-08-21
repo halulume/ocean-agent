@@ -74,8 +74,22 @@ def _firings(closes, fwd=FWD, highs=None, lows=None):
             move = closes[i + fwd] / closes[i] - 1.0
             signed = move if side == "long" else -move
             hits.append((i, 1 if signed > 0 else 0))
-        if len(hits) >= MIN_TRAIN:
-            out[name] = (side, hits)
+        # Firings that overlap inside one forward horizon are one observation
+        # seen repeatedly, not several. 작업규칙 §11 requires the thinning and
+        # this file never did it, so a signal that stays true for twenty bars
+        # contributed twenty resolved outcomes of the same move to the
+        # calibration curve. That matters more here than almost anywhere:
+        # measured_winrate replaces pwin outright and sets calibrated_ok,
+        # which switches the per-symbol baseline to a flat 0.5 and skips
+        # evidence shrinkage, so an inflated number arrives with two safety
+        # mechanisms turned off behind it. Same rule as the scanner's _ni.
+        thin, last = [], None
+        for idx, won in hits:
+            if last is None or idx - last >= fwd:
+                thin.append((idx, won))
+                last = idx
+        if len(thin) >= MIN_TRAIN:
+            out[name] = (side, thin)
     return out
 
 

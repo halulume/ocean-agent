@@ -453,6 +453,13 @@ def _close_row(sym: str, pos: dict, est, cause: str) -> dict:
         v = pos.get(k)
         if v is not None:
             row[k] = v
+    # Which fee convention priced this row. Rows written before 08-21 09:44
+    # summed closing rows only, so they are optimistic by the opening fee,
+    # about 0.04%p of notional; rows written after include both sides. A book
+    # that spans the change cannot be averaged without saying which is which,
+    # and the earlier rows cannot all be repaired because the venue's history
+    # only reaches back about fifty round trips.
+    row["fee_basis"] = "round_trip"
     return row
 
 
@@ -1045,9 +1052,11 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
         # the old unconditional append burned the whole day's picks on one
         # bad minute of API weather.
         if entered_n == 0 and too_small == len(picks) and picks:
-            # Say it out loud once per seal: a silent skip every hour is how
-            # a small account learns nothing at all about why it never trades
-            _warn_once(st, f"too_small:{key}",
+            # One key, not one per seal. The condition is a property of the
+            # account, not of the hour's picks, so keying on the seal added an
+            # entry to `warned` every hour, twenty-four a day, forever. The
+            # six-hour cooldown gives the repetition that was wanted.
+            _warn_once(st, "too_small",
                        f"진입 0건: 계좌가 이 자리 크기에 못 미칩니다 "
                        f"(픽 {len(picks)}개 전부 최소 주문 미달). "
                        f"입금하거나 픽당 금액을 낮추세요.")
@@ -1091,7 +1100,12 @@ def realized_close(client, sym: str, since_ms: int) -> dict | None:
     the next position: counting them pulled a second opening fee in and made
     one FARTCOIN round trip read -0.081%p instead of its true -0.040%p.
     """
-    rows = client._get("positions/history", {"account": client.address})
+    # limit, or the venue returns its default 100 rows, which on 08-21 was
+    # only two days: eight slots refilling hourly reach that quickly, and
+    # a position whose close fell off the end grades as an estimate.
+    # 200 covered seven weeks on the same account.
+    rows = client._get("positions/history",
+                       {"account": client.address, "limit": 200})
     try:
         seq = []
         for h in rows:
