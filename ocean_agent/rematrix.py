@@ -382,7 +382,18 @@ def _fwd_for(tf: str, fwd_hours: int = 24) -> int:
     표에서 나왔다. 최소 1봉은 봐야 하므로 짧은 봉만 그대로 캔들 수가 커진다.
     """
     h = TF_HOURS.get(tf)
-    return max(1, round(fwd_hours / h)) if h else fwd_hours
+    if h is None:
+        # TF_HOURS lists the timeframes the matrix measures, but analyze_chart
+        # is a public tool and takes any interval the venue supports. Falling
+        # back to the raw candle count gave 1w a 4,032-hour horizon and 1m a
+        # four-minute one. Derive the hours from the interval itself instead,
+        # so an unlisted timeframe is still scored at 24 hours.
+        from .indicators import INTERVAL_MS
+        ms = INTERVAL_MS.get(tf)
+        if not ms:
+            return fwd_hours
+        h = ms / 3_600_000
+    return max(1, round(fwd_hours / h))
 
 
 def run_measurement(base_url="https://api.pacifica.fi", fwd=24,
@@ -520,10 +531,12 @@ def load_matrix() -> dict | None:
     try:
         from .signal_scanner import DEFS_VERSION
         if data.get("defs_version") != DEFS_VERSION:
+            # stderr, not stdout: the MCP server speaks JSON-RPC on stdout
+            # and any stray line there breaks the transport.
             print(f"⚠️ 매트릭스가 옛 정의로 잰 표다 "
                   f"(파일 {data.get('defs_version')} vs 코드 {DEFS_VERSION}). "
                   f"재측정이 끝날 때까지 관문은 이 표를 그대로 쓴다.",
-                  flush=True)
+                  file=sys.stderr, flush=True)
     except Exception:
         pass
     return data

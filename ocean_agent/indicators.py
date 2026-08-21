@@ -242,6 +242,7 @@ def analyze_multi(client: PacificaClient, symbol: str,
 
     lines = [f"{symbol} 멀티 시간봉 분석, 실측 적중률 포함", ""]
     live_picks = []
+    any_calibrated: list[bool] = []
 
     for tf in intervals:
         fwd = _fwd_for(tf)
@@ -301,17 +302,27 @@ def analyze_multi(client: PacificaClient, symbol: str,
             # (백테 73% → 실제 51%). 사람이 이 화면을 보고 판단하는데 봇만 보정된
             # 숫자를 쓰면, 둘이 서로 다른 세계를 보게 된다.
             raw_pwin = pwin
+            calibrated_here = False
             try:
                 from .walkforward import calibrated, measured_winrate
                 m = measured_winrate(name, tf)
                 if m is not None:
                     pwin = m[0]
+                    calibrated_here = True
                 else:
                     c = calibrated(pwin)
                     if c is not None:
                         pwin = c
+                        calibrated_here = True
             except Exception:
                 pass
+            # Whether this screen is showing a measured number or a raw
+            # backtest one, tracked so the footer can say which. A fresh
+            # install has no calibration table at all until its first
+            # walk-forward, and the footer used to promise "measured" while
+            # showing the backtest figure, which is exactly the 70% the
+            # top_setups docstring calls a bug.
+            any_calibrated.append(calibrated_here)
             base = base_up if side == "long" else 1 - base_up
             if pwin - base < MIN_EDGE:
                 continue
@@ -359,11 +370,21 @@ def analyze_multi(client: PacificaClient, symbol: str,
     else:
         lines.append("종합: 지금 점등된 통계 우위 신호 없음, 위 '대기' 신호들이 "
                      "켜질 때가 진입 후보")
-    lines.append("주의: 승률은 워크포워드 실측값입니다. 과거 시점에서 예측하고 "
-                 "그 뒤 실제 결과와 대조한 값입니다. 이 시장의 현실적 천장은 "
-                 "백테스트가 보여주는 것보다 훨씬 낮아서, 이 코인만의 백테스트가 "
-                 "높게 나와도 실전에서는 50%대로 내려옵니다. "
-                 "미래 보장 아님, market_context로 국면 확인 병행 권장.")
+    if any_calibrated and all(any_calibrated):
+        lines.append("주의: 승률은 워크포워드 실측값입니다. 과거 시점에서 "
+                     "예측하고 그 뒤 실제 결과와 대조한 값입니다. 이 시장의 "
+                     "현실적 천장은 백테스트가 보여주는 것보다 훨씬 낮아서, "
+                     "이 코인만의 백테스트가 높게 나와도 실전에서는 50%대로 "
+                     "내려옵니다. 미래 보장 아님, market_context로 국면 확인 "
+                     "병행 권장.")
+    else:
+        lines.append("⚠️ 주의: 이 화면의 승률은 아직 보정되지 않은 **백테스트 "
+                     "값**입니다. 워크포워드 실측표가 이 컴퓨터에 아직 없거나 "
+                     "지금 신호 정의보다 낡아서, 과거를 되돌아본 숫자를 그대로 "
+                     "보여주고 있습니다. 이 시장의 현실적 천장은 이보다 훨씬 "
+                     "낮고, 60%를 넘는 값이 보이면 그것은 기회가 아니라 보정이 "
+                     "안 됐다는 뜻입니다. 첫 워크포워드 측정이 끝나면 이 문구가 "
+                     "사라집니다.")
     return "\n".join(lines)
 
 

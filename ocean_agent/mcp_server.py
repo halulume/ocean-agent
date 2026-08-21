@@ -1227,13 +1227,18 @@ def top_setups(top: int = 3, budget_usd: float = 100) -> str:
     measure the highest expected value, re-selected every 7 days by the
     re-measurement job. Ask analyze_chart if you need a specific timeframe.
 
-    The win rate shown is MEASURED, not a backtest number: it comes from
-    walk-forward validation, where a prediction is formed using only data
-    available at that moment and then checked against what actually happened.
-    That measurement found the realistic ceiling in this market to be far
-    below what a backtest suggests, and high backtest values do not survive
-    out of sample. So expect numbers in the low-to-mid 50s. A setup showing
-    "70%" would be a bug, not an opportunity.
+    The win rate is calibrated against walk-forward validation WHEN a
+    calibration table exists on this machine: a prediction formed from only
+    what was known at that moment, checked against what actually happened.
+    That measurement put the realistic ceiling in this market far below what
+    a backtest suggests, so expect numbers in the low-to-mid 50s.
+
+    Until the first walk-forward run finishes, or whenever the table is older
+    than the current signal definitions, there is nothing to calibrate
+    against and the raw backtest figure is shown instead. That is when a
+    "70%" appears, and it means uncalibrated, not opportunity. analyze_chart
+    says which of the two it is showing; say the same to the user rather
+    than presenting an uncalibrated number as measured.
 
     STRICT honesty gates: 30+ occurrences on that exact coin+timeframe, at least
     2%p above the base rate, positive EV after fees, and the signal must beat the

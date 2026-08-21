@@ -339,12 +339,13 @@ def _series(closes, highs=None, lows=None):
     # silently would hand back a different signal under the same name, which
     # is the failure this whole family of fixes was about. Say it and carry
     # on rather than raising, so one bad call cannot stop a trading cycle.
+    # stderr, not stdout: the MCP server speaks JSON-RPC on stdout.
     if highs and len(highs) != n:
         print(f"⚠️ _series: highs 길이 {len(highs)} != closes {n}, "
-              f"프랙탈이 종가로 떨어진다", flush=True)
+              f"프랙탈이 종가로 떨어진다", file=sys.stderr, flush=True)
     if lows and len(lows) != n:
         print(f"⚠️ _series: lows 길이 {len(lows)} != closes {n}, "
-              f"프랙탈이 종가로 떨어진다", flush=True)
+              f"프랙탈이 종가로 떨어진다", file=sys.stderr, flush=True)
     highs = highs if highs and len(highs) == n else closes
     lows = lows if lows and len(lows) == n else closes
     rs = rsi_series(closes, 14)

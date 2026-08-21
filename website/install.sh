@@ -40,6 +40,19 @@ export UV_PYTHON_PREFERENCE
 ENVDIR="$HOME/.ocean-agent"; mkdir -p "$ENVDIR"
 ENVF="$ENVDIR/.env"
 
+# Pull the package before anything asks a question, the same as install.ps1.
+# Without this the terms step is the first thing to touch the network, so a
+# download failure was reported as "the terms step did not complete".
+PREP_LOG="${TMPDIR:-/tmp}/ocean_agent_install.log"
+if ! "$UVX" --from "$OA_PKG" python -c "import ocean_agent" >"$PREP_LOG" 2>&1; then
+    echo ""
+    echo "  Could not install Ocean Agent."
+    tail -n 12 "$PREP_LOG" 2>/dev/null | sed 's/^/    /'
+    echo "  Full log: $PREP_LOG"
+    echo "  Nothing was saved. Check your connection and run the line again."
+    exit 1
+fi
+
 # 2) terms of use (declining aborts the install; details: oceanagent.fi)
 echo "[2/4] Terms of Use"
 RC=0

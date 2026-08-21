@@ -289,19 +289,33 @@ def grade(client: PacificaClient) -> dict:
         else:
             sig_label = o["sig"]
             key = f"{o['sym']}|{o['tf']}|{sig_label}"
-        e = stats.setdefault(key, {"win": 0, "total": 0,
-                                   "sig": sig_label, "tf": o["tf"],
-                                   "side": o["side"], "regime": reg})
+        # A bucket belongs to one definition and one side. When either moves,
+        # the old counts are set aside under a dated name and a fresh bucket
+        # starts, because the two cannot be separated afterwards.
+        #
+        # The previous version stamped the current version onto whatever
+        # bucket it found. That did the opposite of what its comment claimed:
+        # 1,469 buckets holding 12,381 gradings, excluded for being measured
+        # under older definitions, came back the moment one new grading landed
+        # in them. And side was only ever written by setdefault, so 249
+        # buckets whose signal had flipped could never be read again and
+        # quietly swallowed every new grading, which is why the two squeeze
+        # signals had stopped accumulating a live win rate at all.
+        from .signal_scanner import DEFS_VERSION, _signal_side
+        e = stats.get(key)
+        if e is not None:
+            now_side = _signal_side(sig_label) or o["side"]
+            if e.get("defs") != DEFS_VERSION or e.get("side") != now_side:
+                shelf = f"{key}@retired:{e.get('defs')}:{e.get('side')}"
+                if shelf not in stats:
+                    stats[shelf] = e
+                e = None
+        if e is None:
+            e = stats[key] = {"win": 0, "total": 0, "sig": sig_label,
+                              "tf": o["tf"], "side": o["side"],
+                              "regime": reg, "defs": DEFS_VERSION}
         e["win"] += int(won)
         e["total"] += 1
-        # Which definition produced this count. Without it a bucket that
-        # straddles a definition change looks like one measurement of one
-        # thing. Recorded per bucket, so a bucket that keeps accumulating
-        # across a change is marked by the newest definition in it, which is
-        # why _usable also drops buckets whose signal changed and whose stamp
-        # is behind: a mixed bucket cannot be split after the fact.
-        from .signal_scanner import DEFS_VERSION
-        e["defs"] = DEFS_VERSION
         # 관측이 언제부터 언제까지 걸쳐 모였는지, 표본 독립성 판정용.
         # (하루에 몰린 20건은 사실상 1건이므로 signal_winrate가 이를 거른다)
         obs_ms = float(o.get("ts") or now_ms)
@@ -348,7 +362,7 @@ def _side_current(entry) -> bool:
     sig = entry.get("sig")
     now, rec = _signal_side(sig), entry.get("side")
     if now and rec and now != rec:
-        return False
+        return False        # a retired bucket, kept for history only
     # A matching side is not enough. Fourteen signals fire on different bars
     # than they did before 08-20: wick fractals share about a quarter of their
     # events with the close-based ones, and the sRSI gates moved from 40/60 to
@@ -399,8 +413,9 @@ def pooled_winrate(interval: str, signal: str):
     if pooled is None or c.get("data") is not stats:
         pooled = {}
         for k, v in stats.items():
-            if k.startswith("*|"):
-                continue                      # combos are learned separately
+            if k.startswith("*|") or "@retired:" in k:
+                continue      # combos are learned separately; retired buckets
+                              # are kept for history and never read
             try:
                 _, tf, sig = k.split("|", 2)
             except ValueError:
