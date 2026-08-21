@@ -82,7 +82,7 @@ _FORM = """
  <a href="https://app.pacifica.fi/apikey" target="_blank">app.pacifica.fi/apikey</a>
  and make a key<br>
  <span class="ko">Generate &rarr; copy the key on the left &rarr; Create</span>
- <br>trade-only, cannot withdraw, revocable anytime</div>
+ <br>Ocean Agent only trades, never withdraws. Revocable any time.</div>
 <div class="msg"><b>3.</b> Paste the copied key below</div>
 <form method="post" action="/submit?n={nonce}">
 <label>Wallet PUBLIC address (Solana)</label>

@@ -578,7 +578,7 @@
         <tbody>
           <tr><th>Exchange</th><td>Pacifica (Solana perpetual futures)</td></tr>
           <tr><th>Interface</th><td>MCP server + standalone 24/7 autonomous process</td></tr>
-          <tr><th>Signing</th><td>Ed25519 API key, trading only, cannot withdraw funds</td></tr>
+          <tr><th>Signing</th><td>Ed25519 API key, signed locally, never sent to us</td></tr>
           <tr><th>Markets</th><td>Every Pacifica market: crypto, stocks, commodities, FX</td></tr>
           <tr><th>Decision basis</th><td>Measured edge (backtest matrix + live win rates), not a model's guess</td></tr>
           <tr><th>Status</th><td>Live on mainnet with small size since July 2026, building the public track record</td></tr>
@@ -668,7 +668,7 @@
     </div>
     <!-- true of both routes above, so it sits right under them -->
     <div class="istep">
-      <p class="body">A form then opens in your browser for your wallet public address and a key from <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a> (trade only, cannot withdraw, revocable any time). Claude restarts itself and the trading tools appear in chat. <b>No bot required.</b></p>
+      <p class="body">A form then opens in your browser for your wallet public address and a key from <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a> (used only to sign orders, revocable any time). Claude restarts itself and the trading tools appear in chat. <b>No bot required.</b></p>
       <video src="/apikey.mp4" poster="/poster_apikey.jpg" playsinline controls preload="none" style="width:100%;max-width:620px;border-radius:10px;border:1px solid var(--line);background:#000;display:block;margin:12px 0 4px" aria-label="Getting an API key on Pacifica, start to finish"></video>
       <p class="body" style="margin-top:0;font-size:13px;color:var(--ink-2)">Getting that key, sixteen seconds.</p>
       <p class="body" style="margin-top:8px"><b>Works in your language.</b> You chat with your AI in any language: English, 中文, 日本語, 한국어, Tiếng Việt, Español and more. It drives the tools and explains every result in your language, and new version notices arrive in it too.</p>
@@ -798,7 +798,7 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
           <p>The leg Ocean Agent already trades.</p>
           <ol class="fc-steps">
             <li>Open <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener">app.pacifica.fi/apikey</a> and connect your Solana wallet.</li>
-            <li>Generate an agent key. There are no permission checkboxes to get wrong: the key can trade and cannot withdraw, by design.</li>
+            <li>Generate an agent key. There are no permission checkboxes to get wrong. Ocean Agent uses it to sign orders and has no withdrawal function.</li>
             <li>Copy the key. You can revoke it on the same page at any time.</li>
           </ol>
           <p>You get one agent key, used together with your wallet's public address. The installer already wrote both into your local .env, the only place Ocean Agent reads keys from:</p>
@@ -999,7 +999,7 @@ OKX_API_PASSPHRASE=...</code></pre>
       <p>Every closed trade is graded: did the <b>signal</b> work, or did the market just drift your way? A lucky win is not counted as a good signal, and a good signal that lost to a broad move is not thrown away. This is how it avoids learning the wrong lesson from noise.</p>
 
       <h3>Market &amp; custody</h3>
-      <p>Leverage perpetuals on <b>crypto, stocks, commodities, and FX</b>, all on Pacifica. It is non custodial: a trading only API key that cannot withdraw your funds. Several competitors are spot only, stocks only, or custodial.</p>
+      <p>Leverage perpetuals on <b>crypto, stocks, commodities, and FX</b>, all on Pacifica. It is non custodial: your funds stay in your own wallet on Pacifica, and Ocean Agent never withdraws. Several competitors are spot only, stocks only, or custodial.</p>
 
       <h3>Autonomy &amp; control</h3>
       <p>It runs <b>24/7 as its own process</b>, so it holds positions and manages stops even with the AI offline. Take profit and stop loss are exchange native and trail automatically. Alerts go to Telegram, with two way control on the roadmap.</p>
@@ -1117,7 +1117,7 @@ OKX_API_PASSPHRASE=...</code></pre>
       <div class="feat"><div class="n">10</div><h4>Print verdict</h4><p>Tells you whether a Print offer is worth taking.</p></div>
       <div class="feat"><div class="n">11</div><h4>Learned win rates</h4><p>A win rate database grown from live observation.</p></div>
       <div class="feat"><div class="n">12</div><h4>Prediction grading</h4><p>Past calls against what actually happened.</p></div>
-      <div class="feat wide"><div class="n">13</div><h4>Safety layer</h4><p>Confirm gate, automatic price correction, separate testnet and mainnet keys, and trading only keys that cannot withdraw.</p></div>
+      <div class="feat wide"><div class="n">13</div><h4>Safety layer</h4><p>Confirm gate, automatic price correction, separate testnet and mainnet keys, and a hard order size ceiling.</p></div>
     </div>
   </section>
 
@@ -1169,7 +1169,7 @@ OKX_API_PASSPHRASE=...</code></pre>
         <thead><tr><th>Guard</th><th>What it prevents</th></tr></thead>
         <tbody>
           <tr><th>Two step confirm</th><td>Every money moving tool previews first and executes only on explicit confirmation.</td></tr>
-          <tr><th>Trading only keys</th><td>API keys can trade but cannot move funds out. Revocable any time.</td></tr>
+          <tr><th>Local keys</th><td>Keys stay in your local .env. The Software has no withdrawal function. Revoke at the Exchange any time.</td></tr>
           <tr><th>Key separation</th><td>Testnet and mainnet keys and data are kept apart.</td></tr>
           <tr><th>Hard sizing guard</th><td>An order whose notional cannot be priced is rejected outright, and a notional ceiling applies once you set <code>order_cap_usd</code> in your policy. Chat orders carry no fixed dollar cap by default.</td></tr>
           <tr><th>Liquidity gate</th><td>Skips markets where your own order would be a large share of daily volume.</td></tr>
@@ -1226,7 +1226,7 @@ OKX_API_PASSPHRASE=...</code></pre>
   <section class="page" id="faq">
     <div class="eyebrow">More · FAQ</div>
     <h2>Common questions</h2>
-    <div class="faq"><b>Can it withdraw my funds?</b><p>No. It uses a trading only API key with no withdrawal rights, and you can revoke it any time.</p></div>
+    <div class="faq"><b>Can it withdraw my funds?</b><p>Ocean Agent never withdraws. It only opens and closes positions, and there is no transfer or withdrawal call anywhere in the code. What the API key itself is permitted to do is set by Pacifica, not by us. Keep the key on your own machine and revoke it any time.</p></div>
     <div class="faq"><b>Is it live yet?</b><p>Yes: live on mainnet with small size since July 2026. Sizes stay small until the live track record justifies more.</p></div>
     <div class="faq"><b>Does it work in my language?</b><p>Yes. You chat with your AI in any language; it drives the tools and explains the results in that language. Raw tool reports and this site are in English, but your AI translates as it goes.</p></div>
     <div class="faq"><b>Do I need to keep my PC on?</b><p>The autonomous entity needs its own process running, but stops are exchange native and fire even if your machine goes offline.</p></div>
@@ -1412,7 +1412,7 @@ OKX_API_PASSPHRASE=...</code></pre>
             result. No issue was ever exploited.</p>
 
           <p>The design principles that keep funds safe were confirmed intact: the trading key
-            is trade only and can never withdraw, every order that moves money passes an
+            has no withdrawal function, every order that moves money passes an
             explicit confirmation and a hard size ceiling, and the agent only ever signs
             requests it built itself. Your keys stay on your machine and are never transmitted
             to us.</p>
@@ -1668,7 +1668,7 @@ OKX_API_PASSPHRASE=...</code></pre>
       <li>"<b>Software</b>" means the ocean-agent package published on PyPI, including its MCP server, its autonomous trading process, its command line utilities, its bundled measurement data, and this website's install scripts;</li>
       <li>"<b>Authors</b>" means the developers and contributors of the Software;</li>
       <li>"<b>Exchange</b>" means Pacifica, the third party trading venue the Software connects to;</li>
-      <li>"<b>Agent Key</b>" means the trade only API key you create at the Exchange and supply to the Software;</li>
+      <li>"<b>Agent Key</b>" means the API key you create at the Exchange and supply to the Software;</li>
       <li>"<b>AI Client</b>" means any MCP compatible application (such as Claude) that you connect to the Software;</li>
       <li>"<b>Autonomous Mode</b>" means the optional always on process that scans markets and places orders without per order confirmation;</li>
       <li>"<b>You</b>" means the person installing or using the Software.</li>
@@ -1693,7 +1693,7 @@ OKX_API_PASSPHRASE=...</code></pre>
     <p>The Software has no sign up, no login, and no user database. The Authors do not collect, store, or transmit your personal data, your keys, your balances, or your trading history, everything the Software records lives in files on your own computer. This site is a static page and sets no tracking of its own. The only parties that see your activity are the Exchange (which you have a direct relationship with under its own terms) and, if you use an AI Client, that client's provider.</p>
 
     <h3>5 · Non custodial design: wallets and keys</h3>
-    <p>The Software never holds your funds and never sees your wallet's private key or seed phrase. It signs orders locally with an Agent Key that is trade only by design: it cannot withdraw funds, and you can revoke it at the Exchange at any time. Signed requests go directly from your computer to the Exchange, there is no intermediate server.</p>
+    <p>The Software never holds your funds and never sees your wallet's seed phrase. It signs requests locally with the Agent Key you supply and sends them straight to the Exchange. The Software has no withdrawal or transfer function. The permissions the Agent Key itself carries are set by the Exchange, and you can revoke it there at any time. Signed requests go directly from your computer to the Exchange, there is no intermediate server.</p>
     <p>Because of this design, the Authors cannot: access your account, freeze or unfreeze anything, recover keys you lose, cancel or reverse orders, or return funds. There is no support desk that can undo a trade. Anyone who obtains your Agent Key can trade your account until you revoke it; keeping it secret, and keeping the computer it lives on secure, is entirely your responsibility.</p>
 
     <h3>6 · The MCP server and AI clients</h3>

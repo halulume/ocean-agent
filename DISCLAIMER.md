@@ -48,10 +48,11 @@ them as experimental.
 ## Your keys are your responsibility
 
 The software never transmits your keys anywhere except to the exchange. Use an
-**API key** (trading only, no withdrawal, revocable at
+**API key** (revocable at
 [app.pacifica.fi/apikey](https://app.pacifica.fi/apikey)) rather than a wallet
-key. Keep it in a `.env` file outside version control. Anyone who obtains it can
-trade your account.
+key. Keep it in a `.env` file outside version control. Ocean Agent never
+withdraws, but the permissions the key itself carries are set by the Exchange,
+not by us. Anyone who obtains it can trade your account.
 
 ## No warranty
 

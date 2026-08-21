@@ -159,7 +159,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 2. Create an **agent wallet key** at [app.pacifica.fi/apikey](https://app.pacifica.fi/apikey).
-   API keys can trade but **cannot withdraw funds**, and you can revoke them
+   Ocean Agent uses the key to sign orders and never withdraws; you can revoke it
    at any time.
 
 3. Put it in `.env`:

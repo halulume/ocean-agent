@@ -37,7 +37,7 @@ re-run `uvx --version`.
 ## Step 1, Provide keys via environment (never in config files)
 
 The user creates an **API key** at **[app.pacifica.fi/apikey](https://app.pacifica.fi/apikey)**.
-API keys can trade but **cannot withdraw funds**, and can be revoked at any time.
+Ocean Agent signs orders with this key and has no withdrawal function. You can revoke it at any time.
 Read-only tools work without a key.
 
 **Do not ask for the key value.** Instead, tell the user to put their values in a
@@ -68,7 +68,7 @@ only the user ever types it, only into their own `.env`.
 | Variable | What it is | Network |
 |---|---|---|
 | `ADDRESS` | Wallet public address of your account | mainnet |
-| `PACIFICA_API_KEY` | API key, trading only, no withdrawal | mainnet |
+| `PACIFICA_API_KEY` | API key for signing orders | mainnet |
 | `ADDRESS_TESTNET` | Testnet wallet public address (optional) | testnet |
 | `PACIFICA_API_KEY_TESTNET` | Testnet API key (optional) | testnet |
 | `PACIFICA_BASE_URL` | Network selector (see Step 3) | both |
@@ -209,7 +209,7 @@ env = { PACIFICA_ENV_FILE = "/absolute/path/to/.pacifica.env", PACIFICA_BASE_URL
   only a path (`PACIFICA_ENV_FILE`) or an `${ENV_VAR}` reference.
 - Leave placeholders (`your_mainnet_agent_key`, etc.) unchanged; the user fills them in.
 - Direct the user to **[app.pacifica.fi/apikey](https://app.pacifica.fi/apikey)** to
-  generate an API key (trading only, no withdrawal, revocable).
+  generate an API key (revocable at any time).
 - Mainnet is the default. Make sure the user understands they are trading real
   funds, and suggest `--dry` or small size for the first runs.
 

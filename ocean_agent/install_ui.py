@@ -193,7 +193,7 @@ class _H(BaseHTTPRequestHandler):
                 "<a href='https://app.pacifica.fi/apikey' target='_blank'>"
                 "app.pacifica.fi/apikey</a> and make a key<br>"
                 "<b>Generate &rarr; copy the key on the left &rarr; Create"
-                "</b><br>trade-only, cannot withdraw, revocable anytime</div>"
+                "</b><br>Ocean Agent only trades, never withdraws. Revocable any time.</div>"
                 f"<form method='post' action='/submit?n={self.server.nonce}'>"
                 "<label>Wallet PUBLIC address (Solana)</label>"
                 "<input name='address' placeholder='e.g. 7Ncb...abcd' "

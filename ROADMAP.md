@@ -15,7 +15,7 @@ The strategy logic is already strong and must be **preserved, not rebuilt**:
 - look-ahead prevention (fetch_closes drops the unclosed candle)
 - liquidity gate (evaluate_setups: position size vs 24h volume, HYPE lesson)
 - EV with fees, self-remeasurement (rematrix), prediction logging + review
-- safety: Ed25519 agent-key signing (no withdrawal rights), confirmation gates,
+- safety: Ed25519 agent-key signing, confirmation gates,
   testnet/mainnet separation, policy.yaml enforcement
 
 **Core principle:** every new layer is *additive* and *measured against the raw layer*.
