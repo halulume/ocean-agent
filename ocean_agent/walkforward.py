@@ -290,7 +290,10 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
                 agg.add(sig, tf, pred, n_train, won)
             log(f"  {sym} {tf}: {len(closes):,}봉 → 검증표본 {agg.n - before:,}건")
     from .signal_scanner import DEFS_VERSION
-    payload = {"measured_at": int(time.time() * 1000), "fwd": fwd,
+    # fwd here is the requested horizon in HOURS, not the bar count any one
+    # timeframe used; each timeframe derives its own via _fwd_for. Recording
+    # the bar count would name one timeframe's number for all of them.
+    payload = {"measured_at": int(time.time() * 1000), "fwd_hours": fwd,
                "step": STEP_BARS, "min_train": MIN_TRAIN,
                "defs_version": DEFS_VERSION, **agg.to_dict()}
     tmp = RESULT_FILE + ".tmp"

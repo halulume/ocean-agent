@@ -11,7 +11,7 @@ Nothing here touches the operator's account, environment, or running bot:
 it builds a temp venv, points HOME and the env file at a temp directory,
 and never places an order.
 
-    python research/preflight.py [dist/ocean_agent-x.y.z-py3-none-any.whl]
+    python release/preflight.py [dist/ocean_agent-x.y.z-py3-none-any.whl]
 
 Exit code 0 means the wheel may be uploaded.
 """

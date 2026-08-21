@@ -39,6 +39,11 @@ from .indicators import INTERVAL_MS, ema_series, rsi_series
 #                   timeframe instead of 24 candles
 DEFS_VERSION = 4
 
+# How bad a thin-sample cell has to read before the gate stops calling it
+# unknown. -1% is twelve times the 0.08% round trip; the worst cell measured
+# on 2026-08-21 was -4.51% on 175 samples.
+THIN_EV_FLOOR = -0.01
+
 # Which signals actually changed meaning at DEFS_VERSION 3. A file-level stamp
 # is right for the matrix, which is remeasured whole, but wrong for the live
 # observation database, which accumulates one grading at a time: rejecting the
@@ -231,7 +236,13 @@ def _matrix_rejects(sig: str, tf: str) -> bool:
         return False
     ev, n = r
     if n < 200:
-        return False              # 표본 부족, 모르면 통과
+        # "Not enough evidence" is the right default for a thin cell, and it
+        # is what lets a newly listed symbol ever enter. But it was letting
+        # anything through, including RSI>80 극과열 at 8h reading -4.51% on
+        # 175 samples: fifty-six times the round trip against us is not a
+        # cell we know nothing about. Below the floor the sample is genuinely
+        # too thin to say; above it in the wrong direction, we can say.
+        return n >= 50 and ev < THIN_EV_FLOOR
     if ev <= 0:
         return True               # ① 돈이 안 됨
     try:
