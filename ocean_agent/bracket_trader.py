@@ -99,6 +99,11 @@ ENTRY_RETRY_COOLDOWN_SEC = 300
 # because the text carries a running average, and suppressing on the key
 # alone silenced it forever, since nothing clears `warned`.
 WARN_COOLDOWN_SEC = 6 * 3600
+# How far back a history query reaches before a position's own opened_at.
+# The venue writes its opening row when the order is sent and the book writes
+# opened_at when the fill is booked, about two seconds later, so a window that
+# starts at opened_at misses the row carrying the opening fee.
+OPEN_SKEW_MS = 60_000
 # Taker round trip, in percentage points of notional. Measured on the venue's
 # own history 2026-08-21: an opening row and a closing row each carry about
 # 0.04% of notional as a negative pnl. 작업규칙 §11 records 0.07%, which is
@@ -406,6 +411,28 @@ def _recorded_distances(pos: dict, cfg: dict) -> tuple[float, float]:
     return None, None
 
 
+def _is_strategy(rec: dict) -> bool:
+    """Did the strategy produce this close, or did something else?
+
+    The breaker and the status line grade the strategy, so an exit the
+    operator or the venue made has no business in either. --close-all labels
+    itself manual_close, but a position closed by hand in the exchange app
+    comes back with the venue's own label and used to pass straight through.
+
+    Kept: the exchange bracket firing, a liquidation, and the bot's own expiry
+    close. Dropped: manual_close, and anything the code could only guess at,
+    which is what the 추정 prefix marks. A guess is not evidence either way,
+    and 60 rows in the 08-21 book carried ten guesses.
+    """
+    c = str(rec.get("cause") or "")
+    if not c or c == "manual_close":
+        return False
+    # 추정 anywhere in the label, not only at the front: "만기:추정" is a real
+    # strategy exit whose amount the code had to guess, and a guessed amount
+    # is what makes a row unusable for grading, whatever caused the exit.
+    return "추정" not in c
+
+
 def _close_row(sym: str, pos: dict, est, cause: str) -> dict:
     """One shape for every booked close, carrying its own geometry.
 
@@ -584,17 +611,18 @@ def reconcile_pending(client, st: dict) -> None:
                     # streak counter can tell a guess from a stop.
                     _rc = ("추정:이익" if float(done.get("pnl_usd") or 0) >= 0
                            else "추정:손실")
-                st["closed"].append({
-                    "sym": sym, "dir": q.get("dir"),
-                    "cause": _rc,
-                    "pnl_usd": done.get("pnl_usd"),
-                    "pnl_pct_est": (float(done.get("pnl_usd") or 0) / notional
-                                    * 100 if notional > 0 else 0.0),
-                    "opened_at": q.get("at"),
-                    "closed_at": _now().isoformat(),
-                    "basis": q.get("basis"), "seal": q.get("seal"),
-                    "recovered": True,
-                })
+                # Same row shape as every other close, so the geometry
+                # travels with it: q carries tp, sl, amount, exp_move_pct and
+                # leverage, and a recovered trade is exactly the one a later
+                # analysis will want to re-read.
+                row = _close_row(
+                    sym, {**q, "opened_at": q.get("at"),
+                          "entry_fill": q.get("entry_intent")},
+                    (float(done.get("pnl_usd") or 0) / notional * 100
+                     if notional > 0 else 0.0), _rc)
+                row.update({"pnl_usd": done.get("pnl_usd"),
+                            "seal": q.get("seal"), "recovered": True})
+                st["closed"].append(row)
                 msg = (f"브래킷 복구: {sym} 은 봇이 꺼진 사이 이미 청산됨 "
                        f"({done.get('cause')}, "
                        f"${float(done.get('pnl_usd') or 0):+.2f}). "
@@ -932,14 +960,10 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                     # deliberately conservative estimate in the same
                     # percent-of-notional units every other closed record
                     # uses. (review N3)
-                    st["closed"].append({
-                        "sym": sym, "dir": direction,
-                        "pnl_pct_est": -0.16,
-                        "cause": "역전 즉시청산",
-                        "opened_at": _now().isoformat(),
-                        "closed_at": _now().isoformat(),
-                        "trade_rank": p.get("trade_rank"),
-                        "basis": p.get("basis")})
+                    st["closed"].append(_close_row(
+                        sym, {**p, "dir": direction,
+                              "opened_at": _now().isoformat()},
+                        -0.16, "역전 즉시청산"))
                     _clear_pending(st, sym)     # round trip fully booked (H9)
                     save_state(st)
                     continue        # opened and closed, booked above
@@ -1149,7 +1173,7 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
         notional = entry * pos["amount"] if entry > 0 else 0
 
         if sym not in live:
-            since = int(opened.timestamp() * 1000)
+            since = _since_open(pos)
             # A history query failure defers grading to the next loop rather
             # than falling straight to the estimate, so a real liquidation
             # still reaches the halt check once the query recovers. Only
@@ -1169,10 +1193,13 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                             f"추정 채점으로 내려갑니다 (청산 여부 판정 불가)")
                 real = None
             tp_d, sl_d = _recorded_distances(pos, cfg)
-            if tp_d is None:
-                # Leave it on the book rather than grade it at zero. Nothing
-                # writes a position without these fields, so this means the
-                # record is damaged, and the next cycle can try again.
+            if tp_d is None and not (real and notional > 0):
+                # Distances are only needed to cap an estimate and to judge
+                # slippage. When the venue has given a real number neither is
+                # in play, so refusing to grade here would discard the most
+                # accurate close we get. Defer only when the estimate is what
+                # is left, and nothing writes a position without these fields
+                # anyway, so this means a damaged record.
                 log(f"⚠️ {sym}: 브래킷 거리를 못 읽어 채점을 미룹니다 "
                     f"(tp/sl/진입가·예상변동 없음)")
                 continue
@@ -1207,7 +1234,11 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                     _warn_once(st, f"liq:{sym}",
                                f"거래소 청산 확인: {sym} ({est:+.2f}%). "
                                f"손절선을 건너뛴 체결입니다. 매매는 계속합니다.")
-                if cause == "stop_loss" and est < -sl_d - DEMOTE_SLIP_PCT:
+                # sl_d can be None here now that a venue-priced close grades
+                # without it; the slippage question simply cannot be asked
+                # for a record that lost its geometry.
+                if (cause == "stop_loss" and sl_d is not None
+                        and est < -sl_d - DEMOTE_SLIP_PCT):
                     st["slip_events"] = st.get("slip_events", 0) + 1
                     notify.send(f"브래킷 경고: {sym} 손절 이탈 "
                                 f"({est:+.2f}% vs -{sl_d:.2f}%) "
@@ -1252,7 +1283,7 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                            f"즉시 시장가 청산")
                     log("⚠️ " + msg)
                     try:
-                        since_ms = int(time.time() * 1000) - 60_000
+                        since_ms = _since_open(pos)
                         close_market(client, policy, sym, pos, live)
                         move, tag = _booked_pct(client, sym, pos, mark,
                                                 since_ms)
@@ -1280,8 +1311,17 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
         if held_h >= cfg["horizon_h"] or hit_tp or hit_sl:
             why = ("만기" if held_h >= cfg["horizon_h"]
                    else "손절 트리거 잔류" if hit_sl else "익절 트리거 잔류")
+            if why != "만기":
+                # Price crossed a bracket line and the position is still open,
+                # so the exchange-side order did not fire. That order is the
+                # account's real protection, and this is the only signal that
+                # it is missing or dead. The stop side is the one that bleeds.
+                _warn_once(st, f"bracket_dead:{sym}",
+                           f"{sym}: 거래소 브래킷이 걸리지 않아 봇이 대신 "
+                           f"청산합니다 ({why}). 그 종목의 익절·손절 주문이 "
+                           f"살아 있는지 확인하세요.")
             try:
-                since_ms = int(time.time() * 1000) - 60_000
+                since_ms = _since_open(pos)
                 close_market(client, policy, sym, pos, live)
                 move, tag = _booked_pct(client, sym, pos, mark, since_ms)
                 st["closed"].append(
@@ -1292,6 +1332,26 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                 notify.send(f"브래킷 {why} 청산: {sym} {move:+.2f}%")
             except PacificaError as e:
                 notify.send(f"브래킷 청산 실패 {sym}: {str(e)[:120]}")
+
+
+def _since_open(pos: dict) -> int:
+    """History window for one position, in ms, starting before it opened.
+
+    The venue stamps its opening row when the order is sent; the book stamps
+    opened_at once the fill is booked, about two seconds later (measured on
+    all eight live positions: 1.8 to 2.0 seconds). Anchoring the window on
+    opened_at therefore excluded the very row that carries the opening fee,
+    which made yesterday's fee fix dead code. OPEN_SKEW_MS steps back far
+    enough to include it while staying well inside one position's life.
+
+    Falls back to a minute ago when a position carries no opened_at, which is
+    the old behaviour and only reachable for a damaged record.
+    """
+    try:
+        return int(dt.datetime.fromisoformat(
+            pos["opened_at"]).timestamp() * 1000) - OPEN_SKEW_MS
+    except (KeyError, TypeError, ValueError):
+        return int(time.time() * 1000) - OPEN_SKEW_MS
 
 
 def _booked_pct(client, sym: str, pos: dict, mark: float, since_ms: int):
@@ -1363,7 +1423,7 @@ def circuit_breakers(st, cfg) -> None:
     # -1.415%p without. Count the last HALT_AVG_AFTER *strategy* closes rather
     # than filtering inside a fixed window, or the sample silently shrinks on
     # a day with many manual exits.
-    closed = [c for c in st["closed"] if c.get("cause") != "manual_close"]
+    closed = [c for c in st["closed"] if _is_strategy(c)]
     if len(closed) >= HALT_AVG_AFTER:
         recent = closed[-HALT_AVG_AFTER:]
         avg = sum(c["pnl_pct_est"] for c in recent) / len(recent)
@@ -1396,16 +1456,16 @@ def status(st) -> str:
         # total from -23.41%p to -30.24%p, mostly because --close-all books
         # eight fee-only closes. 작업규칙 §11 grades on per-trade return, so
         # that goes first and the sum second.
-        strat = [c for c in st["closed"] if c.get("cause") != "manual_close"]
-        manual = len(st["closed"]) - len(strat)
+        strat = [c for c in st["closed"] if _is_strategy(c)]
+        other = len(st["closed"]) - len(strat)
         if strat:
             wins = sum(1 for c in strat if c["pnl_pct_est"] > 0)
             tot = sum(c["pnl_pct_est"] for c in strat)
             lines.append(f"  전략 {wins}/{len(strat)} · 건당 "
                          f"{tot / len(strat):+.3f}%p · 합계 {tot:+.2f}%p"
-                         + (f" (수동청산 {manual}건 제외)" if manual else ""))
-        elif manual:
-            lines.append(f"  전략 청산 0건 (수동청산 {manual}건뿐)")
+                         + (f" (수동·추정 {other}건 제외)" if other else ""))
+        elif other:
+            lines.append(f"  전략 청산 0건 (수동·추정 {other}건뿐)")
     if st["halted"]:
         lines.append(f"  ⛔ 정지됨: {st['halt_reason']}")
     return "\n".join(lines)
@@ -1667,7 +1727,7 @@ def main():
         failed = []
         for sym, pos in list(st["positions"].items()):
             try:
-                since_ms = int(time.time() * 1000) - 60_000
+                since_ms = _since_open(pos)
                 close_market(client, policy, sym, pos, live)
                 # Book it the way every other close path does. Without this a
                 # flatten erased those trades from the ledger, so the running
