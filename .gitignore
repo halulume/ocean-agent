@@ -90,6 +90,7 @@ vercel_token.txt
 # Dated by name, so match the pattern rather than the day: 개발자전달_0821.md
 # was tracked again within a day of adding 0820 by hand.
 개발자전달_*.md
+개발자회신_*.md
 수정계획_*.md
 추천픽.md
 홀드아웃_사전등록.md
