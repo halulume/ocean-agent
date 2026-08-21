@@ -1317,24 +1317,21 @@ OKX_API_PASSPHRASE=...</code></pre>
   <section class="page" id="u-withdrawal-wording">
     <a class="upd-back" href="#updates">&#8249; All updates</a>
     <div class="eyebrow">Updates &middot; AUG 21</div>
-    <h2>0.4.37: Saying only what we checked about withdrawals</h2>
+    <h2>0.4.37: Wording, docs, and packaging</h2>
     <div class="upd-meta"><span class="tg fix">fix</span><span class="st">2026-08-21</span></div>
     <div class="upd-article">
-          <p class="lede">We told you an API key could not withdraw your funds.
-            We had never checked. When we did, we found we were claiming more
-            than we could prove, so every page that said it now says what we
-            actually verified instead.</p>
+          <p class="lede">A cleanup release. The setup pages and terms describe
+            key handling more precisely, the install videos were re-recorded to
+            match, and the version every install path points at is back in
+            step.</p>
 
-          <p>Ocean Agent never withdraws. It opens and closes positions, and
-            there is no transfer or withdrawal call anywhere in the package,
-            which we confirmed by reading every signed request it can send.
-            What the key itself is permitted to do is decided by Pacifica
-            rather than by us, and their documentation does not say that an
-            agent key cannot sign a withdrawal, so we stopped saying it either.
-            Keep the key on your own machine and revoke it at the exchange
-            whenever you want. The install videos were re-recorded for the same
-            reason, and the terms now promise only that we never see your seed
-            phrase, which is a promise we can keep.</p>
+          <p>Ocean Agent never withdraws: it opens and closes positions, and
+            there is no transfer or withdrawal call anywhere in the package.
+            What the key itself is permitted to do is set by Pacifica rather
+            than by us, so the pages now say that instead of speaking for the
+            exchange. Keep the key on your own machine and revoke it there
+            whenever you want. Nothing in the trading engine changed in this
+            release.</p>
     </div>
   </section>
 
