@@ -1243,6 +1243,12 @@ OKX_API_PASSPHRASE=...</code></pre>
       regimes, not forecasts.</p>
 
     <div class="upd-list">
+        <a class="upd-row" href="#u-withdrawal-wording" data-date="2026-08-21">
+          <span class="d">AUG 21</span>
+          <span class="t">0.4.37: Saying only what we checked about withdrawals</span>
+          <span class="tg fix">fix</span>
+          <span class="chev">&#8250;</span>
+        </a>
         <a class="upd-row" href="#u-open-beta-begins" data-date="2026-08-19">
           <span class="d">AUG 19</span>
           <span class="t">Open beta begins</span>
@@ -1306,6 +1312,30 @@ OKX_API_PASSPHRASE=...</code></pre>
     </div>
     <div class="upd-pager" id="updPager"></div>
     <div class="upd-count" id="updCount"></div>
+  </section>
+
+  <section class="page" id="u-withdrawal-wording">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 21</div>
+    <h2>0.4.37: Saying only what we checked about withdrawals</h2>
+    <div class="upd-meta"><span class="tg fix">fix</span><span class="st">2026-08-21</span></div>
+    <div class="upd-article">
+          <p class="lede">We told you an API key could not withdraw your funds.
+            We had never checked. When we did, we found we were claiming more
+            than we could prove, so every page that said it now says what we
+            actually verified instead.</p>
+
+          <p>Ocean Agent never withdraws. It opens and closes positions, and
+            there is no transfer or withdrawal call anywhere in the package,
+            which we confirmed by reading every signed request it can send.
+            What the key itself is permitted to do is decided by Pacifica
+            rather than by us, and their documentation does not say that an
+            agent key cannot sign a withdrawal, so we stopped saying it either.
+            Keep the key on your own machine and revoke it at the exchange
+            whenever you want. The install videos were re-recorded for the same
+            reason, and the terms now promise only that we never see your seed
+            phrase, which is a promise we can keep.</p>
+    </div>
   </section>
 
   <section class="page" id="u-open-beta-begins">
