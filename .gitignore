@@ -75,8 +75,14 @@ vercel_token.txt
 # 08-20~21 에 만든 공부·검토 문서. 위와 같은 성격인데 목록에 없어서 추적되고
 # 있었다. 안에 살아남은 엣지의 효과크기·t값·부호일치와 기각된 것들의 목록이
 # 그대로 있고, 기각 목록은 같은 길을 가려는 사람의 몇 달을 아껴준다.
+# A new study document appeared three times in two days and twice it was born
+# outside this list, so match the shape instead of naming each one. Nothing we
+# publish is named this way.
+*공부*.md
 조합공부.md
+방향공부.md
 신호공부.md
+검토공부.md
 신호공부_코인.md
 신호공부_주식.md
 신호공부_부록_코인.md

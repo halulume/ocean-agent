@@ -56,8 +56,9 @@ MIN_ROWS = 25            # refuse to seal on a thinner cross-section
 # Stocks were moved here on 08-19 after two picks (SAMSUNG, SKHYNIX) fell
 # hard on a day the cross-section had called short. On 08-20 the same
 # question was asked of 71 stock picks where the two sides actually
-# disagreed: the touch side averaged +2.05%p at 62% and the cross-section
-# -1.48%p at 28%, and it held in both halves of the period. Two picks in
+# disagreed: the touch side beat the cross-section by a wide margin on both
+# average and hit rate, and it held in both halves of the period (figures in
+# the measurement ledger, kept out of the shipped package). Two picks in
 # one falling session were a regime, not a rule (§100), so stocks are back
 # on the touch side. RWA stays: it is the one class where the cross-section
 # wins over the whole period (§90), and its 34 split picks are too thin and

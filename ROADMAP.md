@@ -127,6 +127,104 @@ Exit gate to Phase 3: **6+ months live track record** and Phase 2 layers shown t
 the raw layer on live data. If they don't beat it, keep the raw layer and report that
 honestly.
 
+
+---
+
+### PHASE 2b, Remote MCP so any LLM can run it (parallel track)
+
+Goal, stated by the operator on 2026-08-21: **the exact setup used today, usable from
+ChatGPT, Gemini, Grok and Claude on the web, with no install.** One URL, log in, done.
+PayBox (`https://api.paybox.sh/mcp` + OAuth) is the shape to copy.
+
+The code is closer to this than it looks. Measured 2026-08-21:
+
+```
+mcp_server.py:244   FastMCP(...)            transport is one argument away
+mcp_server.py:247   def _client()           ONE factory, 24 of the 30 tools call it
+mcp_server.py:1820  mcp.run()               stdio today, streamable-http supported
+16 home-directory singletons + 2 outputs dirs
+bracket_trader       one process == one account
+```
+
+Because every account-touching tool goes through `_client()`, injecting a per-request
+user there carries all 24 along. The tool bodies do not change.
+
+**Step 1, read-only remote (no gate, do whenever)**
+
+Switch transport, expose only the tools that need no key: `analyze_chart`,
+`market_context`, `top_setups`, `daily_picks`, `learned_winrates`, `scan_funding`,
+`evaluate_print`. No accounts, no OAuth, no custody, no licensing surface. The matrix,
+the seed, the walk-forward curve and the 13 GB Binance cache are *shared* resources, so
+multi-tenancy is free here. This is also where people meet the product.
+
+**Step 2, per-user context (gate: the two verifications below)**
+
+Session-scoped credentials injected into `_client()`. Split the 16 singletons.
+
+**Shared, and this is the real saving.** Matrix, seed, walk-forward curve and the Binance
+cache. Every install today runs its own `rematrix` (43 symbols x 8 timeframes, ~1.2 hours
+even with a warm cache) and keeps its own 13 GB of bars. A hundred installs means that
+computation a hundred times and that download a hundred times, for a result that is
+supposed to be identical. Hosted, it happens once.
+
+**Per user.** `.env`, `bracket_state.json`, heartbeat, lock, `warned`, the consent marker.
+
+**The seal is neither, and it is a decision, not a saving.** Seals are stamped at the
+moment the loop wakes (04:14, 05:17, 06:20 on 08-21, roughly 63 minutes apart), not on an
+hour boundary, so two installs already produce different picks from different market
+snapshots. Serving one seal to everyone is a *change in behaviour*: it makes every user
+trade the same symbols in the same second, which is exactly the aggregate-slippage
+problem below. Cheaper, and worse, unless that problem is solved first.
+
+**Step 3, hosted auto-trading (gate: PHASE 2 entry gate + the two verifications)**
+
+`bracket_trader` is rewritten as one worker iterating over N users. Whether the seal is
+computed once for everyone or per user on their own clock is the decision above, and it
+has to be settled before this step, not during it. Watch out for the exchange rate limit,
+which today is sized for one account's worth of calls.
+
+**Two verifications that must land before Step 2. Neither is code.**
+
+1. **Can an API agent key withdraw?** We assert it cannot, in `DISCLAIMER.md:51`,
+   `DISCLAIMER.ko.md:45`, `README.md:162`, this file, and, worst of all, in
+   `connect_ui.py:85` and `install_ui.py:196`, which are the screens shown at the moment
+   the user hands the key over. **That claim is ours alone.** Checked on 2026-08-21:
+   Pacifica's docs state no such restriction, the withdrawal endpoint
+   (`request-withdrawal`) accepts an optional `agent_wallet` field, and the official SDK
+   `rest/api_agent_keys.py` documents only binding and order placement. The claim traces
+   back to at least the 07-27 snapshot with no cited source.
+   **Verify on testnet or ask Pacifica. Until then treat the claim as unproven, and do
+   not build a custody story on it.** If it turns out an agent key can withdraw, the
+   six places above are misstatements at the point of consent and must be corrected
+   before anything else here proceeds.
+
+2. **Does subaccount isolation work?** Pacifica has `create-subaccount` and
+   `subaccount-fund-transfer`. If an agent key can be scoped to a subaccount, a user can
+   fund only their trading budget there and the blast radius stops at that balance. That
+   is PayBox's "amount-capped" property, implemented with a native exchange feature
+   instead of MPC. Check whether keys bind per subaccount or to the whole account.
+
+**Aggregate slippage, a problem this track creates**
+
+Today every user runs their own bot on their own clock, so entries scatter by minutes and
+by market snapshot. Hosted with a shared seal, N users hit the same symbol in the same
+second on a small venue. The slippage gate
+(`seal_maker`) measures **one order's** impact; nothing measures the sum. Before Step 3,
+measure Pacifica book depth against total notional across the expected user count, then
+add per-symbol notional caps and entry jitter.
+
+**Legal**
+
+Discretionary trading on someone else's account. This cannot be resolved by engineering.
+Get an opinion before Step 3, not after, or the whole build may be unusable.
+
+**What this track deletes**
+
+Distribution stops being a source of bugs. The 2026-08-21 review found the running bot
+was on 08-20 code, the forecast loop on 08-18 code, and the published wheel on a third
+version, all at once. Hosted, that class of failure cannot occur. Version pins in eight
+places, MCPB, the two install scripts, and half of `release/preflight.py` all go away.
+
 ---
 
 ## PHASE 3, Institutional-grade validation (~6-12 months)
