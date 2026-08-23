@@ -215,7 +215,7 @@ env = { PACIFICA_ENV_FILE = "/absolute/path/to/.pacifica.env", PACIFICA_BASE_URL
 
 ## Safety
 
-- API keys are **trading-only**, this software cannot move funds out.
+- This software has no withdrawal function; the key's own permissions are set by the exchange.
 - Testnet and mainnet keys are kept separate (`*_TESTNET` variables).
 - Money-moving tools preview first and execute only on explicit confirmation.
 - Leveraged perpetuals can lose more than the margin posted. Run with `--dry` until

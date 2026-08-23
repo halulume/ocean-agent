@@ -1644,6 +1644,17 @@ def main():
         log("사용자 중지 상태를 시작과 함께 해제합니다")
 
     policy = load_policy()
+    # A keyless start used to run a full cycle, hit GET /account with an
+    # empty address, and report the venue's 400 as "rate limit, maybe"
+    # (fresh-install simulation, 08-24). Say the actual problem instead.
+    # load_policy above has already loaded .env, so this sees what a cycle
+    # would see. --status stays open: it only reads the local book.
+    if not args.status:
+        from . import address_from_env as _addr
+        if not _addr(os.environ.get("PACIFICA_BASE_URL", "")):
+            log("계정이 연결돼 있지 않습니다. connect_pacifica 를 실행하거나 "
+                ".env 에 ADDRESS 와 PACIFICA_API_KEY 를 넣고 다시 시작하세요.")
+            return
     cfg = apply_budget(bracket_cfg(policy))
     global _selfgen_enabled
     _selfgen_enabled = bool(policy.get("bracket_selfgen_seal", True))

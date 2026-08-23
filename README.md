@@ -182,7 +182,7 @@ separate keys: `ADDRESS_TESTNET`, `PACIFICA_API_KEY_TESTNET`).
   "mcpServers": {
     "ocean-agent": {
       "command": "uvx",
-      "args": ["ocean-agent@0.4.37"],
+      "args": ["ocean-agent@0.4.38"],
       "env": { "PACIFICA_ENV_FILE": "/absolute/path/to/.env" }
     }
   }
@@ -204,7 +204,7 @@ prepend `uv run --with ocean-agent`.
 
 ## Safety
 
-- API keys are trading-only, this software cannot move your funds out
+- This software has no withdrawal function; the key's own permissions are set by the exchange
 - Every order tool previews first and executes only on explicit confirmation
 - Testnet and mainnet keys are kept separate
 - The autonomous entity acts only within `policy.yaml`

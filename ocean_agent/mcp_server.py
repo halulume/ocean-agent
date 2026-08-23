@@ -1130,11 +1130,11 @@ def daily_picks(refresh: bool = False) -> str:
     import time as _time
     from .seal_maker import OUTPUTS_DIR, make_seal
 
-    # The ranked list is for connected accounts. Analysis tools stay open
-    # to everyone; this one asks for the wallet's public address first.
-    _base = os.environ.get("PACIFICA_BASE_URL", "https://api.pacifica.fi")
-    if not address_from_env(_base):
-        return "지갑을 연결하면 추천픽이 열립니다. connect_pacifica 실행."
+    # No wallet gate here. The site promises picks without an account, the
+    # docstring above says the same, and the computation is public market
+    # data anyway. A gate stood here from 08-19 to 08-24 and only stopped
+    # the people who believed the site: it checked string presence, so any
+    # non-empty ADDRESS opened it (fresh-install simulation, 08-24).
 
     def newest():
         for p in reversed(sorted(_glob.glob(
@@ -1261,7 +1261,11 @@ def top_setups(top: int = 3, budget_usd: float = 100) -> str:
         position_usd=float(policy.get("max_position_usd", 0) or 0),
         max_position_pct_of_volume=float(
             policy.get("max_position_pct_of_volume", 0) or 0),
-        max_leverage=int(policy.get("max_leverage", 0) or 0))
+        max_leverage=int(policy.get("max_leverage", 0) or 0),
+        # Interactive tool: a fresh install has no bar cache and the
+        # unbounded scan ran past 15 minutes there. Cap the wall clock and
+        # return what was fully scanned; the bot's own loop stays unbounded.
+        time_budget_sec=150)
     text = signal_scanner.format_setups(setups, max(1, int(top)))
     if setups:
         signal_scanner.log_predictions(setups, max(1, int(top)))

@@ -653,7 +653,7 @@ class Setup:
 def evaluate_setups(client, budget_usd=100.0, universe=15,
                     min_volume_24h=0.0, position_usd=0.0,
                     max_position_pct_of_volume=0.0, max_leverage=0,
-                    risk_pct=0.0):
+                    risk_pct=0.0, time_budget_sec=0.0):
     """유동성 관문, 호가창이 얇으면 ① 주문이 일부만 체결되고 ② 손절이 걸려도
     그 가격에 못 팔아 계획보다 크게 잃는다. 변동성보다 실질적인 위험.
 
@@ -685,7 +685,17 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
     horizons = current_horizons()
     setups = []
 
+    # On a machine with a warm bar cache this scan is 1-2 minutes; on a
+    # fresh install every bar is a cold fetch and the same loop ran past 15
+    # minutes (fresh-install simulation, 08-24). time_budget_sec stops
+    # ADMITTING new symbols once spent and returns what was fully scanned,
+    # so an interactive caller gets a partial honest answer instead of a
+    # hang. 0 keeps the old unbounded behaviour; the autonomous loop and
+    # CLI pass nothing and are unchanged.
+    _t0 = time.time()
     for p in perps:
+        if time_budget_sec and time.time() - _t0 > time_budget_sec:
+            break
         sym = p["symbol"]
         max_lev = int(markets.get(sym, {}).get("max_leverage", 10))
         for hz, tf in horizons.items():

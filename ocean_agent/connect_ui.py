@@ -204,10 +204,17 @@ def open_connect_page(on_submit, brand="claude") -> str:
             pass
 
     threading.Thread(target=run, daemon=True).start()
-    try:
-        webbrowser.open(url)
-    except Exception:
-        pass
+    # webbrowser.open can block for minutes on some Windows setups, and the
+    # caller cannot print the URL until this returns, so the parent process
+    # reading our stdout saw nothing and gave up (fresh-install simulation,
+    # 08-24: 0.44s with the call suppressed, 300s+ without). Fire it from a
+    # thread; the URL is the contract, the auto-open is best effort.
+    def _open():
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+    threading.Thread(target=_open, daemon=True).start()
     return url
 
 
