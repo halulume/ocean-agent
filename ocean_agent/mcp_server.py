@@ -470,6 +470,11 @@ def connect_pacifica(ctx: Context) -> str:
         proc = subprocess.Popen(
             [_sys.executable, "-u", "-m", "ocean_agent.connect_ui",
              "--env-file", env_path, "--brand", brand, "--timeout", "900"],
+            # Without an explicit stdin the child inherits the MCP server's
+            # stdio pipe and never starts: A/B measured 40s+ inherited vs
+            # 0.24s detached (fresh-install simulation, 08-24). This one
+            # line is why connect looked hung even after the browser fix.
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding="utf-8", errors="replace", **kw)
     except Exception as e:
@@ -602,6 +607,11 @@ def start_auto_trading(budget_usd: float = 0, confirm: bool = False) -> str:
     with open(log_path, "a", encoding="utf-8") as lf:
         proc = subprocess.Popen(
             [_sys.executable, "-u", "-m", "ocean_agent.bracket_trader"],
+            # Same stdin-inheritance stall as the connect spawn above. This
+            # is the likely story behind MCP-launched engines sitting at
+            # 0 CPU forever while poll() said alive, so the tool reported
+            # "started (PID ...)" for a bot that never began.
+            stdin=subprocess.DEVNULL,
             stdout=lf, stderr=subprocess.STDOUT, **kw)
     import time as _time
     _time.sleep(3)
