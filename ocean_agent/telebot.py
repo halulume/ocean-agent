@@ -35,10 +35,26 @@ API = "https://api.telegram.org/bot{token}/{method}"
 # defaults; central mode passes each member's stored language down.
 
 
+def _env_file(root):
+    """The .env this bot reads AND writes, first match wins: the repo
+    checkout layout, an explicit PACIFICA_ENV_FILE, then the installer's
+    default (~/.ocean-agent/.env, created by install.ps1/install.sh).
+    Before 2026-08-25 only the repo layout was searched, so a pip user who
+    followed the mobile guide got 'no token' from a perfectly good .env.
+    When none exists yet, new values go to the installer default."""
+    cands = [os.path.join(root, ".env"),
+             os.environ.get("PACIFICA_ENV_FILE") or "",
+             os.path.join(os.path.expanduser("~"), ".ocean-agent", ".env")]
+    for c in cands:
+        if c and os.path.exists(c):
+            return c
+    return cands[2]
+
+
 def _env():
     out = dict(os.environ)
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    p = os.path.join(root, ".env")
+    p = _env_file(root)
     if os.path.exists(p):
         for ln in open(p, encoding="utf-8", errors="replace"):
             ln = ln.strip()
@@ -169,7 +185,8 @@ def _env_set(root, key, value):
     The personal onboarding writes what the owner pastes in chat, so a
     non technical user never edits a file by hand (2026-08-25 user order:
     language first, then wallet address, then API key)."""
-    p = os.path.join(root, ".env")
+    p = _env_file(root)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
     lines = []
     if os.path.exists(p):
         with open(p, encoding="utf-8", errors="replace") as f:
