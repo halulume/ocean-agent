@@ -1494,6 +1494,20 @@ def lang_kb() -> str:
     return json.dumps({"inline_keyboard": rows})
 
 
+# ── central bot: install desk, not a free window (2026-08-25) ────────────
+T["install_pitch"] = {
+ "ko": "Ocean Agent는 당신의 컴퓨터에서 당신의 키로 도는 제품이라, 이 공용 봇에는 보여드릴 게 없습니다. 설치하면 이 봇과 똑같은 봇이 당신 전용으로 돌면서 픽, 프린트 알림, 자동매매까지 전부 제공합니다.\n\n설치 안내: https://oceanagent.fi\n코드 전체 공개: https://oceanagent.fi/github\n커뮤니티: https://oceanagent.fi/telegram",
+ "en": "Ocean Agent runs on your machine with your keys, so there is nothing to demo on this shared bot. Install it and this exact bot runs privately for you: picks, Print alerts, auto trading, everything.\n\nSetup guide: https://oceanagent.fi\nFull source: https://oceanagent.fi/github\nCommunity: https://oceanagent.fi/telegram",
+ "zh": "Ocean Agent 在您自己的电脑上用您自己的密钥运行，所以这个公共机器人没有可展示的内容。安装后，同样的机器人将专属为您运行：推荐、Print 提醒、自动交易，一应俱全。\n\n安装指南: https://oceanagent.fi\n完整源码: https://oceanagent.fi/github\n社区: https://oceanagent.fi/telegram",
+ "ja": "Ocean Agent はあなたのPCであなたの鍵で動く製品のため、この共用ボットにお見せできるものはありません。インストールすれば同じボットがあなた専用に動きます。ピック、Print通知、自動売買まで全部。\n\nセットアップ: https://oceanagent.fi\nソース全公開: https://oceanagent.fi/github\nコミュニティ: https://oceanagent.fi/telegram",
+ "vi": "Ocean Agent chạy trên máy của bạn với khóa của bạn, nên bot chung này không có gì để xem. Cài đặt và chính bot này sẽ chạy riêng cho bạn: pick, cảnh báo Print, giao dịch tự động, tất cả.\n\nHướng dẫn: https://oceanagent.fi\nMã nguồn: https://oceanagent.fi/github\nCộng đồng: https://oceanagent.fi/telegram",
+ "hi": "Ocean Agent आपकी मशीन पर आपकी keys से चलता है, इसलिए इस साझा बॉट पर दिखाने को कुछ नहीं है। इंस्टॉल करें और यही बॉट आपके लिए निजी रूप से चलेगा: picks, Print अलर्ट, ऑटो ट्रेडिंग, सब कुछ।\n\nसेटअप: https://oceanagent.fi\nपूरा सोर्स: https://oceanagent.fi/github\nसमुदाय: https://oceanagent.fi/telegram",
+ "id": "Ocean Agent berjalan di komputer Anda dengan kunci Anda, jadi tidak ada yang bisa dilihat di bot bersama ini. Instal, dan bot yang sama berjalan khusus untuk Anda: pick, notifikasi Print, auto trading, semuanya.\n\nPanduan: https://oceanagent.fi\nKode sumber: https://oceanagent.fi/github\nKomunitas: https://oceanagent.fi/telegram",
+ "ru": "Ocean Agent работает на вашей машине с вашими ключами, поэтому на этом общем боте нечего показывать. Установите, и этот же бот будет работать лично для вас: пики, оповещения Print, автоторговля, всё.\n\nУстановка: https://oceanagent.fi\nИсходники: https://oceanagent.fi/github\nСообщество: https://oceanagent.fi/telegram",
+ "pt": "O Ocean Agent roda na sua máquina com as suas chaves, então não há nada para mostrar neste bot compartilhado. Instale e este mesmo bot roda privadamente para você: picks, alertas de Print, auto trading, tudo.\n\nGuia: https://oceanagent.fi\nCódigo aberto: https://oceanagent.fi/github\nComunidade: https://oceanagent.fi/telegram",
+ "tr": "Ocean Agent kendi makinenizde kendi anahtarlarınızla çalışır; bu ortak botta gösterilecek bir şey yok. Kurun, aynı bot size özel çalışsın: pickler, Print uyarıları, otomatik işlem, hepsi.\n\nKurulum: https://oceanagent.fi\nKaynak kod: https://oceanagent.fi/github\nTopluluk: https://oceanagent.fi/telegram",
+ "es": "Ocean Agent corre en tu máquina con tus llaves, así que no hay nada que mostrar en este bot compartido. Instálalo y este mismo bot corre en privado para ti: picks, alertas de Print, auto trading, todo.\n\nGuía: https://oceanagent.fi\nCódigo abierto: https://oceanagent.fi/github\nComunidad: https://oceanagent.fi/telegram"}
+
 # ── personal onboarding: wallet address, API key (2026-08-25) ────────────
 T["ask_wallet"] = {
  "ko": "지갑 주소를 붙여넣어 주세요 (파시피카 로그인에 쓰는 솔라나 지갑의 공개 주소). 조회 전용이라 안전합니다. 나중에 하려면 '아니'라고 답하세요.",

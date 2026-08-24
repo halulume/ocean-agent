@@ -1481,6 +1481,12 @@ def _handle_member(text, chat_id, env, root, admin):
             _save_users(root, users)
         return ("KB", tr("pick_lang", "any"))
     lang0 = u.get("lang") or "en"
+    if chat_id != admin and env.get("TELEBOT_MEMBER_OPEN", "") != "1":
+        # 2026-08-25 user order: even window shopping requires installing.
+        # The central bot answers members with the install pitch, in their
+        # language, and nothing else. TELEBOT_MEMBER_OPEN=1 restores the
+        # old open behavior if it is ever wanted again.
+        return tr("install_pitch", lang0)
     if text == "/mode":
         return ("KB_TIER", tr("tier_pick", lang0))
     if text == "/menu":
@@ -1766,16 +1772,29 @@ def _process_update(u, env, root, gate, central, token):
                   callback_query_id=cq.get("id", ""))
         except Exception:
             pass
+        pitch_only = (cid and cid != gate
+                      and env.get("TELEBOT_MEMBER_OPEN", "") != "1")
         if data.startswith("lang:") and cid:
             users = _load_users(root)
             rec = users.get(cid) or {"address": "", "paid": False}
             rec["lang"] = data.split(":", 1)[1]
             users[cid] = rec
             _save_users(root, users)
+            if pitch_only:
+                # install desk mode: the language pick localizes the pitch,
+                # then everything funnels to installing their own bot
+                _send(token, cid, tr("install_pitch", rec["lang"]))
+                return
             # language chosen -> tier choice next, in that language
             from .telebot_i18n import tier_kb
             _send(token, cid, tr("tier_pick", rec["lang"]),
                   kb=tier_kb(rec["lang"]))
+        elif pitch_only:
+            # stale tier/provider keyboards from the open era: pitch too
+            users = _load_users(root)
+            lang = ((users.get(cid) or {}).get("lang")) or "en"
+            _send(token, cid, tr("install_pitch", lang))
+            return
         elif data.startswith("tier:") and cid:
             users = _load_users(root)
             rec = users.get(cid) or {"lang": "en", "address": "",
