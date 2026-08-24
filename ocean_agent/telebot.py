@@ -971,6 +971,9 @@ def _order_flow(text, low, cid, env, root, lang):
             return None
     spec = None
     if any(w in low for words in _SIDE_WORDS.values() for w in words):
+        # "SOL 숏 왜 잃었어" is a why-question, not an order (0.4.46 audit)
+        if _score(low, "why", lang):
+            return None
         spec = _parse_order(text, low, env, lang)
     if not spec:
         return None
