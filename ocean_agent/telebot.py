@@ -226,6 +226,35 @@ def _setup_set(root, stage):
 _B58 = set("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
 
 
+def _avail_usd(env):
+    """Spendable balance for the budget recommendation; 0 when unknown."""
+    try:
+        from .api_client import PacificaClient
+        cl = PacificaClient(env.get("PACIFICA_BASE_URL",
+                                    "https://api.pacifica.fi"),
+                            address=env.get("ADDRESS", ""))
+        return float(cl.get_account().get("available_to_spend") or 0)
+    except Exception:
+        return 0.0
+
+
+def _rec_budget(avail):
+    """Suggested working total: notional that locks ~30% of the balance
+    as margin at 5x (avail * 0.3 * 5), floor $50, rounded to $10."""
+    if avail <= 0:
+        return 150.0
+    return max(50.0, round(avail * 1.5 / 10) * 10)
+
+
+def _ask_budget(token, cid, env, root, lang):
+    from .telebot_i18n import tr
+    _setup_set(root, "budget")
+    avail = _avail_usd(env)
+    rec = _rec_budget(avail)
+    _send(token, cid, tr("ask_budget", lang).format(
+        f"{avail:,.0f}", f"{rec:,.0f}", f"{rec / 5:,.0f}"))
+
+
 def _setup_route(text, token, cid, env, root, lang, msg_id=""):
     """Consume one onboarding answer while a setup stage is pending.
 
@@ -251,27 +280,45 @@ def _setup_route(text, token, cid, env, root, lang, msg_id=""):
         env["ADDRESS"] = t
         _send(token, cid, tr("setup_saved_addr", lang))
         if (env.get("PACIFICA_API_KEY") or "").strip():
-            _setup_set(root, "")
-            _send(token, cid, tr("tier_pick", lang), kb=tier_kb(lang))
+            _ask_budget(token, cid, env, root, lang)
         else:
             _setup_set(root, "key")
             _send(token, cid, tr("ask_apikey", lang))
         return ""
-    # stage == "key"
-    try:
-        from .signing import keypair_from_base58
-        keypair_from_base58(t)
-    except Exception:
-        return tr("setup_bad_key", lang)
-    _env_set(root, "PACIFICA_API_KEY", t)
-    env["PACIFICA_API_KEY"] = t
-    if msg_id:                    # wipe the pasted key from the chat
+    if stage == "key":
         try:
-            _call(token, "deleteMessage", chat_id=cid, message_id=msg_id)
+            from .signing import keypair_from_base58
+            keypair_from_base58(t)
         except Exception:
-            pass
+            return tr("setup_bad_key", lang)
+        _env_set(root, "PACIFICA_API_KEY", t)
+        env["PACIFICA_API_KEY"] = t
+        if msg_id:                # wipe the pasted key from the chat
+            try:
+                _call(token, "deleteMessage", chat_id=cid, message_id=msg_id)
+            except Exception:
+                pass
+        _send(token, cid, tr("setup_done_key", lang))
+        _ask_budget(token, cid, env, root, lang)
+        return ""
+    # stage == "budget" (2026-08-25 user order: newcomers pick how much the
+    # bot works with, recommended from their own balance)
+    try:
+        usd = float(t.replace(",", "").replace("$", ""))
+    except ValueError:
+        return tr("setup_bad_budget", lang)
+    if usd < 10:
+        return tr("setup_bad_budget", lang)
+    avail = _avail_usd(env)
+    if avail > 0:                 # never above what the margin can carry
+        usd = min(usd, round(avail * 4.85))
+    _env_set(root, "BRACKET_BUDGET_USD", f"{usd:g}")
+    os.environ["BRACKET_BUDGET_USD"] = f"{usd:g}"
+    env["BRACKET_BUDGET_USD"] = f"{usd:g}"
     _setup_set(root, "")
-    _send(token, cid, tr("setup_done_key", lang))
+    n = max(1, min(int(usd // 50), 8))
+    _send(token, cid, tr("setup_done_budget", lang).format(
+        f"{usd:,.0f}", n, f"{usd / 5:,.0f}"))
     _send(token, cid, tr("tier_pick", lang), kb=tier_kb(lang))
     return ""
 
@@ -1765,6 +1812,10 @@ def _process_update(u, env, root, gate, central, token):
                 elif not (env.get("PACIFICA_API_KEY") or "").strip():
                     _setup_set(root, "key")
                     _send(token, cid, tr("ask_apikey", lang))
+                elif not (env.get("BRACKET_BUDGET_USD") or "").strip():
+                    # installer users arrive with address and key already
+                    # in .env; the budget question still applies
+                    _ask_budget(token, cid, env, root, lang)
                 else:
                     _send(token, cid, tr("tier_pick", lang),
                           kb=tier_kb(lang))

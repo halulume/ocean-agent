@@ -1557,6 +1557,42 @@ T["setup_done_key"] = {
  "pt": "API key salva ✅ Ordens, Print e auto trading já funcionam.",
  "tr": "API anahtarı kaydedildi ✅ Emir, Print ve otomatik işlem tamamen açık.",
  "es": "API key guardada ✅ Órdenes, Print y auto trading ya funcionan."}
+T["ask_budget"] = {
+ "ko": "마지막으로, 봇이 굴릴 총액을 정하세요 (달러 숫자만). 가용 잔액 ${} 기준 추천은 ${}입니다. 포지션 여러 개로 나눠 들어가며 실제로 잠기는 증거금은 5배 기준 약 ${}. 언제든 바꿀 수 있고, 나중에 하려면 '아니'.",
+ "en": "Last step: how much should the bot work with (dollars, number only)? With ${} available, we suggest ${}. It is split across several positions; actual locked margin at 5x is about ${}. You can change it anytime; reply 'no' to decide later.",
+ "zh": "最后一步：机器人使用多少资金（仅数字，美元）？可用余额 ${}，建议 ${}。资金会分散到多个仓位，5倍杠杆下实际占用保证金约 ${}。随时可改；回复 'no' 稍后再定。",
+ "ja": "最後に、ボットが運用する総額を決めてください（数字のみ、ドル）。利用可能 ${} に対し、おすすめは ${} です。複数ポジションに分散され、5倍で実際に拘束される証拠金は約 ${}。いつでも変更可、後にするなら 'no'。",
+ "vi": "Bước cuối: bot nên dùng bao nhiêu (chỉ số, USD)? Với ${} khả dụng, gợi ý ${}. Chia thành nhiều vị thế; ký quỹ thực khóa ở 5x khoảng ${}. Đổi lúc nào cũng được; trả lời 'no' để quyết sau.",
+ "hi": "अंतिम चरण: बॉट कितनी राशि से काम करे (केवल संख्या, डॉलर)? ${} उपलब्ध के साथ सुझाव ${} है। यह कई पोज़िशनों में बंटती है; 5x पर वास्तविक मार्जिन लगभग ${}। कभी भी बदलें; बाद के लिए 'no' लिखें।",
+ "id": "Langkah terakhir: berapa dana yang dipakai bot (angka saja, dolar)? Dengan ${} tersedia, saran kami ${}. Dibagi ke beberapa posisi; margin terkunci pada 5x sekitar ${}. Bisa diubah kapan saja; balas 'no' untuk nanti.",
+ "ru": "Последний шаг: с какой суммой работать боту (только число, в долларах)? Доступно ${}, рекомендуем ${}. Сумма делится на несколько позиций; фактическая маржа при 5x около ${}. Можно изменить в любой момент; 'no' — решить позже.",
+ "pt": "Último passo: com quanto o bot deve operar (apenas número, dólares)? Com ${} disponível, sugerimos ${}. Divide se em várias posições; a margem travada em 5x é cerca de ${}. Mude quando quiser; responda 'no' para depois.",
+ "tr": "Son adım: bot ne kadarla çalışsın (yalnız sayı, dolar)? Kullanılabilir ${} için önerimiz ${}. Birden çok pozisyona bölünür; 5x'te kilitlenen gerçek teminat yaklaşık ${}. İstediğinizde değiştirin; sonraya bırakmak için 'no'.",
+ "es": "Último paso: ¿con cuánto debe operar el bot (solo número, dólares)? Con ${} disponible, sugerimos ${}. Se reparte en varias posiciones; el margen bloqueado a 5x es de unos ${}. Cámbialo cuando quieras; responde 'no' para luego."}
+T["setup_bad_budget"] = {
+ "ko": "숫자로만 답해주세요 (예: 150). 최소 $10. 나중에 하려면 '아니'.",
+ "en": "Numbers only please (e.g. 150). Minimum $10. Reply 'no' to decide later.",
+ "zh": "请只输入数字（如 150）。最低 $10。稍后再定请回复 'no'。",
+ "ja": "数字のみで答えてください（例: 150）。最低 $10。後にするなら 'no'。",
+ "vi": "Chỉ nhập số (vd: 150). Tối thiểu $10. 'no' để quyết sau.",
+ "hi": "केवल संख्या लिखें (जैसे 150)। न्यूनतम $10। बाद के लिए 'no'।",
+ "id": "Angka saja (mis. 150). Minimum $10. 'no' untuk nanti.",
+ "ru": "Только число (напр. 150). Минимум $10. 'no' — позже.",
+ "pt": "Apenas números (ex.: 150). Mínimo $10. 'no' para depois.",
+ "tr": "Yalnız sayı yazın (örn. 150). En az $10. Sonrası için 'no'.",
+ "es": "Solo números (p. ej. 150). Mínimo $10. 'no' para luego."}
+T["setup_done_budget"] = {
+ "ko": "거래 예산 저장 완료 ✅ ${}로 최대 {}개 포지션, 잠기는 증거금 약 ${}. '얼마로 바꿔' 한마디면 언제든 조정됩니다.",
+ "en": "Trading budget saved ✅ ${} across up to {} positions, about ${} margin locked. Say a new amount anytime to change it.",
+ "zh": "交易预算已保存 ✅ ${}，最多 {} 个仓位，占用保证金约 ${}。随时说个新数字即可更改。",
+ "ja": "取引予算を保存しました ✅ ${} で最大 {} ポジション、拘束証拠金は約 ${}。新しい金額を言えばいつでも変更できます。",
+ "vi": "Đã lưu ngân sách ✅ ${} cho tối đa {} vị thế, ký quỹ khoảng ${}. Nói số mới bất kỳ lúc nào để đổi.",
+ "hi": "बजट सहेजा गया ✅ ${} से अधिकतम {} पोज़िशन, लगभग ${} मार्जिन। कभी भी नई राशि बताकर बदलें।",
+ "id": "Anggaran tersimpan ✅ ${} untuk maks {} posisi, margin sekitar ${}. Sebut angka baru kapan saja untuk mengubah.",
+ "ru": "Бюджет сохранён ✅ ${} на до {} позиций, маржа около ${}. Назовите новую сумму в любой момент.",
+ "pt": "Orçamento salvo ✅ ${} em até {} posições, cerca de ${} de margem. Diga um novo valor a qualquer momento.",
+ "tr": "Bütçe kaydedildi ✅ ${} ile en çok {} pozisyon, yaklaşık ${} teminat. Yeni bir tutar söyleyerek değiştirin.",
+ "es": "Presupuesto guardado ✅ ${} en hasta {} posiciones, unos ${} de margen. Di un nuevo monto cuando quieras."}
 T["setup_bad_addr"] = {
  "ko": "지갑 주소 형식이 아닙니다. 파시피카 로그인 지갑의 주소를 그대로 붙여넣어 주세요. 나중에 하려면 '아니'.",
  "en": "That does not look like a wallet address. Paste the address of the wallet you log into Pacifica with, or reply 'no' to skip for now.",
