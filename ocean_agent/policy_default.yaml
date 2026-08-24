@@ -194,6 +194,14 @@ bracket_vol_floor_pct: 0.8  # 예상변동 0.8% 미만 픽 제외
 # also ring Telegram. false keeps them in the log only; they never stop
 # trading either way.
 bracket_advisory_alerts: true
+# Telebot conversation mode: on first free-text message the bot installs
+# llama-cpp-python and downloads Qwen2.5-1.5B (about 1GB, once, to
+# ~/.ocean_agent_models) and then answers ANY sentence in conversation,
+# unlimited and offline, on this machine's own CPU. Until it is ready the
+# rule answers respond as before. false keeps the bot rules-only with no
+# download. Applies to the personal bot (and the operator's own chat in
+# central mode) - member chats never load the operator's machine.
+chat_local: true
 # 호가가 얇아 왕복 비용이 익절폭을 갉아먹는 종목은 봉인에서 빼둔다.
 # 시장의 성질이라 계좌와 무관하게 같다 (2026-08-19 실측):
 #   CHIP  1틱이 0.392%, 어떤 손절도 그 안으로는 못 지킨다

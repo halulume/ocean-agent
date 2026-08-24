@@ -411,6 +411,106 @@ def _llm_answer(env, question, data, lang="ko", provider="claude",
     return None
 
 
+# ── 로컬 무제한 대화 모드 (chat_local) ──────────────────────────────────
+# The free tier talks like an LLM because a small one runs right here: on
+# first use the bot installs llama-cpp-python and pulls Qwen2.5-1.5B-
+# Instruct (about 1GB, official Qwen repo, Apache-2.0) onto THIS machine,
+# then answers any sentence from the live data, unlimited and offline.
+# Each installation carries only its own load: member chats in central
+# mode never route here, so nobody's traffic lands on the operator's CPU.
+# The model only writes text - order execution stays with the exact-match
+# confirmation flow above and is never wired to a model.
+_MODEL_URL = ("https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/"
+              "resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf")
+_MODEL_DIR = os.path.expanduser("~/.ocean_agent_models")
+_MODEL_PATH = os.path.join(_MODEL_DIR, "qwen2.5-1.5b-instruct-q4_k_m.gguf")
+_MODEL_SIZE = 1_117_320_736          # exact size on the official repo
+_LOCAL = {"state": "", "llm": None}  # "" -> preparing -> ready | error
+_POLICY_CHAT_LOCAL = None
+
+
+def _chat_local_on():
+    """policy.yaml chat_local, read once per process (restart to change)."""
+    global _POLICY_CHAT_LOCAL
+    if _POLICY_CHAT_LOCAL is None:
+        try:
+            from .autonomous import load_policy
+            _POLICY_CHAT_LOCAL = bool(load_policy().get("chat_local", True))
+        except Exception:
+            _POLICY_CHAT_LOCAL = False
+    return _POLICY_CHAT_LOCAL
+
+
+def _prepare_local():
+    """Background one-time setup: pip install the runtime, download the
+    model with a .part rename so a killed download never half-counts."""
+    import subprocess
+    import urllib.request as _rq
+    try:
+        try:
+            import llama_cpp                              # noqa: F401
+        except ImportError:
+            print("[대화모드] llama-cpp-python 설치 중...", flush=True)
+            r = subprocess.run([sys.executable, "-m", "pip", "install",
+                                "--quiet", "llama-cpp-python"],
+                               capture_output=True, text=True, timeout=1800)
+            if r.returncode != 0:
+                raise RuntimeError("pip install 실패")
+            import llama_cpp                              # noqa: F401
+        if not (os.path.exists(_MODEL_PATH)
+                and os.path.getsize(_MODEL_PATH) == _MODEL_SIZE):
+            os.makedirs(_MODEL_DIR, exist_ok=True)
+            part = _MODEL_PATH + ".part"
+            print(f"[대화모드] 모델 내려받는 중 (약 1GB) → {_MODEL_PATH}",
+                  flush=True)
+            _rq.urlretrieve(_MODEL_URL, part)
+            if os.path.getsize(part) != _MODEL_SIZE:
+                os.remove(part)
+                raise RuntimeError("다운로드 크기 불일치")
+            os.replace(part, _MODEL_PATH)
+        _LOCAL["state"] = "ready"
+        print("[대화모드] 준비 완료", flush=True)
+    except Exception as ex:
+        _LOCAL["state"] = "error"
+        print(f"[대화모드] 준비 실패({type(ex).__name__}), 규칙 답변으로 "
+              f"계속합니다", flush=True)
+
+
+def _local_answer(question, data, lang):
+    from llama_cpp import Llama
+    if _LOCAL["llm"] is None:
+        _LOCAL["llm"] = Llama(model_path=_MODEL_PATH, n_ctx=4096,
+                              n_threads=max(4, (os.cpu_count() or 8) // 2),
+                              verbose=False)
+    r = _LOCAL["llm"].create_chat_completion(
+        messages=[{"role": "system",
+                   "content": _SYS_PROMPT.format(lang=lang)},
+                  {"role": "user",
+                   "content": f"[실데이터]\n{data}\n\n[질문]\n{question}"}],
+        max_tokens=512, temperature=0.3)
+    out = (r.get("choices") or [{}])[0].get("message", {}) \
+        .get("content", "").strip()
+    return out or None
+
+
+def _local_llm(env, root, question, data, lang="ko"):
+    """Unlimited local tier. None hands over to the next tier (rules)."""
+    if not _chat_local_on():
+        return None
+    if _LOCAL["state"] == "ready":
+        try:
+            return _local_answer(question, data, lang)
+        except Exception:
+            return None
+    if _LOCAL["state"] == "":
+        _LOCAL["state"] = "preparing"
+        import threading
+        threading.Thread(target=_prepare_local, daemon=True).start()
+        from .telebot_i18n import tr
+        return tr("chat_local_preparing", lang) + "\n\n" + data
+    return None                      # preparing or error: rules answer
+
+
 def _free_llm(env, root, question, data, lang="ko"):
     """Free-tier LLM: one operator key with a free quota (Gemini's free
     tier fits) answers EVERY member in conversation, so the free mode talks
@@ -465,8 +565,9 @@ def chat(text, env, root, lang="ko", cid="solo"):
     cli_ok = env.get("TELEBOT_CLI_MIRROR", "") == "1"   # 옵트인 전엔 봉인
     return ((cli_ok and _cli_answer(text, base))
             or _llm_answer(env, text, base, lang)  # 2순위: API 키 있으면
-            or _free_llm(env, root, text, base, lang)  # 3순위: 무료쿼터 LLM
-            or base)                         # 4순위: 무료 규칙 답변
+            or _local_llm(env, root, text, base, lang)  # 3순위: 로컬 무제한
+            or _free_llm(env, root, text, base, lang)  # 4순위: 무료쿼터 LLM
+            or base)                         # 5순위: 무료 규칙 답변
 
 
 def _rule_answer(text, env, root, lang="ko"):

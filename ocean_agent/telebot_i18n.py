@@ -686,6 +686,39 @@ T = {
         "es": "La ejecución no está disponible aquí (solo dirección, solo "
               "lectura). El auto trading corre en su máquina con sus "
               "claves: pip install ocean-agent"},
+    "chat_local_preparing": {
+        "ko": "🔄 대화 모드를 준비하고 있습니다. 언어모델(약 1GB)을 처음 한 "
+              "번만 내려받아요. 몇 분 뒤부터는 어떤 문장이든 자연스럽게 "
+              "답해드립니다. 그동안은 기본 답변으로 응답합니다:",
+        "en": "🔄 Preparing conversation mode: downloading the language "
+              "model (about 1GB, one time). In a few minutes I will answer "
+              "any sentence naturally. Until then, the standard answer:",
+        "zh": "🔄 正在准备对话模式：首次下载语言模型（约1GB，仅一次）。几分钟"
+              "后即可自然回答任何问题。在此期间先用基本回答：",
+        "ja": "🔄 会話モードを準備中：言語モデル（約1GB）を初回のみダウンロード"
+              "しています。数分後からどんな文章にも自然に答えます。それまでは"
+              "基本回答で応答します：",
+        "vi": "🔄 Đang chuẩn bị chế độ hội thoại: tải mô hình ngôn ngữ "
+              "(khoảng 1GB, một lần). Vài phút nữa tôi sẽ trả lời tự nhiên "
+              "mọi câu. Trong lúc chờ, câu trả lời cơ bản:",
+        "hi": "🔄 वार्तालाप मोड तैयार हो रहा है: भाषा मॉडल (लगभग 1GB, एक बार) डाउनलोड "
+              "हो रहा है। कुछ मिनटों में किसी भी वाक्य का जवाब दूँगा। तब तक बुनियादी "
+              "जवाब:",
+        "id": "🔄 Menyiapkan mode percakapan: mengunduh model bahasa "
+              "(sekitar 1GB, sekali saja). Beberapa menit lagi saya bisa "
+              "menjawab kalimat apa pun. Sementara itu, jawaban dasar:",
+        "ru": "🔄 Готовлю режим беседы: скачиваю языковую модель (около "
+              "1ГБ, один раз). Через несколько минут отвечу на любую фразу. "
+              "А пока стандартный ответ:",
+        "pt": "🔄 Preparando o modo de conversa: baixando o modelo de "
+              "linguagem (cerca de 1GB, uma vez). Em alguns minutos "
+              "responderei qualquer frase. Até lá, a resposta padrão:",
+        "tr": "🔄 Sohbet modu hazırlanıyor: dil modeli indiriliyor (yaklaşık "
+              "1GB, bir kez). Birkaç dakika içinde her cümleye doğal yanıt "
+              "veririm. O zamana dek standart yanıt:",
+        "es": "🔄 Preparando el modo conversación: descargando el modelo de "
+              "lenguaje (aprox. 1GB, una vez). En unos minutos responderé "
+              "cualquier frase. Mientras tanto, la respuesta estándar:"},
     "exec_no_stop_platform": {
         "ko": "이 플랫폼에서는 원격 중지가 아직 지원되지 않습니다. 봇을 켠 "
               "터미널에서 Ctrl+C 로 중지하세요.",
