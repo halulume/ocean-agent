@@ -824,6 +824,16 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
     n_special = sum(1 for q in picks
                     if str(q.get("basis", "")).startswith("특별"))
     bonus_left = max(0, 2 - n_special) if (_strong_bonus and not dry) else 0
+    # A bonus may never cost a seat (08-24 user order "놓치지 말게").
+    # The budget is this cycle's deployable funds in units of one seat
+    # slice; a double is granted only when, after paying two slices here,
+    # every remaining seat can still afford its one. Otherwise the pick
+    # simply enters at 1x. margin_per may sit below funds/slots when the
+    # fixed-notional cap bites, which is exactly the slack that makes a
+    # bonus affordable.
+    budget_slices = (int(funds * cfg["deploy_pct"] // margin_per)
+                     if margin_per > 0 else cfg["slots"])
+    used_slices = 0
 
     for p in picks:
         # Eight picks mean eight order round-trips and their retries; ten
@@ -872,12 +882,17 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
         tick = float(m.get("tick_size") or 0.01)
         bonus = 1
         if bonus_left > 0:
-            sv = _strong_vote(client, sym)
-            if sv == direction:
-                bonus = 2
-                bonus_left -= 1
-                seat_src = f"{seat_src}+strong2x"
-                log(f"{sym}: 강신호 일치({sv}) → 빈 특별석 사용, 명목 2배")
+            seats_after = max(0, cfg["slots"] - held_start - entered_n - 1)
+            if used_slices + 2 + seats_after <= budget_slices:
+                sv = _strong_vote(client, sym)
+                if sv == direction:
+                    bonus = 2
+                    bonus_left -= 1
+                    seat_src = f"{seat_src}+strong2x"
+                    log(f"{sym}: 강신호 일치({sv}) → 빈 특별석 사용, 명목 2배")
+            else:
+                log(f"{sym}: 증거금 여유 부족, 강신호 보너스 생략하고 1배 "
+                    f"진입 (남은 자리 {seats_after} 보호)")
         amount = _round_down_to_lot(margin_per * lev * bonus / px, lot)
         if amount <= 0 or amount * px < float(m.get("min_order_size") or 10):
             # Counted as a failed attempt, not as a decision: the account is
@@ -901,6 +916,7 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             log(f"[DRY] {sym} {direction} 명목 ${amount*px:.0f} ({lev}배) "
                 f"TP {tp_s} SL {sl_s}")
             entered_n += 1
+            used_slices += bonus
             continue
         try:
             # A swallowed failure here used to mean "assume already set", but
@@ -1127,6 +1143,7 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                 log("⚠️ " + msg)
                 notify.send("⚠️ " + msg)
             entered_n += 1
+            used_slices += bonus
             slip = (fill - px) / px * 100 * (1 if long_ else -1)
             opened.append(f"{sym} {direction} {lev}배 체결 {fill} "
                           f"(슬리피지 {slip:+.3f}%"
