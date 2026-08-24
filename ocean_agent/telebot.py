@@ -569,11 +569,24 @@ def chat(text, env, root, lang="ko", cid="solo"):
     if ex:
         return ex
     base = _rule_answer(text, env, root, lang)
+    # When no rule matched, `base` is the menu, and a menu handed to the
+    # LLM as "the live data" makes it answer "unknown" (seen 08-24 on
+    # "잘되나"). Give it a real snapshot instead: current picks and the
+    # bot's recent lines, so any question has something true to stand on.
+    from .telebot_i18n import tr as _tr
+    data = base
+    if base.startswith(_tr("not_understood", lang)):
+        try:
+            data = (_pick_table(root, lang) + "\n\n"
+                    + _read_tail(root, os.path.join(
+                        "outputs", "bracket_live.log"), 8, lang))
+        except Exception:
+            data = base
     cli_ok = env.get("TELEBOT_CLI_MIRROR", "") == "1"   # 옵트인 전엔 봉인
-    return ((cli_ok and _cli_answer(text, base))
-            or _llm_answer(env, text, base, lang)  # 2순위: API 키 있으면
-            or _local_llm(env, root, text, base, lang)  # 3순위: 로컬 무제한
-            or _free_llm(env, root, text, base, lang)  # 4순위: 무료쿼터 LLM
+    return ((cli_ok and _cli_answer(text, data))
+            or _llm_answer(env, text, data, lang)  # 2순위: API 키 있으면
+            or _local_llm(env, root, text, data, lang)  # 3순위: 로컬 무제한
+            or _free_llm(env, root, text, data, lang)  # 4순위: 무료쿼터 LLM
             or base)                         # 5순위: 무료 규칙 답변
 
 
