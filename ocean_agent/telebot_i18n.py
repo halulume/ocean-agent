@@ -686,6 +686,71 @@ T = {
         "es": "La ejecución no está disponible aquí (solo dirección, solo "
               "lectura). El auto trading corre en su máquina con sus "
               "claves: pip install ocean-agent"},
+    # {} {}: new version, current version
+    "update_available": {
+        "ko": "🔔 새 버전 {} 이 나왔습니다 (현재 {}). '업데이트'라고 답하면 "
+              "자동으로 설치하고 재시작합니다. 자동매매 봇이 돌고 있다면 "
+              "업데이트 후 '매매 꺼' → '매매 켜'로 새 버전을 태우세요.",
+        "en": "🔔 Version {} is out (you run {}). Reply 'update' and I "
+              "install it and restart myself. If the trading bot is "
+              "running, stop and start it after the update.",
+        "zh": "🔔 新版本 {} 已发布（当前 {}）。回复\"更新\"即可自动安装并重启。"
+              "若交易机器人正在运行，更新后请先停止再启动。",
+        "ja": "🔔 新バージョン {} が出ました（現在 {}）。「アップデート」と"
+              "返信すると自動でインストールして再起動します。取引ボットが"
+              "動作中なら、更新後に停止→起動してください。",
+        "vi": "🔔 Phiên bản {} đã ra (hiện tại {}). Trả lời 'cập nhật' để "
+              "tôi tự cài và khởi động lại. Nếu bot giao dịch đang chạy, "
+              "hãy dừng rồi bật lại sau khi cập nhật.",
+        "hi": "🔔 नया संस्करण {} आया है (वर्तमान {})। 'अपडेट' भेजें, मैं इंस्टॉल कर "
+              "पुनः शुरू हो जाऊँगा। ट्रेडिंग बॉट चल रहा हो तो अपडेट के बाद बंद कर "
+              "फिर चालू करें।",
+        "id": "🔔 Versi {} telah rilis (sekarang {}). Balas 'update' dan "
+              "saya pasang lalu mulai ulang sendiri. Jika bot trading "
+              "berjalan, hentikan lalu nyalakan lagi setelah update.",
+        "ru": "🔔 Вышла версия {} (у вас {}). Ответьте «обнови», и я "
+              "установлю её и перезапущусь. Если торговый бот работает, "
+              "после обновления остановите и запустите его.",
+        "pt": "🔔 Saiu a versão {} (você usa {}). Responda 'atualiza' que "
+              "eu instalo e reinicio sozinho. Se o bot de trading estiver "
+              "rodando, pare e inicie após a atualização.",
+        "tr": "🔔 Yeni sürüm {} çıktı (şu an {}). 'güncelle' yazın, kurup "
+              "kendimi yeniden başlatayım. İşlem botu çalışıyorsa "
+              "güncellemeden sonra durdurup açın.",
+        "es": "🔔 Salió la versión {} (usas {}). Responde 'actualiza' y la "
+              "instalo y me reinicio solo. Si el bot de trading está en "
+              "marcha, deténlo y arráncalo tras actualizar."},
+    "update_running": {
+        "ko": "업데이트 설치 중...", "en": "Installing the update...",
+        "zh": "正在安装更新...", "ja": "アップデートをインストール中...",
+        "vi": "Đang cài bản cập nhật...", "hi": "अपडेट इंस्टॉल हो रहा है...",
+        "id": "Memasang pembaruan...", "ru": "Устанавливаю обновление...",
+        "pt": "Instalando a atualização...", "tr": "Güncelleme kuruluyor...",
+        "es": "Instalando la actualización..."},
+    "update_done": {
+        "ko": "설치 완료. 새 버전으로 재시작합니다.",
+        "en": "Installed. Restarting on the new version.",
+        "zh": "安装完成，正在以新版本重启。",
+        "ja": "インストール完了。新バージョンで再起動します。",
+        "vi": "Đã cài xong. Khởi động lại với phiên bản mới.",
+        "hi": "इंस्टॉल पूरा। नए संस्करण पर पुनः आरंभ।",
+        "id": "Terpasang. Mulai ulang dengan versi baru.",
+        "ru": "Установлено. Перезапускаюсь на новой версии.",
+        "pt": "Instalado. Reiniciando na nova versão.",
+        "tr": "Kuruldu. Yeni sürümle yeniden başlıyorum.",
+        "es": "Instalado. Reiniciando con la nueva versión."},
+    "update_failed": {
+        "ko": "업데이트 실패. 터미널에서 직접: pip install -U ocean-agent",
+        "en": "Update failed. Run manually: pip install -U ocean-agent",
+        "zh": "更新失败。请手动执行：pip install -U ocean-agent",
+        "ja": "更新に失敗。手動で: pip install -U ocean-agent",
+        "vi": "Cập nhật thất bại. Chạy tay: pip install -U ocean-agent",
+        "hi": "अपडेट विफल। मैन्युअल चलाएँ: pip install -U ocean-agent",
+        "id": "Pembaruan gagal. Jalankan manual: pip install -U ocean-agent",
+        "ru": "Не удалось обновиться. Вручную: pip install -U ocean-agent",
+        "pt": "Falha na atualização. Rode: pip install -U ocean-agent",
+        "tr": "Güncelleme başarısız. Elle: pip install -U ocean-agent",
+        "es": "Falló la actualización. Ejecuta: pip install -U ocean-agent"},
     "pers_paid_hint": {
         "ko": "유료 모드는 본인 AI 키로 동작합니다. .env 파일에 "
               "ANTHROPIC_API_KEY=키 (또는 FREE_LLM_PROVIDER/FREE_LLM_KEY) "
@@ -1047,7 +1112,8 @@ INTENT = {
                 "시작해", "해줘"],
         "no": ["아니", "취소", "안 해", "안해", "하지마", "하지 마", "노노"],
         "whatis": ["뭐야", "뭔데", "무엇", "뜻이", "란?", "이란", "라는게",
-                   "라는 게", "개념"]},
+                   "라는 게", "개념"],
+        "update": ["업데이트", "판올림", "최신 버전으로", "최신버전으로"]},
     "en": {
         "pick": ["pick", "recommend", "what to buy", "what should i buy",
                  "suggestion", "ranking"],
@@ -1072,7 +1138,8 @@ INTENT = {
         "yes": ["yes", "yeah", "yep", "ok", "okay", "confirm", "go ahead",
                 "do it"],
         "no": ["no ", "nope", "cancel", "don't", "stop it", "never mind"],
-        "whatis": ["what is", "what's", "meaning of", "explain", "define"]},
+        "whatis": ["what is", "what's", "meaning of", "explain", "define"],
+        "update": ["update", "upgrade"]},
     "zh": {
         "pick": ["推荐", "买什么", "选币", "排行"],
         "carry": ["套利", "费率差"],
@@ -1183,7 +1250,7 @@ def tr(key: str, lang: str) -> str:
 # every menu language can greet, thank, confirm and ask "what is X"
 # natively. intent_words() unions both tables.
 INTENT_EXTRA = {
-    "zh": {"greet": ["你好", "您好", "嗨"], "thanks": ["谢谢", "感谢", "辛苦"],
+    "zh": {"update": ["更新", "升级"], "greet": ["你好", "您好", "嗨"], "thanks": ["谢谢", "感谢", "辛苦"],
            "alerts": ["提醒", "警告", "通知"],
            "help": ["帮助", "怎么用", "能做什么", "功能"],
            "auto_on": ["自动交易", "开始交易", "启动机器人", "开机"],
@@ -1191,7 +1258,7 @@ INTENT_EXTRA = {
            "yes": ["是", "好", "确认", "开始吧", "可以"],
            "no": ["不", "取消", "算了", "别"],
            "whatis": ["是什么", "什么意思", "解释"]},
-    "ja": {"greet": ["こんにちは", "こんばんは", "やあ"],
+    "ja": {"update": ["アップデート", "更新"], "greet": ["こんにちは", "こんばんは", "やあ"],
            "thanks": ["ありがとう", "感謝", "助かる"],
            "alerts": ["通知", "警告", "アラート"],
            "help": ["ヘルプ", "使い方", "何ができる", "機能"],
@@ -1200,21 +1267,21 @@ INTENT_EXTRA = {
            "yes": ["はい", "うん", "確認", "やって"],
            "no": ["いいえ", "キャンセル", "やめて", "中止"],
            "whatis": ["とは", "何ですか", "って何", "意味"]},
-    "vi": {"greet": ["xin chào", "chào"], "thanks": ["cảm ơn", "cám ơn"],
+    "vi": {"update": ["cập nhật"], "greet": ["xin chào", "chào"], "thanks": ["cảm ơn", "cám ơn"],
            "alerts": ["cảnh báo", "thông báo"],
            "help": ["trợ giúp", "cách dùng", "làm được gì"],
            "auto_on": ["giao dịch tự động", "bật bot", "chạy bot"],
            "auto_off": ["dừng giao dịch", "tắt bot", "ngừng bot"],
            "yes": ["vâng", "đồng ý", "ừ"], "no": ["không", "hủy", "thôi"],
            "whatis": ["là gì", "nghĩa là"]},
-    "hi": {"greet": ["नमस्ते", "हैलो"], "thanks": ["धन्यवाद", "शुक्रिया"],
+    "hi": {"update": ["अपडेट"], "greet": ["नमस्ते", "हैलो"], "thanks": ["धन्यवाद", "शुक्रिया"],
            "alerts": ["चेतावनी", "सूचना"],
            "help": ["मदद", "कैसे", "क्या कर सकते"],
            "auto_on": ["ऑटो ट्रेडिंग", "बॉट चालू", "ट्रेडिंग शुरू"],
            "auto_off": ["ट्रेडिंग बंद", "बॉट बंद", "रोक दो"],
            "yes": ["हाँ", "हां", "ठीक"], "no": ["नहीं", "रद्द"],
            "whatis": ["क्या है", "मतलब"]},
-    "id": {"greet": ["halo", "hai", "selamat"],
+    "id": {"update": ["perbarui", "pembaruan"], "greet": ["halo", "hai", "selamat"],
            "thanks": ["terima kasih", "makasih"],
            "alerts": ["peringatan", "notifikasi"],
            "help": ["bantuan", "cara pakai", "bisa apa"],
@@ -1223,7 +1290,7 @@ INTENT_EXTRA = {
            "yes": ["iya", "oke", "lanjut"], "no": ["tidak", "batal",
                                                    "jangan"],
            "whatis": ["apa itu", "artinya"]},
-    "ru": {"greet": ["привет", "здравствуй", "добрый"],
+    "ru": {"update": ["обнови", "обновление"], "greet": ["привет", "здравствуй", "добрый"],
            "thanks": ["спасибо", "благодарю"],
            "alerts": ["предупреждени", "уведомлени"],
            "help": ["помощь", "как пользоваться", "что умеешь"],
@@ -1233,7 +1300,7 @@ INTENT_EXTRA = {
            "yes": ["да", "давай", "подтверждаю"],
            "no": ["нет", "отмена", "не надо"],
            "whatis": ["что такое", "что значит"]},
-    "pt": {"greet": ["olá", "oi", "bom dia", "boa tarde"],
+    "pt": {"update": ["atualiza", "atualização"], "greet": ["olá", "oi", "bom dia", "boa tarde"],
            "thanks": ["obrigado", "obrigada", "valeu"],
            "alerts": ["aviso", "alerta", "notificaç"],
            "help": ["ajuda", "como usar", "o que você faz"],
@@ -1243,7 +1310,7 @@ INTENT_EXTRA = {
            "yes": ["sim", "pode", "confirmo"],
            "no": ["não", "cancela", "deixa"],
            "whatis": ["o que é", "significa"]},
-    "tr": {"greet": ["merhaba", "selam"], "thanks": ["teşekkür", "sağol"],
+    "tr": {"update": ["güncelle"], "greet": ["merhaba", "selam"], "thanks": ["teşekkür", "sağol"],
            "alerts": ["uyarı", "bildirim"],
            "help": ["yardım", "nasıl kullan", "ne yapabilir"],
            "auto_on": ["otomatik işlem", "botu başlat", "işleme başla"],
@@ -1251,7 +1318,7 @@ INTENT_EXTRA = {
            "yes": ["evet", "olur", "onayl", "tamam"],
            "no": ["hayır", "iptal", "yapma"],
            "whatis": ["nedir", "ne demek"]},
-    "es": {"greet": ["hola", "buenas"], "thanks": ["gracias"],
+    "es": {"update": ["actualiza", "actualización"], "greet": ["hola", "buenas"], "thanks": ["gracias"],
            "alerts": ["aviso", "alerta", "notificaci"],
            "help": ["ayuda", "cómo usar", "qué puedes"],
            "auto_on": ["trading automático", "enciende el bot",

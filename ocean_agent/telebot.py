@@ -412,6 +412,78 @@ def _llm_answer(env, question, data, lang="ko", provider="claude",
     return None
 
 
+# ── 판올림 알림·자가 업데이트 ───────────────────────────────────────────
+# The bot checks PyPI at startup and every six hours; when a newer version
+# exists it tells its owner ONCE per version, in their language, and the
+# owner replies with the update word to have the bot pip-upgrade itself
+# and restart on the new code. Members are never pinged: the package lives
+# on the owner's machine, so only the owner can update it.
+_UPD_STATE = "telebot_update.json"
+_UPD = {"latest": "", "checked": 0.0}
+
+
+def _pkg_version():
+    try:
+        from importlib.metadata import version
+        return version("ocean-agent")
+    except Exception:
+        return ""
+
+
+def _ver_tuple(v):
+    try:
+        return tuple(int(x) for x in v.split("."))
+    except ValueError:
+        return ()
+
+
+def _update_check(root):
+    """Newer PyPI version not yet announced, or ''. Never raises."""
+    try:
+        import urllib.request as _rq
+        with _rq.urlopen("https://pypi.org/pypi/ocean-agent/json",
+                         timeout=15) as r:
+            latest = json.loads(r.read())["info"]["version"]
+        cur = _pkg_version()
+        if not cur or _ver_tuple(latest) <= _ver_tuple(cur):
+            return ""
+        p = os.path.join(root, "outputs", _UPD_STATE)
+        try:
+            with open(p, encoding="utf-8") as f:
+                if json.load(f).get("notified") == latest:
+                    _UPD["latest"] = latest
+                    return ""              # already announced this one
+        except (OSError, ValueError):
+            pass
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump({"notified": latest}, f)
+        _UPD["latest"] = latest
+        return latest
+    except Exception:
+        return ""
+
+
+def _do_update(root, lang, token, cid):
+    """pip -U then replace this process with a fresh bot on the new code."""
+    from .telebot_i18n import tr
+    import subprocess
+    _send(token, cid, tr("update_running", lang))
+    r = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--quiet", "--upgrade",
+         "ocean-agent"],
+        capture_output=True, text=True, timeout=900,
+        creationflags=0x08000000 if os.name == "nt" else 0)
+    if r.returncode != 0:
+        _send(token, cid, tr("update_failed", lang))
+        return
+    _send(token, cid, tr("update_done", lang))
+    subprocess.Popen([sys.executable, "-m", "ocean_agent.telebot"],
+                     cwd=root, stdin=subprocess.DEVNULL,
+                     creationflags=0x08000008 if os.name == "nt" else 0)
+    os._exit(0)                            # the fresh process takes over
+
+
 # ── 로컬 무제한 대화 모드 (chat_local) ──────────────────────────────────
 # The free tier talks like an LLM because a small one runs right here: on
 # first use the bot installs llama-cpp-python and pulls Qwen2.5-1.5B-
@@ -977,6 +1049,20 @@ def main():
         threading.Thread(target=_prepare_local, daemon=True).start()
     offset = 0
     while True:
+        # version watch: at startup and every six hours, tell the owner
+        # once per new PyPI version, in their language
+        if time.time() - _UPD["checked"] > 6 * 3600:
+            _UPD["checked"] = time.time()
+            nv = _update_check(root)
+            if nv and gate:
+                from .telebot_i18n import tr
+                lang = (( _load_users(root).get(gate) or {}).get("lang")
+                        if central else _pers_lang(root)) or "ko"
+                try:
+                    _send(token, gate, tr("update_available", lang)
+                          .format(nv, _pkg_version() or "?"))
+                except Exception:
+                    pass
         try:
             d = _call(token, "getUpdates", offset=offset, timeout=30)
         except Exception:
@@ -1103,6 +1189,15 @@ def _process_update(u, env, root, gate, central, token):
     msg = u.get("message") or {}
     cid = str((msg.get("chat") or {}).get("id", ""))
     text = (msg.get("text") or "").strip().split("@")[0]
+    # owner says the update word while a newer version is known -> the bot
+    # upgrades itself and restarts; only the owner, never members
+    if _UPD["latest"] and cid == gate:
+        from .telebot_i18n import intent_words
+        lang_u = (((_load_users(root).get(gate) or {}).get("lang")
+                   if central else _pers_lang(root)) or "ko")
+        if any(k in text.lower() for k in intent_words("update", lang_u)):
+            _do_update(root, lang_u, token, cid)
+            return
     try:
         if central:
             out = _handle_member(text, cid, env, root, gate)
