@@ -303,7 +303,8 @@ def _cli_answer(question, data):
              "모른다고 하고, 숫자를 지어내지 말고, 투자 조언은 하지 마라.\n"
              f"[실데이터]\n{data}\n\n[질문]\n{question}"],
             capture_output=True, text=True, encoding="utf-8",
-            errors="replace", timeout=120)
+            errors="replace", timeout=120,
+            creationflags=0x08000000 if os.name == "nt" else 0)
         out = (r.stdout or "").strip()
         return out if r.returncode == 0 and out else None
     except Exception:
@@ -451,9 +452,15 @@ def _prepare_local():
             import llama_cpp                              # noqa: F401
         except ImportError:
             print("[대화모드] llama-cpp-python 설치 중...", flush=True)
-            r = subprocess.run([sys.executable, "-m", "pip", "install",
-                                "--quiet", "llama-cpp-python"],
-                               capture_output=True, text=True, timeout=1800)
+            # Prebuilt CPU wheel index: without it pip tries a source build
+            # that needs a C++ toolchain, fails on most machines, and its
+            # compiler subprocesses flash console windows (08-24, seen live)
+            r = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--quiet",
+                 "llama-cpp-python", "--extra-index-url",
+                 "https://abetlen.github.io/llama-cpp-python/whl/cpu"],
+                capture_output=True, text=True, timeout=1800,
+                creationflags=0x08000000 if os.name == "nt" else 0)
             if r.returncode != 0:
                 raise RuntimeError("pip install 실패")
             import llama_cpp                              # noqa: F401
@@ -660,7 +667,8 @@ def _bot_pids():
              "(Get-CimInstance Win32_Process | Where-Object { "
              "$_.CommandLine -match 'ocean_agent.bracket_trader' -and "
              "$_.Name -match 'python' }).ProcessId"],
-            capture_output=True, text=True, timeout=30)
+            capture_output=True, text=True, timeout=30,
+            creationflags=0x08000000)     # no console flash from pythonw
         return [int(x) for x in r.stdout.split() if x.strip().isdigit()]
     except Exception:
         return []
@@ -698,7 +706,8 @@ def _exec_apply(action, root, lang):
         try:
             subprocess.run(["powershell", "-NoProfile", "-Command",
                             f"Stop-Process -Id {pid} -Force"],
-                           capture_output=True, timeout=30)
+                           capture_output=True, timeout=30,
+                           creationflags=0x08000000)
         except Exception:
             pass
     return tr("exec_done_off", lang)
