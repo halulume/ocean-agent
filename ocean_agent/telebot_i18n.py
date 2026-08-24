@@ -414,16 +414,42 @@ T = {
         "ja": "エラー: {}", "vi": "Lỗi: {}", "hi": "त्रुटि: {}",
         "id": "Kesalahan: {}", "ru": "Ошибка: {}", "pt": "Erro: {}",
         "tr": "Hata: {}", "es": "Error: {}"},
-    # Small-talk replies for the rule tier. Every other language falls back
-    # to English through tr(); only ko/en are written out.
+    # Small-talk replies for the rule tier, in every menu language.
     "greet_reply": {
         "ko": "안녕하세요! 픽 순위, 잔고, 봇 상태, 펀딩 같은 걸 물어보시면 "
               "실데이터로 답해드립니다. /menu 를 치면 전체 목록이 나옵니다.",
         "en": "Hello! Ask me about picks, balance, bot status or funding "
-              "and I answer from live data. /menu shows everything."},
+              "and I answer from live data. /menu shows everything.",
+        "zh": "你好！可以问我推荐币、余额、机器人状态、资金费等，我用实时数据"
+              "回答。/menu 查看全部功能。",
+        "ja": "こんにちは！ピック、残高、ボット状態、ファンディングなど聞いて"
+              "ください。実データで答えます。/menu で全機能が見られます。",
+        "vi": "Xin chào! Hãy hỏi về pick, số dư, trạng thái bot, funding — "
+              "tôi trả lời bằng dữ liệu thực. /menu xem tất cả.",
+        "hi": "नमस्ते! पिक, बैलेंस, बॉट स्थिति, फंडिंग के बारे में पूछें — मैं लाइव डेटा से "
+              "जवाब देता हूँ। /menu सब दिखाता है।",
+        "id": "Halo! Tanyakan pick, saldo, status bot, funding — saya jawab "
+              "dengan data langsung. /menu menampilkan semuanya.",
+        "ru": "Здравствуйте! Спросите про пики, баланс, статус бота, "
+              "фандинг — отвечу по живым данным. /menu покажет всё.",
+        "pt": "Olá! Pergunte sobre picks, saldo, status do bot, funding — "
+              "respondo com dados ao vivo. /menu mostra tudo.",
+        "tr": "Merhaba! Pick, bakiye, bot durumu, funding sorabilirsiniz — "
+              "canlı veriyle yanıtlarım. /menu hepsini gösterir.",
+        "es": "¡Hola! Pregunta por picks, saldo, estado del bot, funding — "
+              "respondo con datos en vivo. /menu muestra todo."},
     "thanks_reply": {
         "ko": "감사합니다! 더 궁금한 게 있으면 언제든 물어보세요.",
-        "en": "Thank you! Ask me anything else anytime."},
+        "en": "Thank you! Ask me anything else anytime.",
+        "zh": "谢谢！有其他问题随时问我。",
+        "ja": "ありがとうございます！他に気になることがあればいつでもどうぞ。",
+        "vi": "Cảm ơn! Cứ hỏi tôi bất cứ lúc nào.",
+        "hi": "धन्यवाद! कुछ और पूछना हो तो कभी भी पूछें।",
+        "id": "Terima kasih! Silakan bertanya kapan saja.",
+        "ru": "Спасибо! Обращайтесь в любое время.",
+        "pt": "Obrigado! Pergunte quando quiser.",
+        "tr": "Teşekkürler! İstediğiniz zaman sorabilirsiniz.",
+        "es": "¡Gracias! Pregunta cuando quieras."},
     "alerts_info": {
         "ko": "알림 안내: 이 봇이 보내는 알림은 체결·경고 같은 상태 알림입니다. "
               "조언성 경고를 끄려면 policy.yaml 에 "
@@ -432,7 +458,40 @@ T = {
         "en": "About alerts: this bot sends status alerts (fills, warnings). "
               "To silence advisory warnings put bracket_advisory_alerts: "
               "false in policy.yaml (they stay in the log). Fill alerts are "
-              "best left on."},
+              "best left on.",
+        "zh": "提醒说明：本机器人发送成交·警告等状态提醒。要关闭建议型警告，"
+              "在 policy.yaml 中加入 bracket_advisory_alerts: false（日志仍"
+              "保留）。成交提醒建议保持开启。",
+        "ja": "通知について：このボットは約定・警告などの状態通知を送ります。"
+              "助言的警告を止めるには policy.yaml に bracket_advisory_alerts:"
+              " false を追加してください（ログには残ります）。約定通知はオン"
+              "推奨です。",
+        "vi": "Về cảnh báo: bot gửi thông báo trạng thái (khớp lệnh, cảnh "
+              "báo). Tắt cảnh báo tư vấn bằng bracket_advisory_alerts: false "
+              "trong policy.yaml (log vẫn giữ). Nên giữ thông báo khớp lệnh.",
+        "hi": "सूचनाएँ: यह बॉट स्थिति सूचनाएँ भेजता है (फिल, चेतावनी)। सलाह-चेतावनी बंद "
+              "करने के लिए policy.yaml में bracket_advisory_alerts: false डालें "
+              "(लॉग में रहेंगी)। फिल सूचनाएँ चालू रखें।",
+        "id": "Tentang notifikasi: bot mengirim status (eksekusi, "
+              "peringatan). Matikan peringatan saran dengan "
+              "bracket_advisory_alerts: false di policy.yaml (tetap di log). "
+              "Notifikasi eksekusi sebaiknya tetap aktif.",
+        "ru": "Об уведомлениях: бот шлёт статусные оповещения (сделки, "
+              "предупреждения). Советные отключаются строкой "
+              "bracket_advisory_alerts: false в policy.yaml (в логе "
+              "остаются). Оповещения о сделках лучше оставить.",
+        "pt": "Sobre alertas: o bot envia alertas de status (execuções, "
+              "avisos). Para silenciar avisos consultivos use "
+              "bracket_advisory_alerts: false no policy.yaml (ficam no "
+              "log). Mantenha os alertas de execução.",
+        "tr": "Bildirimler: bot durum bildirimleri gönderir (işlem, uyarı). "
+              "Tavsiye uyarılarını kapatmak için policy.yaml'a "
+              "bracket_advisory_alerts: false ekleyin (logda kalır). İşlem "
+              "bildirimlerini açık tutun.",
+        "es": "Sobre alertas: el bot envía alertas de estado (ejecuciones, "
+              "avisos). Para silenciar avisos consultivos ponga "
+              "bracket_advisory_alerts: false en policy.yaml (quedan en el "
+              "log). Mantenga las alertas de ejecución."},
     "help_reply": {
         "ko": "저는 고정된 조회 질문에 실데이터로 답하는 무료 모드입니다. "
               "자유로운 대화는 유료 모드(본인 AI 키 등록, /mode)에서 됩니다.\n"
@@ -443,70 +502,233 @@ T = {
               "live data. Free-form conversation needs the paid tier (your "
               "own AI key, /mode).\nFree questions: /pick /funding /carry "
               "/bot /balance /trades, a symbol name, or \"why did SOL "
-              "lose\"."},
+              "lose\".",
+        "zh": "我是免费模式：用实时数据回答固定查询。自由对话需要付费模式"
+              "（注册您自己的 AI 密钥，/mode）。\n可以问：/pick /funding "
+              "/carry /bot /balance /trades、币种名，或\"SOL 为什么亏了\"。",
+        "ja": "私は無料モードです：実データで定型の照会に答えます。自由会話は"
+              "有料モード（ご自身の AI キー登録、/mode）で。\n聞けること："
+              "/pick /funding /carry /bot /balance /trades、銘柄名、"
+              "「SOL はなぜ負けた」など。",
+        "vi": "Tôi là chế độ miễn phí: trả lời câu hỏi tra cứu bằng dữ liệu "
+              "thực. Trò chuyện tự do cần chế độ trả phí (khóa AI của bạn, "
+              "/mode).\nCó thể hỏi: /pick /funding /carry /bot /balance "
+              "/trades, tên coin, hoặc \"vì sao SOL thua\".",
+        "hi": "मैं मुफ्त मोड हूँ: लाइव डेटा से तय सवालों के जवाब। खुली बातचीत के लिए "
+              "सशुल्क मोड चाहिए (अपनी AI कुंजी, /mode)।\nपूछें: /pick /funding "
+              "/carry /bot /balance /trades, कोई सिंबल, या \"SOL क्यों हारा\"।",
+        "id": "Saya tier gratis: menjawab pertanyaan tetap dari data "
+              "langsung. Percakapan bebas butuh tier berbayar (kunci AI "
+              "Anda, /mode).\nTanyakan: /pick /funding /carry /bot /balance "
+              "/trades, nama koin, atau \"kenapa SOL kalah\".",
+        "ru": "Я бесплатный режим: отвечаю на типовые запросы по живым "
+              "данным. Свободный диалог — в платном режиме (ваш ключ ИИ, "
+              "/mode).\nСпросите: /pick /funding /carry /bot /balance "
+              "/trades, тикер или «почему SOL проиграл».",
+        "pt": "Sou o nível gratuito: perguntas fixas com dados ao vivo. "
+              "Conversa livre exige o nível pago (sua chave de IA, /mode).\n"
+              "Pergunte: /pick /funding /carry /bot /balance /trades, um "
+              "símbolo, ou \"por que SOL perdeu\".",
+        "tr": "Ben ücretsiz katmanım: sabit sorguları canlı veriyle "
+              "yanıtlarım. Serbest sohbet ücretli katman ister (kendi AI "
+              "anahtarınız, /mode).\nSorun: /pick /funding /carry /bot "
+              "/balance /trades, sembol adı veya \"SOL neden kaybetti\".",
+        "es": "Soy el nivel gratuito: respondo consultas fijas con datos en "
+              "vivo. La conversación libre requiere el nivel de pago (su "
+              "clave de IA, /mode).\nPregunte: /pick /funding /carry /bot "
+              "/balance /trades, un símbolo, o \"por qué perdió SOL\"."},
     # Execution flow (operator only; members get exec_member_no)
     "exec_confirm_on": {
         "ko": "자동매매(브래킷 봇)를 시작할까요? 실제 주문이 나갑니다.\n"
               "'예'라고 답하면 시작, '아니'면 취소합니다. (2분 내)",
         "en": "Start auto trading (bracket bot)? Real orders will be "
-              "placed.\nReply 'yes' to start, 'no' to cancel. (2 min)"},
+              "placed.\nReply 'yes' to start, 'no' to cancel. (2 min)",
+        "zh": "启动自动交易（bracket 机器人）？将会真实下单。\n回复 yes 开始，"
+              "no 取消。（2分钟内）",
+        "ja": "自動売買（ブラケットボット）を開始しますか？実際に注文が出ます。"
+              "\n「yes」で開始、「no」でキャンセル。（2分以内）",
+        "vi": "Bắt đầu giao dịch tự động (bot bracket)? Lệnh thật sẽ được "
+              "đặt.\nTrả lời 'yes' để bắt đầu, 'no' để hủy. (2 phút)",
+        "hi": "ऑटो ट्रेडिंग (ब्रैकेट बॉट) शुरू करें? असली ऑर्डर जाएँगे।\n'yes' से शुरू, "
+              "'no' से रद्द। (2 मिनट)",
+        "id": "Mulai auto trading (bot bracket)? Order sungguhan akan "
+              "dipasang.\nBalas 'yes' untuk mulai, 'no' untuk batal. (2 mnt)",
+        "ru": "Запустить автоторговлю (bracket-бот)? Будут выставлены "
+              "реальные ордера.\nОтветьте «yes» для запуска, «no» для "
+              "отмены. (2 мин)",
+        "pt": "Iniciar auto trading (bot bracket)? Ordens reais serão "
+              "enviadas.\nResponda 'yes' para iniciar, 'no' para cancelar.",
+        "tr": "Otomatik işlemi başlat (bracket bot)? Gerçek emirler "
+              "verilecek.\n'yes' başlatır, 'no' iptal eder. (2 dk)",
+        "es": "¿Iniciar auto trading (bot bracket)? Se enviarán órdenes "
+              "reales.\nResponda 'yes' para iniciar, 'no' para cancelar."},
     "exec_confirm_off": {
         "ko": "자동매매를 중지할까요? 열려 있는 포지션은 거래소의 익절·손절이 "
               "계속 지킵니다.\n'예'면 중지, '아니'면 취소합니다. (2분 내)",
         "en": "Stop auto trading? Open positions stay protected by the "
-              "exchange-side TP/SL.\nReply 'yes' to stop, 'no' to cancel."},
+              "exchange-side TP/SL.\nReply 'yes' to stop, 'no' to cancel.",
+        "zh": "停止自动交易？已开仓位仍由交易所止盈止损保护。\nyes 停止，"
+              "no 取消。",
+        "ja": "自動売買を停止しますか？保有ポジションは取引所側の TP/SL が"
+              "守り続けます。\n「yes」で停止、「no」でキャンセル。",
+        "vi": "Dừng giao dịch tự động? Vị thế mở vẫn được TP/SL của sàn bảo "
+              "vệ.\n'yes' dừng, 'no' hủy.",
+        "hi": "ऑटो ट्रेडिंग रोकें? खुली पोजीशन एक्सचेंज TP/SL से सुरक्षित रहेंगी।\n'yes' "
+              "रोकें, 'no' रद्द।",
+        "id": "Hentikan auto trading? Posisi terbuka tetap dilindungi TP/SL "
+              "bursa.\n'yes' berhenti, 'no' batal.",
+        "ru": "Остановить автоторговлю? Открытые позиции защищает биржевой "
+              "TP/SL.\n«yes» — остановить, «no» — отмена.",
+        "pt": "Parar o auto trading? Posições abertas seguem protegidas "
+              "pelo TP/SL da corretora.\n'yes' para, 'no' cancela.",
+        "tr": "Otomatik işlemi durdur? Açık pozisyonları borsa TP/SL "
+              "korumaya devam eder.\n'yes' durdurur, 'no' iptal.",
+        "es": "¿Detener auto trading? Las posiciones abiertas siguen "
+              "protegidas por TP/SL del exchange.\n'yes' detiene, 'no' "
+              "cancela."},
     "exec_done_on": {
         "ko": "시작 명령을 보냈습니다. 안전가드(직전 봇 흔적 10분)에 걸리면 "
               "거부될 수 있으니 잠시 후 /bot 으로 확인하세요.",
         "en": "Start command sent. The safety guard (10-min trace of the "
-              "previous bot) may refuse; check /bot in a moment."},
+              "previous bot) may refuse; check /bot in a moment.",
+        "zh": "已发送启动命令。安全防护（前一个机器人的10分钟痕迹）可能拒绝，"
+              "请稍后用 /bot 确认。",
+        "ja": "開始コマンドを送りました。安全ガード（直前ボットの10分の痕跡）"
+              "で拒否される場合があります。/bot で確認してください。",
+        "vi": "Đã gửi lệnh khởi động. Bộ bảo vệ (dấu vết bot trước 10 phút) "
+              "có thể từ chối; kiểm tra /bot.",
+        "hi": "स्टार्ट कमांड भेजा। सेफ्टी गार्ड (पिछले बॉट का 10-मिनट निशान) मना कर सकता "
+              "है; /bot देखें।",
+        "id": "Perintah mulai dikirim. Pengaman (jejak 10 menit bot "
+              "sebelumnya) bisa menolak; cek /bot.",
+        "ru": "Команда запуска отправлена. Защита (10-минутный след "
+              "прежнего бота) может отказать; проверьте /bot.",
+        "pt": "Comando de início enviado. A proteção (rastro de 10 min do "
+              "bot anterior) pode recusar; veja /bot.",
+        "tr": "Başlatma komutu gönderildi. Güvenlik koruması (önceki botun "
+              "10 dk izi) reddedebilir; /bot ile bakın.",
+        "es": "Comando de inicio enviado. La protección (rastro de 10 min "
+              "del bot anterior) puede rechazarlo; revise /bot."},
     "exec_done_off": {
         "ko": "자동매매를 중지했습니다. 포지션 보호(거래소 익절·손절)는 그대로 "
               "살아 있습니다. /bot 으로 확인하세요.",
         "en": "Auto trading stopped. Exchange-side TP/SL protection stays "
-              "on. Check /bot."},
+              "on. Check /bot.",
+        "zh": "自动交易已停止。交易所止盈止损仍然有效。请用 /bot 确认。",
+        "ja": "自動売買を停止しました。取引所側 TP/SL は有効のままです。"
+              "/bot で確認を。",
+        "vi": "Đã dừng giao dịch tự động. TP/SL của sàn vẫn hoạt động. /bot.",
+        "hi": "ऑटो ट्रेडिंग रुकी। एक्सचेंज TP/SL चालू है। /bot देखें।",
+        "id": "Auto trading dihentikan. TP/SL bursa tetap aktif. Cek /bot.",
+        "ru": "Автоторговля остановлена. Биржевой TP/SL действует. /bot.",
+        "pt": "Auto trading parado. TP/SL da corretora segue ativo. /bot.",
+        "tr": "Otomatik işlem durdu. Borsa TP/SL etkin. /bot.",
+        "es": "Auto trading detenido. TP/SL del exchange sigue activo. "
+              "/bot."},
     "exec_already_on": {
         "ko": "자동매매가 이미 돌고 있습니다. /bot 으로 상태를 보세요.",
-        "en": "Auto trading is already running. See /bot."},
+        "en": "Auto trading is already running. See /bot.",
+        "zh": "自动交易已在运行。用 /bot 查看状态。",
+        "ja": "自動売買はすでに動いています。/bot で状態を。",
+        "vi": "Auto trading đang chạy. Xem /bot.",
+        "hi": "ऑटो ट्रेडिंग पहले से चल रही है। /bot देखें।",
+        "id": "Auto trading sudah berjalan. Lihat /bot.",
+        "ru": "Автоторговля уже работает. См. /bot.",
+        "pt": "O auto trading já está rodando. Veja /bot.",
+        "tr": "Otomatik işlem zaten çalışıyor. /bot.",
+        "es": "El auto trading ya está en marcha. Vea /bot."},
     "exec_already_off": {
         "ko": "지금 자동매매가 돌고 있지 않습니다.",
-        "en": "Auto trading is not running now."},
+        "en": "Auto trading is not running now.",
+        "zh": "自动交易当前未运行。",
+        "ja": "自動売買は現在動いていません。",
+        "vi": "Auto trading hiện không chạy.",
+        "hi": "ऑटो ट्रेडिंग अभी नहीं चल रही।",
+        "id": "Auto trading tidak sedang berjalan.",
+        "ru": "Автоторговля сейчас не запущена.",
+        "pt": "O auto trading não está rodando agora.",
+        "tr": "Otomatik işlem şu an çalışmıyor.",
+        "es": "El auto trading no está en marcha."},
     "exec_cancel": {
-        "ko": "취소했습니다.", "en": "Cancelled."},
+        "ko": "취소했습니다.", "en": "Cancelled.", "zh": "已取消。",
+        "ja": "キャンセルしました。", "vi": "Đã hủy.", "hi": "रद्द किया।",
+        "id": "Dibatalkan.", "ru": "Отменено.", "pt": "Cancelado.",
+        "tr": "İptal edildi.", "es": "Cancelado."},
     "exec_member_no": {
         "ko": "이 방에서는 주문·매매 실행이 되지 않습니다 (지갑 주소만 등록된 "
               "조회 전용). 자동매매는 본인 컴퓨터에 ocean-agent 를 설치해 "
               "본인 키로 돌리는 방식입니다: pip install ocean-agent",
         "en": "Execution is not available here (address-only, read-only). "
               "Auto trading runs on YOUR machine with your own keys: "
-              "pip install ocean-agent"},
+              "pip install ocean-agent",
+        "zh": "此处无法执行下单（仅注册地址，只读）。自动交易需在您自己的电脑"
+              "上用自己的密钥运行：pip install ocean-agent",
+        "ja": "ここでは注文・売買の実行はできません（アドレスのみ登録、照会"
+              "専用）。自動売買はご自身の PC でご自身のキーで動かします："
+              "pip install ocean-agent",
+        "vi": "Không thể thực hiện lệnh ở đây (chỉ đăng ký địa chỉ, chỉ "
+              "đọc). Giao dịch tự động chạy trên máy của bạn với khóa của "
+              "bạn: pip install ocean-agent",
+        "hi": "यहाँ ऑर्डर निष्पादन उपलब्ध नहीं (केवल पता, रीड-ओनली)। ऑटो ट्रेडिंग आपकी "
+              "मशीन पर आपकी कुंजियों से चलती है: pip install ocean-agent",
+        "id": "Eksekusi tidak tersedia di sini (hanya alamat, baca-saja). "
+              "Auto trading berjalan di komputer Anda dengan kunci Anda: "
+              "pip install ocean-agent",
+        "ru": "Здесь исполнение недоступно (только адрес, режим чтения). "
+              "Автоторговля работает на вашем компьютере с вашими ключами: "
+              "pip install ocean-agent",
+        "pt": "Execução não disponível aqui (somente endereço, apenas "
+              "leitura). O auto trading roda na sua máquina com suas "
+              "chaves: pip install ocean-agent",
+        "tr": "Burada emir çalıştırılamaz (yalnızca adres, salt okunur). "
+              "Otomatik işlem kendi bilgisayarınızda kendi anahtarlarınızla "
+              "çalışır: pip install ocean-agent",
+        "es": "La ejecución no está disponible aquí (solo dirección, solo "
+              "lectura). El auto trading corre en su máquina con sus "
+              "claves: pip install ocean-agent"},
     "gloss_none": {
         "ko": "그 용어는 아직 사전에 없습니다. /menu 로 물어볼 수 있는 것들을 "
               "보여드립니다.",
         "en": "That term is not in my glossary yet. /menu shows what you "
-              "can ask."},
+              "can ask.",
+        "zh": "该术语还不在词典里。/menu 查看可问内容。",
+        "ja": "その用語はまだ辞書にありません。/menu をご覧ください。",
+        "vi": "Thuật ngữ chưa có trong từ điển. Xem /menu.",
+        "hi": "यह शब्द अभी शब्दकोश में नहीं। /menu देखें।",
+        "id": "Istilah belum ada di kamus. Lihat /menu.",
+        "ru": "Термина пока нет в словаре. См. /menu.",
+        "pt": "Termo ainda não está no glossário. Veja /menu.",
+        "tr": "Terim sözlükte yok. /menu.",
+        "es": "Término aún no está en el glosario. Vea /menu."},
 }
 
-# Mini glossary for the free tier ("펀딩이 뭐야?"). ko/en only; other
-# languages read the English entry through the same fallback as tr().
+# Mini glossary for the free tier ("펀딩이 뭐야?"). Term -> concept key.
+# Native spellings for every menu language, so "资金费是什么" works too.
 GLOSS = {
-    "펀딩": ("funding",),
-    "funding": ("funding",),
-    "캐리": ("carry",),
-    "carry": ("carry",),
-    "브래킷": ("bracket",),
-    "bracket": ("bracket",),
-    "픽": ("pick",),
-    "pick": ("pick",),
-    "봉인": ("pick",),
-    "레버리지": ("leverage",),
-    "leverage": ("leverage",),
-    "청산": ("liquidation",),
-    "liquidation": ("liquidation",),
-    "숏": ("short",),
-    "short": ("short",),
-    "롱": ("long",),
-    "long": ("long",),
+    "펀딩": ("funding",), "funding": ("funding",), "资金费": ("funding",),
+    "ファンディング": ("funding",), "фандинг": ("funding",),
+    "фондирован": ("funding",), "financiamento": ("funding",),
+    "फंडिंग": ("funding",),
+    "캐리": ("carry",), "carry": ("carry",), "套利": ("carry",),
+    "キャリー": ("carry",), "кэрри": ("carry",),
+    "브래킷": ("bracket",), "bracket": ("bracket",),
+    "ブラケット": ("bracket",), "брекет": ("bracket",),
+    "픽": ("pick",), "pick": ("pick",), "봉인": ("pick",),
+    "ピック": ("pick",), "пик": ("pick",),
+    "레버리지": ("leverage",), "leverage": ("leverage",),
+    "杠杆": ("leverage",), "レバレッジ": ("leverage",),
+    "плечо": ("leverage",), "kaldıraç": ("leverage",),
+    "alavancagem": ("leverage",), "apalancamiento": ("leverage",),
+    "đòn bẩy": ("leverage",), "लीवरेज": ("leverage",),
+    "청산": ("liquidation",), "liquidation": ("liquidation",),
+    "爆仓": ("liquidation",), "清算": ("liquidation",),
+    "ликвидаци": ("liquidation",), "liquidação": ("liquidation",),
+    "liquidación": ("liquidation",), "likidasyon": ("liquidation",),
+    "likuidasi": ("liquidation",), "thanh lý": ("liquidation",),
+    "숏": ("short",), "short": ("short",), "做空": ("short",),
+    "ショート": ("short",), "шорт": ("short",),
+    "롱": ("long",), "long": ("long",), "做多": ("long",),
+    "ロング": ("long",), "лонг": ("long",),
 }
 
 GLOSS_TEXT = {
@@ -516,48 +738,191 @@ GLOSS_TEXT = {
               "/funding 으로 지금 순위를 볼 수 있습니다.",
         "en": "Funding: the periodic fee longs and shorts exchange on "
               "perpetuals. Perp above spot: longs pay shorts; below: shorts "
-              "pay longs. /funding shows the current ranking."},
+              "pay longs. /funding shows the current ranking.",
+        "zh": "资金费：永续合约中多空双方定期互付的费用。合约价高于现货时多头付"
+              "空头，反之空头付多头。/funding 查看当前排行。",
+        "ja": "ファンディング：無期限先物でロングとショートが定期的にやり取り"
+              "する手数料。先物が現物より高いとロングが支払い、低いとショート"
+              "が支払う。/funding で現在のランキング。",
+        "vi": "Funding: phí mà long và short trao đổi định kỳ trên hợp đồng "
+              "vĩnh viễn. Perp cao hơn spot: long trả; thấp hơn: short trả. "
+              "/funding xem xếp hạng.",
+        "hi": "फंडिंग: परपेचुअल में लॉन्ग-शॉर्ट के बीच नियमित फीस। पर्प स्पॉट से ऊपर: लॉन्ग "
+              "देता है; नीचे: शॉर्ट देता है। /funding देखें।",
+        "id": "Funding: biaya berkala antara long dan short di perpetual. "
+              "Perp di atas spot: long membayar; di bawah: short membayar. "
+              "/funding untuk peringkat.",
+        "ru": "Фандинг: периодическая плата между лонгами и шортами на "
+              "перпетуалах. Перп выше спота — платят лонги, ниже — шорты. "
+              "/funding — рейтинг.",
+        "pt": "Funding: taxa periódica entre longs e shorts nos perpétuos. "
+              "Perp acima do spot: longs pagam; abaixo: shorts pagam. "
+              "/funding mostra o ranking.",
+        "tr": "Funding: perpetual'da long ve short arasında dönemsel ücret. "
+              "Perp spotun üstünde: long öder; altında: short öder. "
+              "/funding sıralamayı gösterir.",
+        "es": "Funding: tarifa periódica entre largos y cortos en "
+              "perpetuos. Perp sobre spot: pagan los largos; debajo: los "
+              "cortos. /funding muestra el ranking."},
     "carry": {
         "ko": "펀딩 캐리: 현물(또는 반대 포지션)과 무기한을 동시에 들어 가격 "
               "위험을 지우고 펀딩비만 수취하는 전략입니다. /carry 로 지금 "
               "자리를 볼 수 있습니다.",
         "en": "Funding carry: hold the perp against an offsetting leg so "
               "price risk cancels and you collect funding. /carry shows "
-              "current seats."},
+              "current seats.",
+        "zh": "资金费套利：同时持有对冲两腿，抵消价格风险，只收取资金费。"
+              "/carry 查看当前机会。",
+        "ja": "ファンディングキャリー：反対の建玉を同時に持ち価格リスクを消して"
+              "ファンディングだけ受け取る戦略。/carry で現在の候補。",
+        "vi": "Funding carry: giữ hai chân đối nghịch để khử rủi ro giá và "
+              "chỉ nhận funding. /carry.",
+        "hi": "फंडिंग कैरी: विपरीत पोजीशन साथ रखें, कीमत जोखिम कटे, सिर्फ फंडिंग लें। "
+              "/carry।",
+        "id": "Funding carry: pegang dua kaki berlawanan agar risiko harga "
+              "hilang dan hanya menerima funding. /carry.",
+        "ru": "Кэрри: держите перп против встречной ноги — ценовой риск "
+              "гасится, остаётся фандинг. /carry.",
+        "pt": "Carry de funding: mantenha pernas opostas, o risco de preço "
+              "se anula e você coleta o funding. /carry.",
+        "tr": "Funding carry: karşıt bacaklarla fiyat riskini sıfırlayıp "
+              "sadece funding toplarsınız. /carry.",
+        "es": "Carry de funding: mantenga piernas opuestas, el riesgo de "
+              "precio se anula y cobra el funding. /carry."},
     "bracket": {
         "ko": "브래킷: 진입과 동시에 거래소에 익절(예상변동 1.5배)과 손절(1.0배) "
               "주문을 함께 걸어두는 방식입니다. 봇이 죽어도 거래소가 지킵니다.",
         "en": "Bracket: entry placed together with exchange-side TP (1.5x "
               "expected move) and SL (1.0x). The exchange protects the "
-              "position even if the bot dies."},
+              "position even if the bot dies.",
+        "zh": "Bracket：下单同时在交易所挂好止盈（预期波动1.5倍）和止损"
+              "（1.0倍）。即使机器人挂了，交易所也会守住。",
+        "ja": "ブラケット：エントリーと同時に取引所へ TP（予想変動1.5倍）と "
+              "SL（1.0倍）を置く方式。ボットが落ちても取引所が守る。",
+        "vi": "Bracket: vào lệnh kèm TP (1,5x biến động dự kiến) và SL "
+              "(1,0x) ngay trên sàn. Bot chết thì sàn vẫn bảo vệ.",
+        "hi": "ब्रैकेट: एंट्री के साथ एक्सचेंज पर TP (1.5x) और SL (1.0x) लगते हैं। बॉट "
+              "बंद भी हो तो एक्सचेंज रक्षा करता है।",
+        "id": "Bracket: entry dipasang bersama TP (1,5x pergerakan harapan) "
+              "dan SL (1,0x) di bursa. Bot mati pun bursa menjaga.",
+        "ru": "Брекет: вход сразу с биржевыми TP (1,5x ожидаемого хода) и "
+              "SL (1,0x). Даже если бот упал, биржа защищает.",
+        "pt": "Bracket: entrada junto com TP (1,5x do movimento esperado) e "
+              "SL (1,0x) na corretora. Mesmo se o bot cair, a corretora "
+              "protege.",
+        "tr": "Bracket: girişle birlikte borsaya TP (beklenen hareketin 1,5 "
+              "katı) ve SL (1,0 kat) konur. Bot çökse de borsa korur.",
+        "es": "Bracket: la entrada va junto con TP (1,5x del movimiento "
+              "esperado) y SL (1,0x) en el exchange. Aunque el bot caiga, "
+              "el exchange protege."},
     "pick": {
         "ko": "픽(봉인): 매 시각 전 종목의 예상 변동폭을 재서 큰 순서로 뽑은 "
               "추천 목록입니다. 결과가 나오기 전에 파일로 봉인해 두고 나중에 "
               "채점합니다. /pick 으로 최신 픽을 봅니다.",
         "en": "Pick (sealed): every hour all symbols are ranked by expected "
               "move and the list is sealed to a file before outcomes exist, "
-              "then graded later. /pick shows the latest."},
+              "then graded later. /pick shows the latest.",
+        "zh": "Pick（封存）：每小时按预期波动幅度给全部币种排序，在结果出现前"
+              "把名单封存成文件，事后评分。/pick 查看最新。",
+        "ja": "ピック（封印）：毎時、全銘柄を予想変動幅で順位付けし、結果が出る"
+              "前にファイルへ封印して後で採点します。/pick で最新。",
+        "vi": "Pick (niêm phong): mỗi giờ xếp hạng mọi mã theo biến động dự "
+              "kiến, niêm phong trước khi có kết quả rồi chấm sau. /pick.",
+        "hi": "पिक (सीलबंद): हर घंटे सभी सिंबल अपेक्षित चाल से रैंक होते हैं, नतीजे से पहले "
+              "सील, बाद में ग्रेड। /pick।",
+        "id": "Pick (tersegel): tiap jam semua simbol diperingkat menurut "
+              "pergerakan harapan, disegel sebelum hasil ada, dinilai "
+              "belakangan. /pick.",
+        "ru": "Пик (запечатан): каждый час все символы ранжируются по "
+              "ожидаемому ходу, список запечатывается до результата и "
+              "оценивается потом. /pick.",
+        "pt": "Pick (selado): a cada hora todos os símbolos são ranqueados "
+              "pelo movimento esperado, selados antes do resultado e "
+              "avaliados depois. /pick.",
+        "tr": "Pick (mühürlü): her saat tüm semboller beklenen harekete "
+              "göre sıralanır, sonuç çıkmadan mühürlenir, sonra notlanır. "
+              "/pick.",
+        "es": "Pick (sellado): cada hora se ranquean todos los símbolos por "
+              "movimiento esperado, se sella antes del resultado y se "
+              "califica después. /pick."},
     "leverage": {
         "ko": "레버리지: 증거금의 몇 배 크기로 포지션을 여는지입니다. 5배면 "
               "가격이 1% 움직일 때 증거금 기준 5% 움직입니다. 청산 위험도 "
               "같이 커집니다.",
         "en": "Leverage: position size as a multiple of margin. At 5x a 1% "
-              "price move is 5% on margin. Liquidation risk grows with it."},
+              "price move is 5% on margin. Liquidation risk grows with it.",
+        "zh": "杠杆：仓位是保证金的几倍。5倍时价格动1%，保证金就动5%。爆仓"
+              "风险同样放大。",
+        "ja": "レバレッジ：証拠金の何倍で建てるか。5倍なら価格1%の動きが証拠金"
+              "基準5%。清算リスクも同じだけ増える。",
+        "vi": "Đòn bẩy: vị thế gấp mấy lần ký quỹ. 5x thì giá 1% = 5% trên "
+              "ký quỹ. Rủi ro thanh lý tăng theo.",
+        "hi": "लीवरेज: मार्जिन का कितना गुना। 5x पर 1% चाल = मार्जिन पर 5%। "
+              "लिक्विडेशन जोखिम भी बढ़ता है।",
+        "id": "Leverage: posisi berapa kali margin. 5x: harga 1% = 5% pada "
+              "margin. Risiko likuidasi ikut naik.",
+        "ru": "Плечо: размер позиции в кратных к марже. При 5x ход цены 1% "
+              "— это 5% на маржу. Риск ликвидации растёт так же.",
+        "pt": "Alavancagem: posição como múltiplo da margem. Em 5x, 1% no "
+              "preço = 5% na margem. O risco de liquidação cresce junto.",
+        "tr": "Kaldıraç: pozisyonun teminatın kaç katı olduğu. 5x'te %1 "
+              "hareket, teminatta %5'tir. Likidasyon riski de büyür.",
+        "es": "Apalancamiento: posición como múltiplo del margen. A 5x, 1% "
+              "del precio = 5% del margen. El riesgo de liquidación crece "
+              "igual."},
     "liquidation": {
         "ko": "청산: 손실이 증거금을 다 먹으면 거래소가 강제로 포지션을 닫는 "
               "것입니다. 브래킷의 손절은 그 전에 먼저 끊어서 청산을 피하기 "
               "위한 장치입니다.",
         "en": "Liquidation: the exchange force-closes a position when losses "
               "eat the margin. The bracket stop exists to cut earlier and "
-              "avoid it."},
+              "avoid it.",
+        "zh": "爆仓：亏损吃光保证金时交易所强制平仓。Bracket 的止损就是为了"
+              "在此之前先砍单、避免爆仓。",
+        "ja": "清算：損失が証拠金を食い尽くすと取引所が強制決済。ブラケットの "
+              "SL はその前に切って清算を避けるための仕組み。",
+        "vi": "Thanh lý: lỗ ăn hết ký quỹ thì sàn đóng lệnh cưỡng bức. SL "
+              "của bracket cắt sớm hơn để tránh điều đó.",
+        "hi": "लिक्विडेशन: घाटा मार्जिन खा ले तो एक्सचेंज पोजीशन बंद कर देता है। ब्रैकेट "
+              "का SL पहले काटकर इससे बचाता है।",
+        "id": "Likuidasi: bila rugi menghabiskan margin, bursa menutup "
+              "paksa. SL bracket memotong lebih dulu untuk menghindarinya.",
+        "ru": "Ликвидация: когда убыток съедает маржу, биржа принудительно "
+              "закрывает позицию. Стоп брекета режет раньше, чтобы этого "
+              "избежать.",
+        "pt": "Liquidação: quando a perda consome a margem, a corretora "
+              "fecha à força. O SL do bracket corta antes para evitá-la.",
+        "tr": "Likidasyon: zarar teminatı bitirince borsa pozisyonu zorla "
+              "kapatır. Bracket SL bundan önce keser.",
+        "es": "Liquidación: cuando la pérdida consume el margen, el "
+              "exchange cierra a la fuerza. El SL del bracket corta antes "
+              "para evitarla."},
     "short": {
         "ko": "숏: 내리면 버는 포지션입니다. 빌려서 팔고 싸게 되사는 구조라 "
               "가격이 오르면 손실입니다.",
         "en": "Short: a position that profits when price falls and loses "
-              "when it rises."},
+              "when it rises.",
+        "zh": "做空：价格下跌时盈利、上涨时亏损的仓位。",
+        "ja": "ショート：下がれば利益、上がれば損失のポジション。",
+        "vi": "Short: lãi khi giá giảm, lỗ khi giá tăng.",
+        "hi": "शॉर्ट: गिरने पर लाभ, चढ़ने पर हानि।",
+        "id": "Short: untung saat harga turun, rugi saat naik.",
+        "ru": "Шорт: прибыль при падении цены, убыток при росте.",
+        "pt": "Short: lucra na queda, perde na alta.",
+        "tr": "Short: fiyat düşünce kazanır, yükselince kaybeder.",
+        "es": "Short: gana si el precio baja, pierde si sube."},
     "long": {
         "ko": "롱: 오르면 버는 포지션입니다.",
-        "en": "Long: a position that profits when price rises."},
+        "en": "Long: a position that profits when price rises.",
+        "zh": "做多：价格上涨时盈利的仓位。",
+        "ja": "ロング：上がれば利益のポジション。",
+        "vi": "Long: lãi khi giá tăng.",
+        "hi": "लॉन्ग: चढ़ने पर लाभ।",
+        "id": "Long: untung saat harga naik.",
+        "ru": "Лонг: прибыль при росте цены.",
+        "pt": "Long: lucra na alta.",
+        "tr": "Long: fiyat yükselince kazanır.",
+        "es": "Long: gana si el precio sube."},
 }
 
 
@@ -720,11 +1085,97 @@ def tr(key: str, lang: str) -> str:
     return d.get(lang) or d.get("en") or d.get("any") or ""
 
 
+# Conversation intents for languages whose main INTENT block predates them.
+# ko/en carry these inside INTENT itself; this table fills in the rest so
+# every menu language can greet, thank, confirm and ask "what is X"
+# natively. intent_words() unions both tables.
+INTENT_EXTRA = {
+    "zh": {"greet": ["你好", "您好", "嗨"], "thanks": ["谢谢", "感谢", "辛苦"],
+           "alerts": ["提醒", "警告", "通知"],
+           "help": ["帮助", "怎么用", "能做什么", "功能"],
+           "auto_on": ["自动交易", "开始交易", "启动机器人", "开机"],
+           "auto_off": ["停止交易", "关闭机器人", "停机", "别交易"],
+           "yes": ["是", "好", "确认", "开始吧", "可以"],
+           "no": ["不", "取消", "算了", "别"],
+           "whatis": ["是什么", "什么意思", "解释"]},
+    "ja": {"greet": ["こんにちは", "こんばんは", "やあ"],
+           "thanks": ["ありがとう", "感謝", "助かる"],
+           "alerts": ["通知", "警告", "アラート"],
+           "help": ["ヘルプ", "使い方", "何ができる", "機能"],
+           "auto_on": ["自動売買", "取引開始", "ボット起動", "動かして"],
+           "auto_off": ["売買停止", "取引停止", "ボット停止", "止めて"],
+           "yes": ["はい", "うん", "確認", "やって"],
+           "no": ["いいえ", "キャンセル", "やめて", "中止"],
+           "whatis": ["とは", "何ですか", "って何", "意味"]},
+    "vi": {"greet": ["xin chào", "chào"], "thanks": ["cảm ơn", "cám ơn"],
+           "alerts": ["cảnh báo", "thông báo"],
+           "help": ["trợ giúp", "cách dùng", "làm được gì"],
+           "auto_on": ["giao dịch tự động", "bật bot", "chạy bot"],
+           "auto_off": ["dừng giao dịch", "tắt bot", "ngừng bot"],
+           "yes": ["vâng", "đồng ý", "ừ"], "no": ["không", "hủy", "thôi"],
+           "whatis": ["là gì", "nghĩa là"]},
+    "hi": {"greet": ["नमस्ते", "हैलो"], "thanks": ["धन्यवाद", "शुक्रिया"],
+           "alerts": ["चेतावनी", "सूचना"],
+           "help": ["मदद", "कैसे", "क्या कर सकते"],
+           "auto_on": ["ऑटो ट्रेडिंग", "बॉट चालू", "ट्रेडिंग शुरू"],
+           "auto_off": ["ट्रेडिंग बंद", "बॉट बंद", "रोक दो"],
+           "yes": ["हाँ", "हां", "ठीक"], "no": ["नहीं", "रद्द"],
+           "whatis": ["क्या है", "मतलब"]},
+    "id": {"greet": ["halo", "hai", "selamat"],
+           "thanks": ["terima kasih", "makasih"],
+           "alerts": ["peringatan", "notifikasi"],
+           "help": ["bantuan", "cara pakai", "bisa apa"],
+           "auto_on": ["trading otomatis", "nyalakan bot", "mulai trading"],
+           "auto_off": ["hentikan trading", "matikan bot", "stop bot"],
+           "yes": ["iya", "oke", "lanjut"], "no": ["tidak", "batal",
+                                                   "jangan"],
+           "whatis": ["apa itu", "artinya"]},
+    "ru": {"greet": ["привет", "здравствуй", "добрый"],
+           "thanks": ["спасибо", "благодарю"],
+           "alerts": ["предупреждени", "уведомлени"],
+           "help": ["помощь", "как пользоваться", "что умеешь"],
+           "auto_on": ["автоторговл", "запусти бота", "начни торговать",
+                       "включи"],
+           "auto_off": ["останови торговл", "выключи бота", "стоп бот"],
+           "yes": ["да", "давай", "подтверждаю"],
+           "no": ["нет", "отмена", "не надо"],
+           "whatis": ["что такое", "что значит"]},
+    "pt": {"greet": ["olá", "oi", "bom dia", "boa tarde"],
+           "thanks": ["obrigado", "obrigada", "valeu"],
+           "alerts": ["aviso", "alerta", "notificaç"],
+           "help": ["ajuda", "como usar", "o que você faz"],
+           "auto_on": ["trading automático", "ligar o bot",
+                       "começar a operar", "iniciar bot"],
+           "auto_off": ["parar de operar", "desligar o bot", "parar bot"],
+           "yes": ["sim", "pode", "confirmo"],
+           "no": ["não", "cancela", "deixa"],
+           "whatis": ["o que é", "significa"]},
+    "tr": {"greet": ["merhaba", "selam"], "thanks": ["teşekkür", "sağol"],
+           "alerts": ["uyarı", "bildirim"],
+           "help": ["yardım", "nasıl kullan", "ne yapabilir"],
+           "auto_on": ["otomatik işlem", "botu başlat", "işleme başla"],
+           "auto_off": ["işlemi durdur", "botu kapat", "botu durdur"],
+           "yes": ["evet", "olur", "onayl", "tamam"],
+           "no": ["hayır", "iptal", "yapma"],
+           "whatis": ["nedir", "ne demek"]},
+    "es": {"greet": ["hola", "buenas"], "thanks": ["gracias"],
+           "alerts": ["aviso", "alerta", "notificaci"],
+           "help": ["ayuda", "cómo usar", "qué puedes"],
+           "auto_on": ["trading automático", "enciende el bot",
+                       "empezar a operar", "iniciar bot"],
+           "auto_off": ["parar de operar", "apaga el bot", "detener bot"],
+           "yes": ["sí", "dale", "confirmo", "vale"],
+           "no": ["no ", "cancela", "olvida"],
+           "whatis": ["qué es", "significa"]},
+}
+
+
 def intent_words(intent: str, lang: str):
     """Keyword list for one intent: English base plus the user's language."""
     out = list(INTENT.get("en", {}).get(intent, ()))
     if lang and lang != "en":
         out += INTENT.get(lang, {}).get(intent, ())
+        out += INTENT_EXTRA.get(lang, {}).get(intent, ())
     return out
 
 
