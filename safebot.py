@@ -23,7 +23,7 @@ Setup: create the bot at @BotFather, put SAFEBOT_TOKEN=... in .env, add
 the bot to the group and promote it to admin with "delete messages",
 "ban users" and "restrict members" rights, then run:
 
-    python -m ocean_agent.safebot
+    python safebot.py
 
 State lives in outputs/safebot_state.json (strikes, verified members).
 """
@@ -81,7 +81,7 @@ def _call(token, method, **params):
         return json.loads(r.read())
 
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.abspath(__file__))
 STATE = os.path.join(ROOT, "outputs", "safebot_state.json")
 
 
