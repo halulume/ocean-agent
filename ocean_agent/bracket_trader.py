@@ -1516,6 +1516,13 @@ def _warn_once(st, key: str, msg: str) -> None:
 
 
 def circuit_breakers(st, cfg) -> None:
+    # 08-24 operator order ("이거 하지마"): with advisory alerts off, the
+    # breaker checks themselves are skipped, not just their pings. The
+    # account's real protection is the exchange-side stop on every
+    # position (의도적결정 13); these checks only produced warnings anyway.
+    # Shipped default keeps them (bracket_advisory_alerts: true).
+    if not _advisory_alerts:
+        return
     if st["halted"]:
         return
     # Operator closes are not strategy results. --close-all books its exits
