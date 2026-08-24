@@ -686,6 +686,39 @@ T = {
         "es": "La ejecución no está disponible aquí (solo dirección, solo "
               "lectura). El auto trading corre en su máquina con sus "
               "claves: pip install ocean-agent"},
+    "pers_paid_hint": {
+        "ko": "유료 모드는 본인 AI 키로 동작합니다. .env 파일에 "
+              "ANTHROPIC_API_KEY=키 (또는 FREE_LLM_PROVIDER/FREE_LLM_KEY) "
+              "를 넣고 봇을 다시 시작하면 그 AI가 대화로 답합니다.",
+        "en": "Paid mode runs on your own AI key. Put ANTHROPIC_API_KEY="
+              "yourkey (or FREE_LLM_PROVIDER/FREE_LLM_KEY) in .env and "
+              "restart the bot; that AI then answers in conversation.",
+        "zh": "付费模式使用您自己的 AI 密钥。在 .env 中填入 ANTHROPIC_API_KEY="
+              "密钥（或 FREE_LLM_PROVIDER/FREE_LLM_KEY）并重启机器人即可。",
+        "ja": "有料モードはご自身の AI キーで動きます。.env に ANTHROPIC_API_"
+              "KEY=キー（または FREE_LLM_PROVIDER/FREE_LLM_KEY）を入れて"
+              "ボットを再起動してください。",
+        "vi": "Chế độ trả phí dùng khóa AI của bạn. Đặt ANTHROPIC_API_KEY="
+              "khóa (hoặc FREE_LLM_PROVIDER/FREE_LLM_KEY) vào .env và khởi "
+              "động lại bot.",
+        "hi": "सशुल्क मोड आपकी अपनी AI कुंजी से चलता है। .env में ANTHROPIC_API_KEY="
+              "कुंजी (या FREE_LLM_PROVIDER/FREE_LLM_KEY) डालें और बॉट पुनः आरंभ "
+              "करें।",
+        "id": "Mode berbayar memakai kunci AI Anda sendiri. Isi "
+              "ANTHROPIC_API_KEY=kunci (atau FREE_LLM_PROVIDER/FREE_LLM_"
+              "KEY) di .env lalu mulai ulang bot.",
+        "ru": "Платный режим работает на вашем ключе ИИ. Впишите "
+              "ANTHROPIC_API_KEY=ключ (или FREE_LLM_PROVIDER/FREE_LLM_KEY) "
+              "в .env и перезапустите бота.",
+        "pt": "O modo pago usa a sua própria chave de IA. Coloque "
+              "ANTHROPIC_API_KEY=chave (ou FREE_LLM_PROVIDER/FREE_LLM_KEY) "
+              "no .env e reinicie o bot.",
+        "tr": "Ücretli mod kendi AI anahtarınızla çalışır. .env dosyasına "
+              "ANTHROPIC_API_KEY=anahtar (veya FREE_LLM_PROVIDER/FREE_LLM_"
+              "KEY) yazıp botu yeniden başlatın.",
+        "es": "El modo de pago usa su propia clave de IA. Ponga "
+              "ANTHROPIC_API_KEY=clave (o FREE_LLM_PROVIDER/FREE_LLM_KEY) "
+              "en .env y reinicie el bot."},
     "chat_local_preparing": {
         "ko": "🔄 대화 모드를 준비하고 있습니다. 언어모델(약 1GB)을 처음 한 "
               "번만 내려받아요. 몇 분 뒤부터는 어떤 문장이든 자연스럽게 "

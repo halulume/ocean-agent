@@ -998,12 +998,22 @@ def _process_update(u, env, root, gate, central, token):
                   callback_query_id=cq.get("id", ""))
         except Exception:
             pass
-        if data.startswith("lang:") and (not gate or cid == gate):
-            lang = _pers_lang(root, set_to=data.split(":", 1)[1])
-            msg = tr("greet_reply", lang)
-            if _chat_local_on() and _LOCAL["state"] != "ready":
-                msg += "\n\n" + tr("chat_local_preparing", lang)
-            _send(token, cid, msg)
+        if not gate or cid == gate:
+            # ordered flow (08-24 user decision): language -> free/paid ->
+            # free -> the conversation-mode warm-up notice, in that language
+            from .telebot_i18n import tier_kb
+            if data.startswith("lang:"):
+                lang = _pers_lang(root, set_to=data.split(":", 1)[1])
+                _send(token, cid, tr("tier_pick", lang), kb=tier_kb(lang))
+            elif data.startswith("tier:"):
+                lang = _pers_lang(root) or "en"
+                if data.split(":", 1)[1] == "free":
+                    msg = tr("greet_reply", lang)
+                    if _chat_local_on() and _LOCAL["state"] != "ready":
+                        msg += "\n\n" + tr("chat_local_preparing", lang)
+                    _send(token, cid, msg)
+                else:
+                    _send(token, cid, tr("pers_paid_hint", lang))
         return
     if cq and central:
         # 국기 버튼 응답: 언어 저장 후 그 언어로 주소 요청
@@ -1026,11 +1036,6 @@ def _process_update(u, env, root, gate, central, token):
             from .telebot_i18n import tier_kb
             _send(token, cid, tr("tier_pick", rec["lang"]),
                   kb=tier_kb(rec["lang"]))
-            # only the operator's own chat runs the local model, so only
-            # the operator sees its warm-up notice here
-            if (cid == gate and _chat_local_on()
-                    and _LOCAL["state"] != "ready"):
-                _send(token, cid, tr("chat_local_preparing", rec["lang"]))
         elif data.startswith("tier:") and cid:
             users = _load_users(root)
             rec = users.get(cid) or {"lang": "en", "address": "",
@@ -1048,9 +1053,15 @@ def _process_update(u, env, root, gate, central, token):
                 rec["await_token"] = False
                 users[cid] = rec
                 _save_users(root, users)
-                _send(token, cid, tr("mode_now_free", lang) + "\n\n"
-                      + (tr("ask_addr", lang) if not rec.get("address")
-                         else tr("menu_extra", lang)))
+                msg = tr("mode_now_free", lang) + "\n\n" \
+                    + (tr("ask_addr", lang) if not rec.get("address")
+                       else tr("menu_extra", lang))
+                # free picked -> warm-up notice, operator's chat only (the
+                # model runs on this machine for the operator, not members)
+                if (cid == gate and _chat_local_on()
+                        and _LOCAL["state"] != "ready"):
+                    msg += "\n\n" + tr("chat_local_preparing", lang)
+                _send(token, cid, msg)
         elif data.startswith("prov:") and cid:
             from .telebot_i18n import PROVIDERS
             users = _load_users(root)
