@@ -1494,6 +1494,80 @@ def lang_kb() -> str:
     return json.dumps({"inline_keyboard": rows})
 
 
+# ── personal onboarding: wallet address, API key (2026-08-25) ────────────
+T["ask_wallet"] = {
+ "ko": "지갑 주소를 붙여넣어 주세요 (파시피카 로그인에 쓰는 솔라나 지갑의 공개 주소). 조회 전용이라 안전합니다. 나중에 하려면 '아니'라고 답하세요.",
+ "en": "Paste your wallet address (the public Solana address you log into Pacifica with). Read only, so it is safe. Reply 'no' to do this later.",
+ "zh": "请粘贴您的钱包地址（登录 Pacifica 用的 Solana 公开地址）。仅用于查询，很安全。想稍后设置请回复 'no'。",
+ "ja": "ウォレットアドレスを貼り付けてください（Pacifica にログインする Solana の公開アドレス）。照会専用なので安全です。後で設定するなら 'no' と返信してください。",
+ "vi": "Dán địa chỉ ví của bạn (địa chỉ Solana công khai dùng đăng nhập Pacifica). Chỉ để tra cứu nên an toàn. Trả lời 'no' để làm sau.",
+ "hi": "अपना वॉलेट पता पेस्ट करें (Pacifica में लॉगिन वाला सार्वजनिक Solana पता)। केवल देखने के लिए, सुरक्षित है। बाद में करने के लिए 'no' लिखें।",
+ "id": "Tempel alamat dompet Anda (alamat publik Solana untuk login Pacifica). Hanya untuk melihat data, aman. Balas 'no' untuk nanti.",
+ "ru": "Вставьте адрес кошелька (публичный адрес Solana для входа в Pacifica). Только для просмотра, это безопасно. Ответьте 'no', чтобы отложить.",
+ "pt": "Cole o endereço da sua carteira (o endereço público Solana usado para entrar na Pacifica). Somente leitura, é seguro. Responda 'no' para fazer depois.",
+ "tr": "Cüzdan adresinizi yapıştırın (Pacifica girişinde kullanılan herkese açık Solana adresi). Salt okunur, güvenlidir. Sonraya bırakmak için 'no' yazın.",
+ "es": "Pega la dirección de tu billetera (la dirección pública de Solana con la que entras a Pacifica). Solo lectura, es segura. Responde 'no' para hacerlo luego."}
+T["ask_apikey"] = {
+ "ko": "이제 파시피카 API 키를 붙여넣어 주세요. app.pacifica.fi/apikey 에서 발급합니다. 거래 전용 키라 출금은 불가능하고, 입력하신 메시지는 보안을 위해 바로 지워집니다. 나중에 하려면 '아니'.",
+ "en": "Now paste your Pacifica API key, issued at app.pacifica.fi/apikey. It can only trade, never withdraw, and your message is deleted right away for safety. Reply 'no' to do this later.",
+ "zh": "现在请粘贴您的 Pacifica API 密钥（在 app.pacifica.fi/apikey 领取）。该密钥只能交易，不能提款，您的消息会立即删除以保安全。稍后设置请回复 'no'。",
+ "ja": "次に Pacifica API キーを貼り付けてください（app.pacifica.fi/apikey で発行）。取引専用で出金は不可、貼り付けたメッセージは安全のためすぐ削除されます。後にするなら 'no'。",
+ "vi": "Bây giờ dán API key Pacifica của bạn (cấp tại app.pacifica.fi/apikey). Chỉ giao dịch được, không rút tiền được, và tin nhắn của bạn sẽ bị xóa ngay để an toàn. Trả lời 'no' để làm sau.",
+ "hi": "अब अपनी Pacifica API key पेस्ट करें (app.pacifica.fi/apikey से)। यह केवल ट्रेड कर सकती है, निकासी नहीं, और सुरक्षा के लिए आपका संदेश तुरंत हटा दिया जाएगा। बाद के लिए 'no' लिखें।",
+ "id": "Sekarang tempel API key Pacifica Anda (dari app.pacifica.fi/apikey). Hanya bisa trading, tidak bisa menarik dana, dan pesan Anda langsung dihapus demi keamanan. Balas 'no' untuk nanti.",
+ "ru": "Теперь вставьте ваш API ключ Pacifica (выдаётся на app.pacifica.fi/apikey). Он может только торговать, не выводить средства; ваше сообщение сразу удаляется для безопасности. Ответьте 'no', чтобы отложить.",
+ "pt": "Agora cole sua API key da Pacifica (emitida em app.pacifica.fi/apikey). Ela só negocia, nunca saca, e sua mensagem é apagada imediatamente por segurança. Responda 'no' para depois.",
+ "tr": "Şimdi Pacifica API anahtarınızı yapıştırın (app.pacifica.fi/apikey adresinden). Yalnızca işlem yapabilir, para çekemez; mesajınız güvenlik için hemen silinir. Sonraya bırakmak için 'no'.",
+ "es": "Ahora pega tu API key de Pacifica (emitida en app.pacifica.fi/apikey). Solo puede operar, nunca retirar, y tu mensaje se borra de inmediato por seguridad. Responde 'no' para luego."}
+T["setup_saved_addr"] = {
+ "ko": "지갑 주소 저장 완료 ✅ 이제 잔고와 포지션 조회가 됩니다.",
+ "en": "Wallet address saved ✅ Balance and position lookups now work.",
+ "zh": "钱包地址已保存 ✅ 现在可以查询余额和持仓了。",
+ "ja": "ウォレットアドレスを保存しました ✅ 残高・ポジション照会が使えます。",
+ "vi": "Đã lưu địa chỉ ví ✅ Giờ có thể xem số dư và vị thế.",
+ "hi": "वॉलेट पता सहेजा गया ✅ अब बैलेंस और पोज़िशन देख सकते हैं।",
+ "id": "Alamat dompet tersimpan ✅ Saldo dan posisi kini bisa dilihat.",
+ "ru": "Адрес кошелька сохранён ✅ Теперь доступны баланс и позиции.",
+ "pt": "Endereço da carteira salvo ✅ Saldo e posições já funcionam.",
+ "tr": "Cüzdan adresi kaydedildi ✅ Bakiye ve pozisyon sorguları çalışıyor.",
+ "es": "Dirección guardada ✅ Ya funcionan las consultas de saldo y posiciones."}
+T["setup_done_key"] = {
+ "ko": "API 키 저장 완료 ✅ 이제 주문, 프린트 실행, 자동매매까지 전부 됩니다.",
+ "en": "API key saved ✅ Orders, Print execution and auto trading are all live now.",
+ "zh": "API 密钥已保存 ✅ 下单、Print 执行和自动交易全部可用。",
+ "ja": "API キーを保存しました ✅ 注文・Print 実行・自動売買がすべて使えます。",
+ "vi": "Đã lưu API key ✅ Đặt lệnh, Print và giao dịch tự động đều sẵn sàng.",
+ "hi": "API key सहेजी गई ✅ ऑर्डर, Print और ऑटो ट्रेडिंग सब चालू।",
+ "id": "API key tersimpan ✅ Order, Print, dan auto trading semua aktif.",
+ "ru": "API ключ сохранён ✅ Ордера, Print и автоторговля полностью доступны.",
+ "pt": "API key salva ✅ Ordens, Print e auto trading já funcionam.",
+ "tr": "API anahtarı kaydedildi ✅ Emir, Print ve otomatik işlem tamamen açık.",
+ "es": "API key guardada ✅ Órdenes, Print y auto trading ya funcionan."}
+T["setup_bad_addr"] = {
+ "ko": "지갑 주소 형식이 아닙니다. 파시피카 로그인 지갑의 주소를 그대로 붙여넣어 주세요. 나중에 하려면 '아니'.",
+ "en": "That does not look like a wallet address. Paste the address of the wallet you log into Pacifica with, or reply 'no' to skip for now.",
+ "zh": "这不像钱包地址。请原样粘贴登录 Pacifica 的钱包地址，或回复 'no' 暂时跳过。",
+ "ja": "ウォレットアドレスの形式ではありません。Pacifica にログインするウォレットのアドレスをそのまま貼り付けるか、'no' でスキップしてください。",
+ "vi": "Không giống địa chỉ ví. Dán đúng địa chỉ ví đăng nhập Pacifica, hoặc 'no' để bỏ qua.",
+ "hi": "यह वॉलेट पता नहीं लगता। Pacifica लॉगिन वॉलेट का पता वैसे ही पेस्ट करें, या 'no' लिखें।",
+ "id": "Itu bukan alamat dompet. Tempel alamat dompet login Pacifica apa adanya, atau 'no' untuk lewati.",
+ "ru": "Это не похоже на адрес кошелька. Вставьте адрес кошелька входа в Pacifica или ответьте 'no'.",
+ "pt": "Isso não parece um endereço de carteira. Cole o endereço da carteira de login da Pacifica, ou 'no' para pular.",
+ "tr": "Bu bir cüzdan adresine benzemiyor. Pacifica giriş cüzdanınızın adresini aynen yapıştırın veya 'no' yazın.",
+ "es": "Eso no parece una dirección de billetera. Pega la dirección tal cual, o responde 'no' para omitir."}
+T["setup_bad_key"] = {
+ "ko": "API 키 형식이 아닙니다. app.pacifica.fi/apikey 에서 발급한 키를 그대로 붙여넣어 주세요. 나중에 하려면 '아니'.",
+ "en": "That does not look like an API key. Paste the key issued at app.pacifica.fi/apikey exactly as given, or reply 'no' to skip for now.",
+ "zh": "这不像 API 密钥。请原样粘贴 app.pacifica.fi/apikey 领取的密钥，或回复 'no' 跳过。",
+ "ja": "API キーの形式ではありません。app.pacifica.fi/apikey で発行したキーをそのまま貼り付けるか、'no' でスキップしてください。",
+ "vi": "Không giống API key. Dán đúng key từ app.pacifica.fi/apikey, hoặc 'no' để bỏ qua.",
+ "hi": "यह API key नहीं लगती। app.pacifica.fi/apikey वाली key वैसे ही पेस्ट करें, या 'no' लिखें।",
+ "id": "Itu bukan API key. Tempel key dari app.pacifica.fi/apikey apa adanya, atau 'no'.",
+ "ru": "Это не похоже на API ключ. Вставьте ключ с app.pacifica.fi/apikey как есть или ответьте 'no'.",
+ "pt": "Isso não parece uma API key. Cole a key de app.pacifica.fi/apikey exatamente como está, ou 'no' para pular.",
+ "tr": "Bu bir API anahtarına benzemiyor. app.pacifica.fi/apikey anahtarını aynen yapıştırın veya 'no' yazın.",
+ "es": "Eso no parece una API key. Pega la key de app.pacifica.fi/apikey tal cual, o responde 'no'."}
+
 # ── tier selection, member Claude key, menu extras (2026-08-18) ──────────
 T["tier_pick"] = {
  "en": "Choose your mode (switch anytime with /mode):\n🆓 Free mode: instant answers built from live data tables (picks, funding, balance, trades). Always free, nothing to set up.\n✨ Paid mode (Claude / ChatGPT / Gemini / Grok): what you type in Telegram goes straight to your chosen AI together with the live data, and it answers in natural conversation. Uses your own API key; chat usage is light, typically a few cents a day.",

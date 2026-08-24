@@ -163,6 +163,102 @@ def _print_async(env, lang):
     return tr("print_wait", lang)
 
 
+def _env_set(root, key, value):
+    """Update or append KEY=value in the project's .env (utf-8).
+
+    The personal onboarding writes what the owner pastes in chat, so a
+    non technical user never edits a file by hand (2026-08-25 user order:
+    language first, then wallet address, then API key)."""
+    p = os.path.join(root, ".env")
+    lines = []
+    if os.path.exists(p):
+        with open(p, encoding="utf-8", errors="replace") as f:
+            lines = f.read().splitlines()
+    for i, ln in enumerate(lines):
+        if ln.strip().startswith(key + "="):
+            lines[i] = f"{key}={value}"
+            break
+    else:
+        lines.append(f"{key}={value}")
+    with open(p, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def _setup_stage(root):
+    p = os.path.join(root, "outputs", "telebot_setup.json")
+    try:
+        with open(p, encoding="utf-8") as f:
+            return json.load(f).get("stage", "")
+    except (OSError, ValueError):
+        return ""
+
+
+def _setup_set(root, stage):
+    p = os.path.join(root, "outputs", "telebot_setup.json")
+    if not stage:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+        return
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump({"stage": stage}, f)
+
+
+_B58 = set("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
+
+
+def _setup_route(text, token, cid, env, root, lang, msg_id=""):
+    """Consume one onboarding answer while a setup stage is pending.
+
+    Returns None when no setup is pending (normal chat continues), or a
+    reply string ('' when everything was already sent from here). The 'no'
+    words skip the rest; both values land in .env AND in the live env dict
+    so they work without a restart. The API key message is deleted from
+    the chat history right after saving."""
+    from .telebot_i18n import tr, intent_words, tier_kb
+    stage = _setup_stage(root)
+    if not stage:
+        return None
+    t = text.strip()
+    if t.strip(" !.?~,").lower() in {k.strip() for k in
+                                     intent_words("no", lang)}:
+        _setup_set(root, "")
+        _send(token, cid, tr("tier_pick", lang), kb=tier_kb(lang))
+        return ""
+    if stage == "addr":
+        if not (32 <= len(t) <= 44 and set(t) <= _B58):
+            return tr("setup_bad_addr", lang)
+        _env_set(root, "ADDRESS", t)
+        env["ADDRESS"] = t
+        _send(token, cid, tr("setup_saved_addr", lang))
+        if (env.get("PACIFICA_API_KEY") or "").strip():
+            _setup_set(root, "")
+            _send(token, cid, tr("tier_pick", lang), kb=tier_kb(lang))
+        else:
+            _setup_set(root, "key")
+            _send(token, cid, tr("ask_apikey", lang))
+        return ""
+    # stage == "key"
+    try:
+        from .signing import keypair_from_base58
+        keypair_from_base58(t)
+    except Exception:
+        return tr("setup_bad_key", lang)
+    _env_set(root, "PACIFICA_API_KEY", t)
+    env["PACIFICA_API_KEY"] = t
+    if msg_id:                    # wipe the pasted key from the chat
+        try:
+            _call(token, "deleteMessage", chat_id=cid, message_id=msg_id)
+        except Exception:
+            pass
+    _setup_set(root, "")
+    _send(token, cid, tr("setup_done_key", lang))
+    _send(token, cid, tr("tier_pick", lang), kb=tier_kb(lang))
+    return ""
+
+
 def _print_watch_loop(token, cid, env, root):
     """Hourly Print watch for every shipped bot, not just the operator.
 
@@ -1637,7 +1733,18 @@ def _process_update(u, env, root, gate, central, token):
             from .telebot_i18n import tier_kb
             if data.startswith("lang:"):
                 lang = _pers_lang(root, set_to=data.split(":", 1)[1])
-                _send(token, cid, tr("tier_pick", lang), kb=tier_kb(lang))
+                # onboarding order (08-25 user decision): language, then
+                # wallet address, then API key, then the free/paid pick.
+                # Stages are skipped when .env already has the value.
+                if not (env.get("ADDRESS") or "").strip():
+                    _setup_set(root, "addr")
+                    _send(token, cid, tr("ask_wallet", lang))
+                elif not (env.get("PACIFICA_API_KEY") or "").strip():
+                    _setup_set(root, "key")
+                    _send(token, cid, tr("ask_apikey", lang))
+                else:
+                    _send(token, cid, tr("tier_pick", lang),
+                          kb=tier_kb(lang))
             elif data.startswith("tier:"):
                 lang = _pers_lang(root) or "en"
                 if data.split(":", 1)[1] == "free":
@@ -1742,7 +1849,12 @@ def _process_update(u, env, root, gate, central, token):
                 from .telebot_i18n import tr
                 out = ("KB", tr("pick_lang", "any"))
             else:
-                out = chat(text, env, root, lang=lang, cid=cid)
+                r = _setup_route(text, token, cid, env, root, lang,
+                                 msg_id=str(msg.get("message_id", "")))
+                if r is not None:
+                    out = r or None
+                else:
+                    out = chat(text, env, root, lang=lang, cid=cid)
     except Exception as ex:
         from .telebot_i18n import tr
         lang = "ko"
