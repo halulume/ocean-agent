@@ -179,16 +179,84 @@ def _print_watch_loop(token, cid, env, root):
     from .telebot_i18n import tr
     from .api_client import PacificaClient
     from .print_eval import recommend_now
+    watch_on = env.get("TELEBOT_PRINT_WATCH", "1") != "0"
     time.sleep(180)                       # let startup traffic settle
     while True:
         try:
-            if _PRINT_BUSY["on"]:
-                time.sleep(300)
-                continue
-            _print_watch_once(token, cid, env, root)
+            # Cycle settlement runs every hour regardless of the alert
+            # opt-out: leaving an ended deposit unwithdrawn earns nothing.
+            _print_cycle_check(token, cid, env, root)
+        except Exception:
+            pass
+        try:
+            if watch_on and not _PRINT_BUSY["on"]:
+                _print_watch_once(token, cid, env, root)
         except Exception:
             pass                          # a watcher must outlive one bad hour
         time.sleep(3600)
+
+
+def _print_cycle_check(token, cid, env, root):
+    """Settle finished Print cycles: withdraw, report, offer re-entry.
+
+    2026-08-25 user order: the deposit is there to collect APR only, so
+    when the 24h cycle ends the funds must come back automatically and the
+    owner is asked whether to go again. Settlement of an ENDED game only
+    recovers the owner's own deposit plus premium and opens no position,
+    so it runs without a per-event confirmation (의도적결정 §23 추가).
+    Re-entry is never automatic: it goes through the same yes -> judge ->
+    confirm -> amount flow as every money action.
+    """
+    from .telebot_i18n import tr
+    from .api_client import PacificaClient
+    addr = env.get("ADDRESS", "")
+    key = env.get("PACIFICA_API_KEY", "")
+    if not addr or not key:
+        return
+    state_p = os.path.join(root, "outputs", "print_cycle_state.json")
+    try:
+        with open(state_p, encoding="utf-8") as f:
+            handled = json.load(f).get("done", [])
+    except (OSError, ValueError):
+        handled = []
+    cl = PacificaClient(env.get("PACIFICA_BASE_URL",
+                                "https://api.pacifica.fi"),
+                        address=addr, private_key=key)
+    try:
+        accts = cl.print_positions().get("game_accounts", [])
+    except Exception:
+        return
+    lang = _pers_lang(root) or "ko"
+    changed = False
+    for a in accts:
+        ga = a.get("address", "")
+        if not ga or ga in handled:
+            continue
+        started = float(a.get("game_started_at_ms") or 0)
+        age_h = (time.time() * 1000 - started) / 3.6e6 if started else 0.0
+        ended = bool(a.get("game_ended_at_ms"))
+        if not ended and age_h < 24.05:
+            continue                      # cycle still running
+        side = "long" if int(a.get("direction", 0)) == 0 else "short"
+        dep = float(a.get("initial_deposit") or 0)
+        prem = float(a.get("premium_paid") or 0)
+        try:
+            if not ended:
+                cl.print_end(ga)
+            cl.print_withdraw(ga)
+        except Exception as e:
+            _send(token, cid, tr("print_cycle_fail", lang)
+                  .format(f"{type(e).__name__}: {str(e)[:80]}"))
+            continue                      # not handled: retry next hour
+        handled.append(ga)
+        changed = True
+        _PPRINT[cid] = ("recycle", None, time.time() + 6 * 3600)
+        _send(token, cid, tr("print_cycle_done", lang).format(
+            a.get("game", "?"), side, f"{dep:g}", f"{prem:.2f}"))
+    if changed:
+        os.makedirs(os.path.dirname(state_p), exist_ok=True)
+        with open(state_p, "w", encoding="utf-8") as f:
+            json.dump({"done": handled[-200:]}, f)
 
 
 def _print_watch_once(token, cid, env, root):
@@ -1141,6 +1209,22 @@ def _print_flow(text, low, cid, env, root, lang):
         if t in {k.strip() for k in intent_words("no", lang)}:
             _PPRINT.pop(cid, None)
             return tr("exec_cancel", lang)
+        if stage == "recycle":
+            # After a settled 24h cycle: yes = re-enter ONLY through the
+            # judge (fresh ✅ needed), no = stop here. Any other text falls
+            # through to normal chat.
+            if t in {k.strip() for k in intent_words("yes", lang)}:
+                opp = _print_opp(root)
+                if not opp or not opp.get("best"):
+                    _PPRINT.pop(cid, None)
+                    return tr("print_no", lang)
+                b = opp["best"]
+                _PPRINT[cid] = ("confirm", b, time.time() + 300)
+                return (f"프린트 기회: {b['game']} {b['side']} · 거리 "
+                        f"{b['dist']}% · {b['lev']:g}배 · 실제 APY "
+                        f"{b['apy']:.0f}% vs 손익분기 {b['breakeven']:.0f}%\n"
+                        f"프린트를 실행할까요? (예/아니)")
+            return None
         if stage == "confirm":
             if t in {k.strip() for k in intent_words("yes", lang)}:
                 try:
@@ -1481,10 +1565,10 @@ def main():
         _LOCAL["state"] = "preparing"
         import threading
         threading.Thread(target=_prepare_local, daemon=True).start()
-    # Built-in hourly Print watch: every shipped bot pushes opportunities
-    # to its owner, alert -> 'print execute' -> amount -> order. Needs a
-    # chat to push to; central mode alerts the operator chat when set.
-    if gate and env.get("TELEBOT_PRINT_WATCH", "1") != "0":
+    # Built-in hourly Print thread: opportunity alerts (opt out with
+    # TELEBOT_PRINT_WATCH=0) plus 24h cycle settlement, which always runs
+    # when signing credentials exist. Needs a chat to push to.
+    if gate:
         import threading
         threading.Thread(target=_print_watch_loop,
                          args=(token, gate, env, root), daemon=True).start()
