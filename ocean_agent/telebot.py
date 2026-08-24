@@ -130,7 +130,7 @@ def _carry_alerts(root, hours=24):
     return "\n".join(out) if out else "No data."
 
 
-def _pick_table(root, lang="ko"):
+def _pick_table(root, lang="ko", cls=None):
     """Render the newest seal: exactly the picks the bot trades.
 
     Reads the seal file the bracket bot consumes, so this can never drift
@@ -154,8 +154,17 @@ def _pick_table(root, lang="ko"):
             break
     if rec is None:
         return tr("pick_none", lang)
+    picks = rec.get("picks", [])
+    if cls in ("stock", "coin"):
+        # the seal maker's own classifier, so this can never disagree with
+        # how the pick itself was classed (LIT is a coin without a Binance
+        # twin; a Binance-based test called it a stock)
+        from .seal_maker import klass
+        want = (lambda k: k == "주식") if cls == "stock" \
+            else (lambda k: k != "주식")
+        picks = [p for p in picks if want(klass(p.get("sym", "")))]
     out = [tr("pick_header", lang).format(str(rec.get("made_at", ""))[:16])]
-    for p in rec.get("picks", []):
+    for p in picks:
         side = tr("side_long" if p.get("dir") == "long" else "side_short",
                   lang)
         out.append(tr("pick_row", lang).format(
@@ -180,8 +189,10 @@ def handle(cmd, env, root, lang="ko"):
     if cmd == "/carry":
         return _carry_alerts(root, hours=24)
     if cmd == "/bot":
+        # the LIVE log; this used to point at the 08-13 dry-run file and
+        # served week-old numbers as if they were current (caught 08-24)
         tail = _read_tail(root,
-                          os.path.join("outputs", "bracket_dry_weekend.log"),
+                          os.path.join("outputs", "bracket_live.log"),
                           12, lang)
         return tr("bot_header", lang) + "\n" + tail
     if cmd == "/balance":
@@ -400,6 +411,45 @@ def _llm_answer(env, question, data, lang="ko", provider="claude",
     return None
 
 
+def _free_llm(env, root, question, data, lang="ko"):
+    """Free-tier LLM: one operator key with a free quota (Gemini's free
+    tier fits) answers EVERY member in conversation, so the free mode talks
+    like an LLM because it is one. FREE_LLM_KEY + FREE_LLM_PROVIDER in
+    .env turn it on; a daily counter caps usage so the free quota is never
+    exceeded, and past the cap (or on any failure) the rule answers take
+    over exactly as before."""
+    key = env.get("FREE_LLM_KEY", "")
+    if not key:
+        return None
+    provider = (env.get("FREE_LLM_PROVIDER", "gemini") or "gemini").lower()
+    try:
+        cap = int(env.get("FREE_LLM_DAILY", "1200") or 1200)
+    except ValueError:
+        cap = 1200
+    qp = os.path.join(root, "outputs", "free_llm_quota.json")
+    today = time.strftime("%Y-%m-%d")
+    st = {"day": today, "n": 0}
+    try:
+        with open(qp, encoding="utf-8") as f:
+            old = json.load(f)
+        if old.get("day") == today:
+            st = old
+    except (OSError, ValueError):
+        pass
+    if st["n"] >= cap:
+        return None
+    out = _llm_answer(env, question, data, lang, provider=provider,
+                      token=key)
+    if out:
+        st["n"] = int(st.get("n", 0)) + 1
+        try:
+            with open(qp, "w", encoding="utf-8") as f:
+                json.dump(st, f)
+        except OSError:
+            pass
+    return out
+
+
 def chat(text, env, root, lang="ko", cid="solo"):
     """자유 문장 → 의도 추정 → 실데이터 답. 모르면 메뉴.
     ANTHROPIC_API_KEY 가 있으면(유료 버전) 같은 데이터를 하이쿠가 문장으로
@@ -414,8 +464,9 @@ def chat(text, env, root, lang="ko", cid="solo"):
     base = _rule_answer(text, env, root, lang)
     cli_ok = env.get("TELEBOT_CLI_MIRROR", "") == "1"   # 옵트인 전엔 봉인
     return ((cli_ok and _cli_answer(text, base))
-            or _llm_answer(env, text, base)  # 2순위: API 키 있으면
-            or base)                         # 3순위: 무료 규칙 답변
+            or _llm_answer(env, text, base, lang)  # 2순위: API 키 있으면
+            or _free_llm(env, root, text, base, lang)  # 3순위: 무료쿼터 LLM
+            or base)                         # 4순위: 무료 규칙 답변
 
 
 def _rule_answer(text, env, root, lang="ko"):
@@ -444,10 +495,14 @@ def _rule_answer(text, env, root, lang="ko"):
     TALK = {"help": "help_reply", "alerts": "alerts_info",
             "greet": "greet_reply", "thanks": "thanks_reply"}
     best, best_s = None, 0
-    for it in list(DATA) + list(TALK):
+    for it in list(DATA) + list(TALK) + ["pick_stock", "pick_coin"]:
         s = _score(low, it, lang)
         if s > best_s:
             best, best_s = it, s
+    if best == "pick_stock":
+        return _pick_table(root, lang, cls="stock")
+    if best == "pick_coin":
+        return _pick_table(root, lang, cls="coin")
     if best in DATA:
         return handle(DATA[best], env, root, lang)
     if best in TALK:
@@ -654,7 +709,10 @@ def _handle_member(text, chat_id, env, root, admin):
         return _llm_answer(env, text, base, u.get("lang") or "en",
                            provider=u.get("provider") or "claude",
                            token=u.get("token") or None) or base
-    return base
+    # free members: the operator's free-quota LLM key answers in
+    # conversation; rules are the fallback when the key is absent, the
+    # daily cap is hit, or the call fails
+    return _free_llm(env, root, text, base, lang) or base
 
 
 def _register_commands(token):
