@@ -656,6 +656,9 @@ def chat(text, env, root, lang="ko", cid="solo"):
     모드는 관리자만) 자동매매 켜고 끄기도 여기서 받는다."""
     if text.startswith("/"):
         return handle(text, env, root, lang)
+    pf = _print_flow(text, text.lower(), cid, env, root, lang)
+    if pf:
+        return pf
     ex = _exec_step(text.lower(), cid, root, lang)
     if ex:
         return ex
@@ -816,6 +819,104 @@ def _exec_apply(action, root, lang):
         except Exception:
             pass
     return tr("exec_done_off", lang)
+
+
+# ── 프린트 실행 흐름 (운영자 전용, 08-24 사용자 설계) ────────────────────
+# alarm -> owner: "프린트 실행" -> bot shows the best combo and asks ->
+# exact 예 -> bot recommends an amount off the live balance and asks ->
+# a number -> the ORDER IS PLACED (print_open). Every stage expires, only
+# the operator's chat reaches this, and any parse failure cancels cleanly.
+_PPRINT = {}                 # cid -> (stage, combo, expires)
+
+
+def _print_flow(text, low, cid, env, root, lang):
+    from .telebot_i18n import tr, intent_words
+    p = _PPRINT.get(cid)
+    if p and time.time() >= p[2]:
+        _PPRINT.pop(cid, None)
+        p = None
+    if p:
+        stage, combo = p[0], p[1]
+        t = low.strip(" !.?~,$")
+        if t in {k.strip() for k in intent_words("no", lang)}:
+            _PPRINT.pop(cid, None)
+            return tr("exec_cancel", lang)
+        if stage == "confirm":
+            if t in {k.strip() for k in intent_words("yes", lang)}:
+                try:
+                    from .api_client import PacificaClient
+                    cl = PacificaClient(env.get("PACIFICA_BASE_URL",
+                                                "https://api.pacifica.fi"),
+                                        address=env.get("ADDRESS", ""))
+                    a = cl.get_account()
+                    avail = float(a.get("available_to_spend") or 0)
+                except Exception:
+                    avail = 0.0
+                rec = max(10, min(200, round(avail * 0.10)))
+                _PPRINT[cid] = ("amount", combo, time.time() + 300)
+                return (f"얼마를 넣을까요? 추천: ${rec} "
+                        f"(가용 ${avail:,.0f}의 10%, 추천일 뿐 자유입니다)\n"
+                        f"숫자로 답해주세요. 취소는 '아니'.")
+            return None
+        if stage == "amount":
+            try:
+                usd = float(t.replace(",", ""))
+                assert usd > 0
+            except (ValueError, AssertionError):
+                return "숫자로만 답해주세요 (예: 50). 취소는 '아니'."
+            _PPRINT.pop(cid, None)
+            return _print_place(env, combo, usd)
+    # entry word: only meaningful while a fresh opportunity file exists
+    if "프린트 실행" in text or "print execute" in low:
+        opp = _print_opp(root)
+        if not opp or not opp.get("best"):
+            return tr("print_no", lang)
+        b = opp["best"]
+        _PPRINT[cid] = ("confirm", b, time.time() + 300)
+        return (f"프린트 기회: {b['game']} {b['side']} · 거리 {b['dist']}% · "
+                f"{b['lev']:g}배 · 실제 APY {b['apy']:.0f}% vs 손익분기 "
+                f"{b['breakeven']:.0f}%\n프린트를 실행할까요? (예/아니)")
+    return None
+
+
+def _print_opp(root):
+    p = os.path.join(root, "outputs", "print_opportunity.json")
+    try:
+        with open(p, encoding="utf-8") as f:
+            d = json.load(f)
+        at = time.mktime(time.strptime(d.get("at", ""),
+                                       "%Y-%m-%dT%H:%M:%S"))
+        return d if time.time() - at < 2 * 3600 else None
+    except Exception:
+        return None
+
+
+def _print_place(env, b, usd):
+    """Place the confirmed print via the same client path the MCP tool
+    uses, with the same absolute notional guard."""
+    from .api_client import PacificaClient
+    try:
+        cl = PacificaClient(env.get("PACIFICA_BASE_URL",
+                                    "https://api.pacifica.fi"),
+                            address=env.get("ADDRESS", ""),
+                            private_key=env.get("PACIFICA_API_KEY", ""))
+        if usd * max(b["lev"], 1.0) > cl.MAX_ORDER_NOTIONAL_USD:
+            return (f"거절: ${usd:,.0f} x {b['lev']:g}배 명목이 상한 "
+                    f"${cl.MAX_ORDER_NOTIONAL_USD:,.0f} 를 넘습니다.")
+        games = {g["game"]: g for g in cl.print_games()}
+        asset = games[b["game"]]["target_asset"]
+        mark = next(float(p.get("mark") or p.get("mid") or 0)
+                    for p in cl.get_prices() if p["symbol"] == asset)
+        strike = round(mark * (1 - b["dist"] / 100) if b["side"] == "long"
+                       else mark * (1 + b["dist"] / 100), 2)
+        direction = 0 if b["side"] == "long" else 1
+        res = cl.print_open(b["game"], str(usd), direction, str(strike),
+                            str(b["lev"]))
+        return (f"✅ 프린트 주문 완료: {b['game']} {b['side']} ${usd:g} · "
+                f"목표가 {strike:,.6g} (현재 {mark:,.6g}) · {b['lev']:g}배\n"
+                f"계정: {res.get('game_account_address', '?')}")
+    except Exception as e:
+        return f"프린트 주문 실패: {type(e).__name__}: {str(e)[:150]}"
 
 
 def _exec_step(low, cid, root, lang):
