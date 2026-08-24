@@ -172,6 +172,17 @@ bracket_sl_mult: 1.0        # 손절 = 예상변동폭 x 1.0
 # unfilled, and the position then runs to the stop or the 24h expiry. The
 # stop-loss always executes as market: getting filled is its whole job.
 bracket_tp_limit: false
+# Entry as a resting limit at the anchor price (maker). An unfilled entry is
+# cancelled after bracket_entry_wait_sec and the seat is skipped that cycle:
+# missing a runner is accepted, the pick was priced at the anchor.
+bracket_entry_limit: false
+bracket_entry_wait_sec: 120
+# Stop-loss as trigger-limit: trigger at the stop, limit this many expected-
+# moves worse. 0 keeps the stop a pure market trigger (always fills). A small
+# buffer (e.g. 0.5) caps slippage while making the fill near-certain; know
+# that a gap through the buffer leaves the position running to liquidation
+# protection, which is why market is the shipped default.
+bracket_sl_limit_buffer: 0
 bracket_vol_floor_pct: 0.8  # 예상변동 0.8% 미만 픽 제외
 # 호가가 얇아 왕복 비용이 익절폭을 갉아먹는 종목은 봉인에서 빼둔다.
 # 시장의 성질이라 계좌와 무관하게 같다 (2026-08-19 실측):

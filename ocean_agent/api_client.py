@@ -166,7 +166,8 @@ class PacificaClient:
                             take_profit_price: str = "",
                             stop_loss_price: str = "",
                             trigger_price_type: str = "mark_price",
-                            take_profit_limit: bool = False) -> dict:
+                            take_profit_limit: bool = False,
+                            stop_loss_limit_price: str = "") -> dict:
         """시장가 주문. side는 'bid'(매수) 또는 'ask'(매도).
 
         take_profit_price / stop_loss_price 를 넘기면 거래소에 TP/SL을 함께
@@ -224,6 +225,8 @@ class PacificaClient:
         if stop_loss_price:
             payload["stop_loss"] = {"stop_price": str(stop_loss_price),
                                     "trigger_price_type": trigger_price_type}
+            if stop_loss_limit_price:
+                payload["stop_loss"]["limit_price"] = str(stop_loss_limit_price)
         try:
             return self._signed_post("orders/create_market",
                                      "create_market_order", payload)
@@ -326,11 +329,80 @@ class PacificaClient:
             return body.get("data", body)
         raise PacificaError("POST /orders/batch 레이트리밋 지속 (429)")
 
+    def create_limit_order(self, symbol: str, side: str, amount: str,
+                           price: str, tif: str = "GTC",
+                           reduce_only: bool = False,
+                           builder_code: str = "",
+                           take_profit_price: str = "",
+                           stop_loss_price: str = "",
+                           trigger_price_type: str = "mark_price",
+                           take_profit_limit: bool = False,
+                           stop_loss_limit_price: str = "") -> dict:
+        """지정가 주문 (orders/create, 서명 create_order). side는 bid/ask.
+
+        시장가와 같은 폭주 방어를 적용하고, TP/SL 동봉도 같은 모양으로 받는다.
+        stop_loss_limit_price 가 오면 손절도 트리거-지정가가 된다: 트리거는
+        stop_loss_price, 지정가는 그보다 버퍼만큼 나쁜 가격. 버퍼가 사실상
+        체결을 보장하면서 슬리피지 상한을 만든다. (08-24 사용자 결정)
+        """
+        if not reduce_only:
+            amt_f = abs(float(amount))
+            px = float(price)
+            if amt_f * px > self.MAX_ORDER_NOTIONAL_USD:
+                raise PacificaError(
+                    f"🛑 주문 거부(하드 가드): {symbol} {amt_f} × ${px:,.0f} = "
+                    f"${amt_f*px:,.0f} > 상한 ${self.MAX_ORDER_NOTIONAL_USD:,.0f}.")
+        payload = {
+            "symbol": symbol,
+            "side": side,
+            "amount": str(amount),
+            "price": str(price),
+            "tif": tif,
+            "reduce_only": reduce_only,
+            "client_order_id": str(uuid.uuid4()),
+        }
+        if builder_code:
+            payload["builder_code"] = builder_code
+        if take_profit_price:
+            payload["take_profit"] = {"stop_price": str(take_profit_price),
+                                      "trigger_price_type": trigger_price_type}
+            if take_profit_limit:
+                payload["take_profit"]["limit_price"] = str(take_profit_price)
+        if stop_loss_price:
+            payload["stop_loss"] = {"stop_price": str(stop_loss_price),
+                                    "trigger_price_type": trigger_price_type}
+            if stop_loss_limit_price:
+                payload["stop_loss"]["limit_price"] = str(stop_loss_limit_price)
+        try:
+            return self._signed_post("orders/create", "create_order", payload)
+        except PacificaError as e:
+            msg = str(e).lower()
+            if builder_code and ("builder" in msg or "fee_rate" in msg
+                                 or "max_fee" in msg):
+                payload.pop("builder_code", None)
+                payload["client_order_id"] = str(uuid.uuid4())
+                return self._signed_post("orders/create", "create_order",
+                                         payload)
+            raise
+
+    def cancel_order(self, symbol: str, order_id=None,
+                     client_order_id: str = "") -> dict:
+        """미체결 주문 취소 (orders/cancel, 서명 cancel_order)."""
+        if order_id is None and not client_order_id:
+            raise PacificaError("order_id 또는 client_order_id 가 필요합니다")
+        payload = {"symbol": symbol}
+        if order_id is not None:
+            payload["order_id"] = int(order_id)
+        else:
+            payload["client_order_id"] = client_order_id
+        return self._signed_post("orders/cancel", "cancel_order", payload)
+
     def set_position_tpsl(self, symbol: str, side: str,
                           take_profit_price: str = "",
                           stop_loss_price: str = "",
                           trigger_price_type: str = "mark_price",
-                          take_profit_limit: bool = False) -> dict:
+                          take_profit_limit: bool = False,
+                          stop_loss_limit_price: str = "") -> dict:
         """이미 열려 있는 포지션에 TP/SL을 사후 부착한다.
 
         side는 '포지션의 방향'(bid=롱, ask=숏)을 넘긴다. 파시피카 TP/SL 주문은
@@ -353,6 +425,8 @@ class PacificaClient:
             payload["stop_loss"] = {"stop_price": str(stop_loss_price),
                                     "trigger_price_type": trigger_price_type,
                                     "client_order_id": str(uuid.uuid4())}
+            if stop_loss_limit_price:
+                payload["stop_loss"]["limit_price"] = str(stop_loss_limit_price)
         return self._signed_post("positions/tpsl", "set_position_tpsl", payload)
 
     # ---------- Print (⚠️ 비공개 API, 웹앱과 동일 경로, 예고 없이 바뀔 수 있음) ----------

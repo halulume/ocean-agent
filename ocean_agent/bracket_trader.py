@@ -909,11 +909,64 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                 "basis": p.get("basis"),
             })
             save_state(st)
-            client.create_market_order(
-                sym, "bid" if long_ else "ask", str(amount), "0.5",
-                builder_code=policy.get("builder_code", ""),
-                take_profit_price=tp_s, stop_loss_price=sl_s,
-                take_profit_limit=_tp_limit)
+            # SL as trigger-limit with a buffer: trigger at sl_s, limit a bit
+            # worse, so the fill is near-certain while slippage is capped.
+            # Buffer 0 keeps the stop a pure market trigger.
+            sl_lim = ""
+            if _sl_buf > 0:
+                _slb = float(sl_s) * (1 - _sl_buf * mv) if long_                     else float(sl_s) * (1 + _sl_buf * mv)
+                sl_lim = _round_to_tick(_slb, tick)
+            if _entry_limit:
+                # Resting limit at the same anchor the brackets were built
+                # on. Fills are maker; a runaway price means no fill, and
+                # after _entry_wait seconds the order is cancelled and the
+                # seat is skipped this cycle. Missing a runner is accepted:
+                # the pick was priced at px, not at wherever it ran to.
+                _res = client.create_limit_order(
+                    sym, "bid" if long_ else "ask", str(amount),
+                    _round_to_tick(px, tick), tif="GTC",
+                    builder_code=policy.get("builder_code", ""),
+                    take_profit_price=tp_s, stop_loss_price=sl_s,
+                    take_profit_limit=_tp_limit,
+                    stop_loss_limit_price=sl_lim)
+                _oid = (_res or {}).get("order_id")
+                _deadline = time.time() + _entry_wait
+                _filled = False
+                while time.time() < _deadline:
+                    time.sleep(5)
+                    try:
+                        if any(pp.get("symbol") == sym
+                               for pp in client.get_positions()):
+                            _filled = True
+                            break
+                    except PacificaError:
+                        pass
+                if not _filled:
+                    try:
+                        client.cancel_order(sym, order_id=_oid)
+                    except PacificaError as _ce:
+                        # the order may have filled in the race; positions
+                        # are re-read below either way
+                        log(f"{sym}: 진입 취소 실패({_ce}), 포지션 재확인")
+                        try:
+                            _filled = any(pp.get("symbol") == sym
+                                          for pp in client.get_positions())
+                        except PacificaError:
+                            pass
+                    if not _filled:
+                        _clear_pending(st, sym)
+                        save_state(st)
+                        log(f"{sym}: 지정가 진입 미체결 {_entry_wait}s, "
+                            f"취소하고 이번 자리 건너뜀")
+                        attempt_failed += 1
+                        continue
+            else:
+                client.create_market_order(
+                    sym, "bid" if long_ else "ask", str(amount), "0.5",
+                    builder_code=policy.get("builder_code", ""),
+                    take_profit_price=tp_s, stop_loss_price=sl_s,
+                    take_profit_limit=_tp_limit,
+                    stop_loss_limit_price=sl_lim)
             # read back the fill so the record holds reality, not intent.
             # a few retries (BR5); if it still cannot be read, record the
             # intent but say so, and let later loops repair it.
@@ -1019,7 +1072,8 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                             sym, "bid" if long_ else "ask",
                             take_profit_price="" if has_tp else tp_s,
                             stop_loss_price="" if has_sl else sl_s,
-                            take_profit_limit=_tp_limit)
+                            take_profit_limit=_tp_limit,
+                            stop_loss_limit_price="" if has_sl else sl_lim)
                         has_tp, has_sl, sym_orders = \
                             _exchange_brackets(client, sym)
                     except PacificaError:
@@ -1535,6 +1589,9 @@ _last_seal_gen: float = 0.0
 # with it; the shipped default (no key) keeps self-generation on.
 _selfgen_enabled: bool = True
 _tp_limit: bool = False      # TP leg executes as limit when triggered (08-24)
+_entry_limit: bool = False   # entry as resting limit at the anchor price
+_entry_wait: int = 120       # seconds before an unfilled entry is cancelled
+_sl_buf: float = 0.0         # SL limit buffer, in units of expected move
 
 
 def _newest_seal_age_h() -> float:
@@ -1659,11 +1716,18 @@ def main():
                 ".env 에 ADDRESS 와 PACIFICA_API_KEY 를 넣고 다시 시작하세요.")
             return
     cfg = apply_budget(bracket_cfg(policy))
-    global _selfgen_enabled, _tp_limit
+    global _selfgen_enabled, _tp_limit, _entry_limit, _entry_wait, _sl_buf
     _selfgen_enabled = bool(policy.get("bracket_selfgen_seal", True))
     _tp_limit = bool(policy.get("bracket_tp_limit", False))
-    if _tp_limit:
-        log("익절 체결: 지정가 (메이커, bracket_tp_limit: true)")
+    _entry_limit = bool(policy.get("bracket_entry_limit", False))
+    _entry_wait = int(policy.get("bracket_entry_wait_sec", 120) or 120)
+    _sl_buf = float(policy.get("bracket_sl_limit_buffer", 0) or 0)
+    modes = []
+    if _entry_limit: modes.append(f"진입 지정가(미체결 {_entry_wait}s 후 취소)")
+    if _tp_limit: modes.append("익절 지정가")
+    if _sl_buf > 0: modes.append(f"손절 트리거-지정가(버퍼 {_sl_buf}×변동)")
+    if modes:
+        log("체결 방식: " + " · ".join(modes) + " (08-24 사용자 결정)")
     if not _selfgen_enabled:
         log("봉인 자체 생성 꺼짐 (bracket_selfgen_seal: false), 외부 생성기를 기다립니다")
     use_mode(bracket_mode(policy), args.dry)   # before any file is touched
