@@ -37,7 +37,14 @@ import urllib.request
 API = "https://api.telegram.org/bot{token}/{method}"
 GATE_SEC = 120               # seconds to press the human button
 PROBATION_MSGS = 5           # messages watched closely after verifying
-FLOOD_N, FLOOD_SEC = 5, 10   # flood threshold
+# Duplicate-spam rule (08-24 operator spec): the SAME text may appear up
+# to DUP_ALLOW times; from the next one the message is deleted, the
+# sender is muted DUP_MUTE seconds and warned in chat, and the third
+# warning is a kick. Counted per user inside a rolling DUP_WINDOW.
+DUP_ALLOW = 5
+DUP_MUTE = 10
+DUP_WINDOW = 600
+DUP_KICK_WARNS = 3
 MUTE_DAY = 24 * 3600
 
 # Promotion smells. Kept deliberately blunt: probation members have no
@@ -177,15 +184,17 @@ def _on_join(token, chat, user, st, admin):
     except Exception:
         _report(token, admin, f"입장 게이트 실패(권한 확인 필요): {name}")
         return
+    # Chat-facing text is English only (08-24: the community group runs
+    # in English); operator reports stay Korean for the operator.
     kb = {"inline_keyboard": [[{
-        "text": "🙋 저는 사람입니다 / I am human",
+        "text": "🙋 I am human",
         "callback_data": f"human:{uid}"}]]}
     try:
         r = _call(token, "sendMessage", chat_id=chat,
-                  text=(f"환영합니다, {name}님! 봇이 아니라는 확인을 위해 "
-                        f"{GATE_SEC}초 안에 아래 버튼을 눌러주세요.\n"
-                        f"Welcome! Press the button within {GATE_SEC}s "
-                        f"to verify you are human."),
+                  text=(f"Welcome, {name}! Please press the button below "
+                        f"within {GATE_SEC} seconds to verify you are "
+                        f"human. Accounts that do not verify are removed "
+                        f"(you can rejoin and try again)."),
                   reply_markup=kb)
         mid = r["result"]["message_id"]
     except Exception:
@@ -312,20 +321,51 @@ def _handle(u, token, st, flood, admin):
     # unverified members should be muted; if a message slips through
     # (e.g. the bot was added after they joined), let it pass silently
     v = st["verified"].get(uid)
-    # flood control applies to everyone below admin
-    q = flood.setdefault(uid, [])
-    now = time.time()
-    q.append(now)
-    while q and now - q[0] > FLOOD_SEC:
-        q.pop(0)
-    if len(q) >= FLOOD_N:
-        try:
-            _mute(token, cid, int(uid), until=600)
-            _report(token, admin, f"도배로 10분 음소거: {name}")
-        except Exception:
-            pass
-        q.clear()
-        return
+    # Duplicate-spam rule: identical text up to DUP_ALLOW times, then
+    # delete + short mute + English warning; the third warning is a kick.
+    text_now = (msg.get("text") or msg.get("caption") or "").strip()
+    if text_now:
+        now = time.time()
+        q = flood.setdefault(uid, [])
+        q.append((now, text_now.lower()))
+        while q and now - q[0][0] > DUP_WINDOW:
+            q.pop(0)
+        dups = sum(1 for _, t in q if t == text_now.lower())
+        if dups > DUP_ALLOW:
+            try:
+                _call(token, "deleteMessage", chat_id=cid,
+                      message_id=msg["message_id"])
+            except Exception:
+                pass
+            warns = st.setdefault("dup_warns", {}).get(uid, 0) + 1
+            st["dup_warns"][uid] = warns
+            _save(st)
+            if warns >= DUP_KICK_WARNS:
+                _kick(token, cid, int(uid))
+                try:
+                    _call(token, "sendMessage", chat_id=cid,
+                          text=(f"🛡️ {name} was removed after "
+                                f"{DUP_KICK_WARNS} spam warnings."))
+                except Exception:
+                    pass
+                _report(token, admin, f"도배 경고 3회, 강퇴: {name}")
+            else:
+                try:
+                    _mute(token, cid, int(uid), until=DUP_MUTE)
+                except Exception:
+                    pass
+                try:
+                    _call(token, "sendMessage", chat_id=cid,
+                          text=(f"⚠️ {name}, please stop repeating the "
+                                f"same message. Muted for {DUP_MUTE} "
+                                f"seconds. Warning {warns}/"
+                                f"{DUP_KICK_WARNS}; the next ones lead "
+                                f"to removal."))
+                except Exception:
+                    pass
+                _report(token, admin,
+                        f"도배 경고 {warns}/{DUP_KICK_WARNS}: {name}")
+            return
     # probation filter: the member's first PROBATION_MSGS messages
     if v is not None and v.get("msgs", 0) < PROBATION_MSGS:
         why = _spammy(msg)
