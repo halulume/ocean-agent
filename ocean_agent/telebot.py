@@ -130,6 +130,23 @@ def _carry_alerts(root, hours=24):
     return "\n".join(out) if out else "No data."
 
 
+def _print_answer(env, lang="ko"):
+    """Pacifica Print verdict: the shipped judge (print_eval.recommend_now)
+    reprices every live print against 9y of history and the currently lit
+    signals; the reply leads with a one-line verdict in the user's language
+    and attaches the table. First run on a fresh machine downloads price
+    history and can take minutes; the caller is told so up front."""
+    from .telebot_i18n import tr
+    from .api_client import PacificaClient
+    from .print_eval import recommend_now
+    cl = PacificaClient(env.get("PACIFICA_BASE_URL",
+                                "https://api.pacifica.fi"))
+    txt = recommend_now(cl)
+    ok = "✅" in txt
+    head = tr("print_yes" if ok else "print_no", lang)
+    return head + "\n\n" + txt
+
+
 def _pick_table(root, lang="ko", cls=None):
     """Render the newest seal: exactly the picks the bot trades.
 
@@ -184,6 +201,8 @@ def handle(cmd, env, root, lang="ko"):
                         address=env.get("ADDRESS", ""))
     if cmd == "/pick":
         return _pick_table(root, lang)
+    if cmd == "/print":
+        return _print_answer(env, lang)
     if cmd == "/funding":
         return _funding_table(cl, top=10)
     if cmd == "/carry":
@@ -684,7 +703,8 @@ def _rule_answer(text, env, root, lang="ko"):
     # they share the most (and longest) keywords with, instead of whichever
     # if-branch happened to come first.
     DATA = {"pick": "/pick", "carry": "/carry", "funding": "/funding",
-            "balance": "/balance", "trades": "/trades", "bot": "/bot"}
+            "balance": "/balance", "trades": "/trades", "bot": "/bot",
+            "print_q": "/print"}
     TALK = {"help": "help_reply", "alerts": "alerts_info",
             "greet": "greet_reply", "thanks": "thanks_reply"}
     best, best_s = None, 0
@@ -942,6 +962,7 @@ def _register_commands(token):
     cmds = {
         "en": [("pick", "latest pick ranking"),
                ("funding", "funding ranking"),
+               ("print", "is any Print worth taking now?"),
                ("carry", "funding-carry seats"),
                ("bot", "bot status and recent fills"),
                ("balance", "account balance"),
@@ -950,6 +971,7 @@ def _register_commands(token):
                ("mode", "free / paid tier")],
         "ko": [("pick", "추천픽 순위 (최근 계산본)"),
                ("funding", "펀딩 순위"),
+               ("print", "지금 잡을 만한 프린트 있나 판정"),
                ("carry", "펀딩캐리 자리·알람"),
                ("bot", "봇 상태·최근 체결"),
                ("balance", "계좌 잔고"),
@@ -957,16 +979,19 @@ def _register_commands(token):
                ("menu", "전체 기능 보기"),
                ("mode", "무료/유료 모드 전환")],
         "zh": [("pick", "最新推荐排行"), ("funding", "资金费排行"),
+               ("print", "现在有值得参与的 Print 吗"),
                ("carry", "资金费套利机会"), ("bot", "机器人状态·最近成交"),
                ("balance", "账户余额"), ("trades", "最近成交记录"),
                ("menu", "查看全部功能"), ("mode", "免费/付费模式")],
         "ja": [("pick", "最新ピックランキング"), ("funding", "ファンディング順位"),
+               ("print", "今取る価値のある Print はあるか"),
                ("carry", "ファンディングキャリー候補"),
                ("bot", "ボット状態・最近の約定"), ("balance", "口座残高"),
                ("trades", "最近の約定履歴"), ("menu", "全機能を見る"),
                ("mode", "無料/有料モード")],
         "vi": [("pick", "xếp hạng pick mới nhất"),
                ("funding", "xếp hạng funding"),
+               ("print", "có Print đáng tham gia không?"),
                ("carry", "cơ hội funding carry"),
                ("bot", "trạng thái bot, khớp lệnh gần đây"),
                ("balance", "số dư tài khoản"),
@@ -974,35 +999,41 @@ def _register_commands(token):
                ("menu", "xem tất cả chức năng"),
                ("mode", "chế độ miễn phí/trả phí")],
         "hi": [("pick", "नवीनतम पिक रैंकिंग"), ("funding", "फंडिंग रैंकिंग"),
+               ("print", "क्या अभी कोई Print लेने लायक है?"),
                ("carry", "फंडिंग कैरी अवसर"), ("bot", "बॉट स्थिति·हाल के फिल"),
                ("balance", "खाता बैलेंस"), ("trades", "हाल की ट्रेड"),
                ("menu", "सभी सुविधाएँ"), ("mode", "मुफ्त/सशुल्क मोड")],
         "id": [("pick", "peringkat pick terbaru"),
                ("funding", "peringkat funding"),
+               ("print", "adakah Print yang layak sekarang?"),
                ("carry", "peluang funding carry"),
                ("bot", "status bot, eksekusi terbaru"),
                ("balance", "saldo akun"), ("trades", "riwayat eksekusi"),
                ("menu", "semua fitur"), ("mode", "mode gratis/berbayar")],
         "ru": [("pick", "свежий рейтинг пиков"),
                ("funding", "рейтинг фандинга"),
+               ("print", "стоит ли сейчас брать Print?"),
                ("carry", "возможности кэрри"),
                ("bot", "статус бота, последние сделки"),
                ("balance", "баланс счёта"), ("trades", "история сделок"),
                ("menu", "все функции"), ("mode", "бесплатный/платный режим")],
         "pt": [("pick", "ranking de picks mais recente"),
                ("funding", "ranking de funding"),
+               ("print", "algum Print vale a pena agora?"),
                ("carry", "oportunidades de carry"),
                ("bot", "status do bot, execuções recentes"),
                ("balance", "saldo da conta"), ("trades", "execuções recentes"),
                ("menu", "todas as funções"), ("mode", "modo grátis/pago")],
         "tr": [("pick", "en yeni pick sıralaması"),
                ("funding", "funding sıralaması"),
+               ("print", "şu an değer bir Print var mı?"),
                ("carry", "funding carry fırsatları"),
                ("bot", "bot durumu, son işlemler"),
                ("balance", "hesap bakiyesi"), ("trades", "son işlem geçmişi"),
                ("menu", "tüm özellikler"), ("mode", "ücretsiz/ücretli mod")],
         "es": [("pick", "ranking de picks más reciente"),
                ("funding", "ranking de funding"),
+               ("print", "¿algún Print vale la pena ahora?"),
                ("carry", "oportunidades de carry"),
                ("bot", "estado del bot, ejecuciones recientes"),
                ("balance", "saldo de la cuenta"),
