@@ -1816,8 +1816,8 @@ def main():
         log("체결 방식: " + " · ".join(modes) + " (08-24 사용자 결정)")
     _side_source = str(policy.get("bracket_side_source", "touch")).lower()
     if _side_source == "signal":
-        log("부호 결정: 22신호 순투표, 침묵이면 봉인 도달률 방향으로 진입 "
-            "(08-24 사용자 결정). 어느 쪽이 정했는지는 기록에 남는다")
+        log("부호 결정: 22신호 순투표, 동점이면 4h·8h·12h 신호 합산, 그래도 "
+            "동점이면 RSI 판정 (08-24 사용자 결정). 신호가 항상 방향을 낸다")
     if not _selfgen_enabled:
         log("봉인 자체 생성 꺼짐 (bracket_selfgen_seal: false), 외부 생성기를 기다립니다")
     use_mode(bracket_mode(policy), args.dry)   # before any file is touched
