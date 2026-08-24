@@ -838,12 +838,13 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
         if _side_source == "signal" and not dry:
             sig_dir = _signal_side(client, sym)
             if sig_dir is None:
-                # Silence no longer skips the seat (08-24 evening order,
-                # reversing the earlier no-mixing rule): the seal's own
-                # touch-rate ratio decides instead, and the record says so.
-                log(f"{sym}: 신호 침묵/동점 → 봉인 도달률 방향({direction})"
-                    f"으로 진입 (08-24 사용자 지시)")
-                seat_src = "silent_touch"
+                # Only reachable when bars could not be fetched at all: the
+                # escalating vote (1h -> 4h/8h/12h -> RSI) otherwise always
+                # returns a side. The seat still trades, on the seal's
+                # direction, and the record says the signals never spoke.
+                log(f"{sym}: 신호 계산 불가(봉 조회 실패) → 봉인 방향"
+                    f"({direction})으로 진입")
+                seat_src = "no_bars_touch"
             else:
                 direction = sig_dir
         if sym in st["positions"]:
@@ -1613,36 +1614,61 @@ _advisory_alerts: bool = True   # advisory warnings also go to Telegram; the
 
 
 def _signal_side(client, sym: str):
-    """22-signal net vote on the last closed 1h bar: 'long', 'short' or None.
+    """Signal-measured side: 'long' or 'short', decided by signals ALONE.
 
-    Uses the live Pacifica bars through the same fetch the scanner uses, so
-    the vote is computed on exactly what the signal layer would see. None
-    means the signals are silent or tied; the caller skips the seat, per the
-    user's rule that silence is never padded with another decider.
+    08-24 evening order ("신호로 측정하라고"): silence must not empty the
+    seat and must not be padded with the seal's touch direction either. So
+    the vote escalates within the signal layer until it resolves:
+      1. 22-signal net vote on the last closed 1h bar
+      2. still tied -> add the 4h, 8h and 12h votes (same signals, higher
+         timeframes, fetched exactly as the scanner would)
+      3. still tied -> RSI(14) on the 1h closes: >=50 long, <50 short
+         (an indicator verdict, never the touch rate)
+    Returns None only when bars cannot be fetched at all; the caller then
+    falls back to the seal direction and records it as such.
     """
     from .signal_scanner import fetch_bars, _series, _signals
+
+    def vote(tf, n):
+        bars = fetch_bars(client, sym, tf, max_bars=n)
+        if not bars or len(bars) < 260:
+            return None, None
+        # fetch_bars returns (t, o, h, l, c) tuples, not dicts
+        c = [float(b[4]) for b in bars]
+        h = [float(b[2]) for b in bars]
+        lo = [float(b[3]) for b in bars]
+        sigs = _signals(_series(c, h, lo))
+        net = 0
+        j = len(c) - 1
+        for name, (side, fn) in sigs.items():
+            try:
+                if fn(j):
+                    net += 1 if side == "long" else -1
+            except (TypeError, IndexError):
+                pass
+        return net, c
+
     try:
-        bars = fetch_bars(client, sym, "1h", max_bars=400)
+        net, c1 = vote("1h", 400)
+        if net is None:
+            return None
+        if net == 0:
+            for tf in ("4h", "8h", "12h"):
+                try:
+                    hi, _ = vote(tf, 300)
+                except Exception:
+                    hi = None
+                if hi:
+                    net += hi
+        if net == 0:
+            from .signal_scanner import rsi_series
+            rs = rsi_series(c1, 14)
+            if rs:
+                return "long" if rs[-1] >= 50 else "short"
+            return None
+        return "long" if net > 0 else "short"
     except Exception:
         return None
-    if not bars or len(bars) < 260:
-        return None
-    # fetch_bars returns (t, o, h, l, c) tuples, not dicts
-    c = [float(b[4]) for b in bars]
-    h = [float(b[2]) for b in bars]
-    lo = [float(b[3]) for b in bars]
-    sigs = _signals(_series(c, h, lo))
-    net = 0
-    j = len(c) - 1
-    for name, (side, fn) in sigs.items():
-        try:
-            if fn(j):
-                net += 1 if side == "long" else -1
-        except (TypeError, IndexError):
-            pass
-    if net == 0:
-        return None
-    return "long" if net > 0 else "short"
 
 
 def _newest_seal_age_h() -> float:
