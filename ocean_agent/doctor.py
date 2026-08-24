@@ -55,7 +55,7 @@ def main():
             cfg = yaml.safe_load(f)
 
     from . import address_from_env, api_key_from_env
-    _net_url = cfg.get("base_url", "https://test-api.pacifica.fi") if cfg_ok else ""
+    _net_url = cfg.get("base_url", "https://api.pacifica.fi") if cfg_ok else ""
     address = address_from_env(_net_url)
     key = api_key_from_env(_net_url)
     net_label = "테스트넷" if "test-api" in _net_url else "메인넷"
@@ -68,7 +68,7 @@ def main():
 
     # 5. 실제 연결 테스트
     if cfg_ok:
-        base_url = cfg.get("base_url", "https://test-api.pacifica.fi")
+        base_url = cfg.get("base_url", "https://api.pacifica.fi")
         api_mode = cfg.get("api_mode", "rest")
         print(f"\n연결 테스트 ({api_mode.upper()} / {base_url}) ...")
         try:

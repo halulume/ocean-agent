@@ -43,12 +43,19 @@ def send(text: str) -> None:
     if not token or not chat_id:
         return
     try:
-        requests.post(
+        r = requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
             json={"chat_id": chat_id, "text": text},
             timeout=10,
         )
-    except requests.RequestException as e:
+        # The warning path is the account's only voice now (의도적결정 13
+        # traded halts for warnings), so a silent delivery failure means no
+        # protection at all. An expired token or wrong chat_id returns 4xx
+        # with ok=false and no exception; say so instead of believing it.
+        if r.status_code != 200 or not r.json().get("ok", False):
+            print(f"[알림 실패] 텔레그램 응답 {r.status_code}: "
+                  f"{r.text[:120]}")
+    except (requests.RequestException, ValueError) as e:
         # The exception text can embed the request URL, which contains the
         # bot token. Redact it so logs never leak the credential.
         msg = str(e).replace(token, "***") if token else str(e)

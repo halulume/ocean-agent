@@ -13,7 +13,7 @@
       "env": {
         "ADDRESS": "<your Pacifica account address>",
         "PACIFICA_API_KEY": "<API key from app.pacifica.fi/apikey, optional, read-only without it>",
-        "PACIFICA_BASE_URL": "https://test-api.pacifica.fi"
+        "PACIFICA_BASE_URL": "https://api.pacifica.fi"
       }
     }
   }
@@ -95,7 +95,7 @@ def _confirm_gate(confirm: bool, action_desc: str, tool: str = "",
     for k in [k for k, t in _PREVIEWS.items() if now - t > _PREVIEW_TTL_SEC]:
         _PREVIEWS.pop(k, None)
     net = "테스트넷" if "test-api" in os.environ.get(
-        "PACIFICA_BASE_URL", "https://test-api.pacifica.fi") else "⚠️ 메인넷(실거래)"
+        "PACIFICA_BASE_URL", "https://api.pacifica.fi") else "⚠️ 메인넷(실거래)"
     if confirm:
         # one preview authorizes exactly one execution (pop, not get)
         if _PREVIEWS.pop(key, None) is not None:
@@ -245,7 +245,10 @@ mcp = FastMCP(_agent_name(default="mustache"), instructions=_INSTRUCTIONS)
 
 
 def _client() -> PacificaClient:
-    _base = os.environ.get("PACIFICA_BASE_URL", "https://test-api.pacifica.fi")
+    # Mainnet is the default everywhere (의도적결정 §1). This one defaulted
+    # the other way, so a hand-configured user with no env var traded on a
+    # different network than the one the file tags claimed (08-20 review).
+    _base = os.environ.get("PACIFICA_BASE_URL", "https://api.pacifica.fi")
     return PacificaClient(
         _base,
         address=address_from_env(_base),
@@ -255,7 +258,7 @@ def _client() -> PacificaClient:
 
 def _account_linked() -> bool:
     """주소+키가 모두 설정돼 실제 주문이 가능한 상태인가."""
-    _base = os.environ.get("PACIFICA_BASE_URL", "https://test-api.pacifica.fi")
+    _base = os.environ.get("PACIFICA_BASE_URL", "https://api.pacifica.fi")
     return bool(address_from_env(_base)) and bool(api_key_from_env(_base))
 
 
