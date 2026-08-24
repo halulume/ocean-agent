@@ -817,6 +817,14 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             n += 1
         return n
 
+    # Empty special seats (the seal filled fewer than two funding specials)
+    # lend their margin to conviction: a pick whose strong 1h vote agrees
+    # with its entry direction gets double notional, one seat per bonus
+    # (08-24 user decision, operator opt-in via bracket_strong_bonus).
+    n_special = sum(1 for q in picks
+                    if str(q.get("basis", "")).startswith("특별"))
+    bonus_left = max(0, 2 - n_special) if (_strong_bonus and not dry) else 0
+
     for p in picks:
         # Eight picks mean eight order round-trips and their retries; ten
         # minutes of that used to read as a dead bot and invited a second
@@ -862,7 +870,15 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
         lev = min(cfg["leverage"], int(m.get("max_leverage") or cfg["leverage"]))
         lot = float(m.get("lot_size") or 0.0001)
         tick = float(m.get("tick_size") or 0.01)
-        amount = _round_down_to_lot(margin_per * lev / px, lot)
+        bonus = 1
+        if bonus_left > 0:
+            sv = _strong_vote(client, sym)
+            if sv == direction:
+                bonus = 2
+                bonus_left -= 1
+                seat_src = f"{seat_src}+strong2x"
+                log(f"{sym}: 강신호 일치({sv}) → 빈 특별석 사용, 명목 2배")
+        amount = _round_down_to_lot(margin_per * lev * bonus / px, lot)
         if amount <= 0 or amount * px < float(m.get("min_order_size") or 10):
             # Counted as a failed attempt, not as a decision: the account is
             # simply too small for this seat size. Without this the seal was
@@ -1611,6 +1627,36 @@ _sl_buf: float = 0.0         # SL limit buffer, in units of expected move
 _side_source: str = "touch"  # who calls long/short: "touch" or "signal" (08-24)
 _advisory_alerts: bool = True   # advisory warnings also go to Telegram; the
                                 # log line always stays (08-24 operator ask)
+_strong_bonus: bool = False     # empty special seats double a pick whose
+                                # strong 1h vote agrees with its direction
+
+
+def _strong_vote(client, sym: str):
+    """'long'/'short' only when the plain 1h net vote is at least ±2, the
+    same bar and threshold the strong-vote Telegram alarm uses. None
+    otherwise (weak, tied, or bars unavailable)."""
+    from .signal_scanner import fetch_bars, _series, _signals
+    try:
+        bars = fetch_bars(client, sym, "1h", max_bars=400)
+        if not bars or len(bars) < 260:
+            return None
+        c = [float(b[4]) for b in bars]
+        h = [float(b[2]) for b in bars]
+        lo = [float(b[3]) for b in bars]
+        sigs = _signals(_series(c, h, lo))
+        net = 0
+        j = len(c) - 1
+        for name, (side, fn) in sigs.items():
+            try:
+                if fn(j):
+                    net += 1 if side == "long" else -1
+            except (TypeError, IndexError):
+                pass
+        if abs(net) < 2:
+            return None
+        return "long" if net > 0 else "short"
+    except Exception:
+        return None
 
 
 def _signal_side(client, sym: str):
@@ -1804,6 +1850,11 @@ def main():
     global _side_source, _advisory_alerts
     _selfgen_enabled = bool(policy.get("bracket_selfgen_seal", True))
     _advisory_alerts = bool(policy.get("bracket_advisory_alerts", True))
+    global _strong_bonus
+    _strong_bonus = bool(policy.get("bracket_strong_bonus", False))
+    if _strong_bonus:
+        log("특별석 보너스: 빈 특별석 수만큼, 강신호(1h 순투표 ±2 이상)가 "
+            "진입 방향과 일치하는 픽의 명목을 2배로 (08-24 사용자 결정)")
     _tp_limit = bool(policy.get("bracket_tp_limit", False))
     _entry_limit = bool(policy.get("bracket_entry_limit", False))
     _entry_wait = int(policy.get("bracket_entry_wait_sec", 120) or 120)

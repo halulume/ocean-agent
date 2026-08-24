@@ -221,3 +221,9 @@ bracket_horizon_h: 24       # 만기: 다음 봉인 전 시장가 청산
 # bracket_vol_floor_pct: 1.5 # 3% 익절은 잔잔한 픽에선 하루 안에 안 닿는다
 # bracket_horizon_h: 24      # 만기는 베이스와 동일
 # bracket_leverage: 3        # 검증 전까지 축소 유지
+# Empty special seats (fewer than two funding specials in the seal) can
+# lend their margin to conviction: when the plain 1h net vote of the 22
+# signals is at least +-2 AND agrees with the pick's entry direction, that
+# pick trades at double notional, one seat per bonus. Off by default: net
+# votes carry no measured edge (ledger §125); this is an operator's bet.
+bracket_strong_bonus: false
