@@ -946,6 +946,13 @@ def main():
           + (" (중앙 운영 모드)" if central else " (개인 모드)")
           + ". 중지: Ctrl+C")
     _register_commands(token)
+    # Warm up conversation mode at startup instead of on the first message
+    # (08-24 user request): by the time anyone types, the model is usually
+    # already in place and nobody sees the preparing notice.
+    if _chat_local_on() and _LOCAL["state"] == "":
+        _LOCAL["state"] = "preparing"
+        import threading
+        threading.Thread(target=_prepare_local, daemon=True).start()
     offset = 0
     while True:
         try:
@@ -961,8 +968,43 @@ def main():
                 print(f"업데이트 처리 오류(건너뜀): {type(ex).__name__}")
 
 
+def _pers_lang(root, set_to=None):
+    """Personal-mode language, chosen once with the flag keyboard and kept
+    in outputs/telebot_lang.json. Empty string until chosen."""
+    p = os.path.join(root, "outputs", "telebot_lang.json")
+    if set_to is not None:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump({"lang": set_to}, f)
+        return set_to
+    try:
+        with open(p, encoding="utf-8") as f:
+            return json.load(f).get("lang", "")
+    except (OSError, ValueError):
+        return ""
+
+
 def _process_update(u, env, root, gate, central, token):
     cq = u.get("callback_query")
+    if cq and not central:
+        # Personal mode flag keyboard: save the language, then greet in it,
+        # with the conversation-mode notice when the model is still warming
+        # (08-24: the notice belongs right after the language pick).
+        from .telebot_i18n import tr
+        cid = str((cq.get("message", {}).get("chat") or {}).get("id", ""))
+        data = str(cq.get("data") or "")
+        try:
+            _call(token, "answerCallbackQuery",
+                  callback_query_id=cq.get("id", ""))
+        except Exception:
+            pass
+        if data.startswith("lang:") and (not gate or cid == gate):
+            lang = _pers_lang(root, set_to=data.split(":", 1)[1])
+            msg = tr("greet_reply", lang)
+            if _chat_local_on() and _LOCAL["state"] != "ready":
+                msg += "\n\n" + tr("chat_local_preparing", lang)
+            _send(token, cid, msg)
+        return
     if cq and central:
         # 국기 버튼 응답: 언어 저장 후 그 언어로 주소 요청
         from .telebot_i18n import tr
@@ -984,6 +1026,11 @@ def _process_update(u, env, root, gate, central, token):
             from .telebot_i18n import tier_kb
             _send(token, cid, tr("tier_pick", rec["lang"]),
                   kb=tier_kb(rec["lang"]))
+            # only the operator's own chat runs the local model, so only
+            # the operator sees its warm-up notice here
+            if (cid == gate and _chat_local_on()
+                    and _LOCAL["state"] != "ready"):
+                _send(token, cid, tr("chat_local_preparing", rec["lang"]))
         elif data.startswith("tier:") and cid:
             users = _load_users(root)
             rec = users.get(cid) or {"lang": "en", "address": "",
@@ -1029,7 +1076,12 @@ def _process_update(u, env, root, gate, central, token):
         else:
             if gate and cid != gate:
                 return        # 개인 모드: 등록된 챗만
-            out = chat(text, env, root, cid=cid)
+            lang = _pers_lang(root)
+            if not lang:
+                from .telebot_i18n import tr
+                out = ("KB", tr("pick_lang", "any"))
+            else:
+                out = chat(text, env, root, lang=lang, cid=cid)
     except Exception as ex:
         from .telebot_i18n import tr
         lang = "ko"
