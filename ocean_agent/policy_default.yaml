@@ -168,11 +168,13 @@ bracket_tp_mult: 1.5        # 익절 = 예상변동폭 x 1.5
 bracket_sl_mult: 1.0        # 손절 = 예상변동폭 x 1.0
 # Take-profit executes as a LIMIT at the same price when triggered (maker
 # fee 0.015% vs taker 0.04%, no slippage past the line). Shipped ON since
-# 0.4.43 (08-24 decision): the measured gap between this strategy and break-
-# even is the size of the fee (ledger §127), so execution cost is the one
-# lever that provably moves the number. Known trade-off: a wick that touches
-# the trigger without trading through can leave the limit unfilled and the
-# position runs on to the stop or the 24h expiry.
+# 0.4.43 (08-24 decision). Rationale, dated honestly: §127 (08-24) measured
+# the REPLAY's gap to break-even as roughly the fee's size, which made
+# execution cost the one provable lever AT THAT TIME; live per-trade results
+# have been far worse than the fee alone (review 15-1), so this saves real
+# money on every fill but does not by itself reach break-even. Known
+# trade-off: a wick that touches the trigger without trading through can
+# leave the limit unfilled and the position runs to the stop or expiry.
 bracket_tp_limit: true
 # Entry as a resting limit at the anchor price (maker). An unfilled entry is
 # cancelled after bracket_entry_wait_sec and the seat is skipped that cycle:

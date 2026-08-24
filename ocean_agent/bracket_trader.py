@@ -964,7 +964,12 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                 _deadline = time.time() + _entry_wait
                 _filled = False
                 while time.time() < _deadline:
-                    time.sleep(5)
+                    # 10s, not 5: eight seats polling serially at 5s were
+                    # up to 192 position reads per cycle and half an hour's
+                    # cycle could spend 16 minutes waiting (review 15-3);
+                    # the wait itself is bracket_entry_wait_sec (operator
+                    # shortened to 60s the same day).
+                    time.sleep(10)
                     try:
                         if any(pp.get("symbol") == sym
                                for pp in client.get_positions()):
@@ -1638,10 +1643,33 @@ _strong_bonus: bool = False     # empty special seats double a pick whose
                                 # strong 1h vote agrees with its direction
 
 
+def _vote_net(sigs, j, tf):
+    """Raw net vote over the signal table, DELIBERATELY ungated.
+
+    Review 15-4 asked for the matrix gate here. Applied and measured on
+    08-24: the live matrix rejects 21 of 22 signals at 1h, which zeroes
+    every vote and kills the strong-vote alarm and bonus the operator
+    ordered that same day. The vote layer is the operator's declared bet
+    on signals the matrix does NOT endorse ("no measured edge, operator's
+    bet"), so gating it away contradicts its reason to exist. Raw counting
+    also matches what the forward shadow ledger records. The correlated-
+    family duplication (four sRSI variants = four votes) likewise stays,
+    documented, until the forward record says the bet is worth refining.
+    의도적결정 §21 추가 참조."""
+    net = 0
+    for name, (side, fn) in sigs.items():
+        try:
+            if fn(j):
+                net += 1 if side == "long" else -1
+        except (TypeError, IndexError):
+            pass
+    return net
+
+
 def _strong_vote(client, sym: str):
-    """'long'/'short' only when the plain 1h net vote is at least ±2, the
-    same bar and threshold the strong-vote Telegram alarm uses. None
-    otherwise (weak, tied, or bars unavailable)."""
+    """'long'/'short' only when the matrix-gated 1h net vote is at least
+    ±2, the same bar the strong-vote Telegram alarm reads. None otherwise
+    (weak, tied, or bars unavailable)."""
     from .signal_scanner import fetch_bars, _series, _signals
     try:
         bars = fetch_bars(client, sym, "1h", max_bars=400)
@@ -1650,15 +1678,7 @@ def _strong_vote(client, sym: str):
         c = [float(b[4]) for b in bars]
         h = [float(b[2]) for b in bars]
         lo = [float(b[3]) for b in bars]
-        sigs = _signals(_series(c, h, lo))
-        net = 0
-        j = len(c) - 1
-        for name, (side, fn) in sigs.items():
-            try:
-                if fn(j):
-                    net += 1 if side == "long" else -1
-            except (TypeError, IndexError):
-                pass
+        net = _vote_net(_signals(_series(c, h, lo)), len(c) - 1, "1h")
         if abs(net) < 2:
             return None
         return "long" if net > 0 else "short"
@@ -1690,15 +1710,7 @@ def _signal_side(client, sym: str):
         c = [float(b[4]) for b in bars]
         h = [float(b[2]) for b in bars]
         lo = [float(b[3]) for b in bars]
-        sigs = _signals(_series(c, h, lo))
-        net = 0
-        j = len(c) - 1
-        for name, (side, fn) in sigs.items():
-            try:
-                if fn(j):
-                    net += 1 if side == "long" else -1
-            except (TypeError, IndexError):
-                pass
+        net = _vote_net(_signals(_series(c, h, lo)), len(c) - 1, tf)
         return net, c
 
     try:
