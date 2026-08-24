@@ -1748,9 +1748,16 @@ def main():
     # A keyless start used to run a full cycle, hit GET /account with an
     # empty address, and report the venue's 400 as "rate limit, maybe"
     # (fresh-install simulation, 08-24). Say the actual problem instead.
-    # load_policy above has already loaded .env, so this sees what a cycle
-    # would see. --status stays open: it only reads the local book.
+    # The .env must be loaded FIRST: make_client loads it itself, so checking
+    # the bare environment refused to start with a perfectly good .env on
+    # disk (08-24 evening, operator restart). --status stays open.
     if not args.status:
+        try:
+            from dotenv import load_dotenv
+            _envf = os.environ.get("PACIFICA_ENV_FILE")
+            load_dotenv(_envf) if _envf else load_dotenv()
+        except ImportError:
+            pass
         from . import address_from_env as _addr
         if not _addr(os.environ.get("PACIFICA_BASE_URL", "")):
             log("계정이 연결돼 있지 않습니다. connect_pacifica 를 실행하거나 "
