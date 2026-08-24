@@ -412,11 +412,21 @@ def _pick_model(client, env):
     return pick
 
 
+# Tone matters as much as truth: the first prompt only said "answer from
+# the data, say you don't know otherwise", and the model obeyed into
+# stiffness ("알 수 없음?"). This one asks for a warm, natural reply in
+# the user's language while keeping the same hard rules on numbers.
 _SYS_PROMPT = (
-    "너는 오션 에이전트(파시피카 트레이딩 도구)의 안내원이다. "
-    "Answer briefly, ONLY from the data below, in the user's language "
-    "(code: {lang}). 데이터에 없는 것은 모른다고 말한다. 숫자를 지어내지 "
-    "않는다. 투자 조언·매수 권유는 하지 않는다.")
+    "You are Ocean Agent, a friendly trading assistant for Pacifica. "
+    "Reply in the user's language (code: {lang}), in a warm, natural, "
+    "conversational tone, like a helpful colleague. Keep it short: one to "
+    "three sentences unless listing data. Use ONLY the numbers in the data "
+    "below; never invent figures. If the data does not cover the question, "
+    "say so naturally and suggest what you CAN show (picks, funding, "
+    "balance, bot status). Never give investment advice or tell the user "
+    "to buy or sell. Do not repeat the data verbatim; summarize what "
+    "matters for the question. Write correct, natural {lang} with no "
+    "mixed-language fragments.")
 
 
 def _llm_http(url, headers, payload):
@@ -645,7 +655,7 @@ def _local_answer(question, data, lang):
                    "content": _SYS_PROMPT.format(lang=lang)},
                   {"role": "user",
                    "content": f"[실데이터]\n{data}\n\n[질문]\n{question}"}],
-        max_tokens=320, temperature=0.3)
+        max_tokens=320, temperature=0.4)
     out = (r.get("choices") or [{}])[0].get("message", {}) \
         .get("content", "").strip()
     return out or None
@@ -725,20 +735,20 @@ def chat(text, env, root, lang="ko", cid="solo"):
     ex = _exec_step(text.lower(), cid, root, lang)
     if ex:
         return ex
-    base = _rule_answer(text, env, root, lang)
-    # When no rule matched, `base` is the menu, and a menu handed to the
-    # LLM as "the live data" makes it answer "unknown" (seen 08-24 on
-    # "잘되나"). Give it a real snapshot instead: current picks and the
-    # bot's recent lines, so any question has something true to stand on.
-    from .telebot_i18n import tr as _tr
-    data = base
-    if base.startswith(_tr("not_understood", lang)):
-        try:
-            data = (_pick_table(root, lang) + "\n\n"
-                    + _read_tail(root, os.path.join(
-                        "outputs", "bracket_live.log"), 8, lang))
-        except Exception:
-            data = base
+    base, kind = _rule_answer(text, env, root, lang)
+    # A matched greeting/thanks/help reads better than anything a small
+    # model rewrites it into, and tables are wanted verbatim (08-24: the
+    # LLM used to overwrite '고마워' with a garbled data report). The LLM
+    # tiers only take the questions no rule understood, and they get a
+    # live snapshot to stand on instead of the menu text.
+    if kind in ("talk", "data"):
+        return base
+    try:
+        data = (_pick_table(root, lang) + "\n\n"
+                + _read_tail(root, os.path.join(
+                    "outputs", "bracket_live.log"), 8, lang))
+    except Exception:
+        data = base
     cli_ok = env.get("TELEBOT_CLI_MIRROR", "") == "1"   # 옵트인 전엔 봉인
     return ((cli_ok and _cli_answer(text, data))
             or _llm_answer(env, text, data, lang)  # 2순위: API 키 있으면
@@ -757,14 +767,14 @@ def _rule_answer(text, env, root, lang="ko"):
     sym = _sym_in(text, syms, lang)
     low = text.lower()
     if sym and _score(low, "why", lang):
-        return _why(cl, env, sym, lang)
+        return _why(cl, env, sym, lang), "data"
     # "펀딩이 뭐야?" is a definition, not a data lookup: glossary first
     # when the sentence carries a what-is marker and a known term.
     g = _gloss_hit(low, lang)
     if g:
-        return g
+        return g, "talk"
     if sym:
-        return _sym_info(cl, sym, lang)
+        return _sym_info(cl, sym, lang), "data"
     # Best-scoring intent wins, so word combinations resolve to the intent
     # they share the most (and longest) keywords with, instead of whichever
     # if-branch happened to come first.
@@ -779,14 +789,14 @@ def _rule_answer(text, env, root, lang="ko"):
         if s > best_s:
             best, best_s = it, s
     if best == "pick_stock":
-        return _pick_table(root, lang, cls="stock")
+        return _pick_table(root, lang, cls="stock"), "data"
     if best == "pick_coin":
-        return _pick_table(root, lang, cls="coin")
+        return _pick_table(root, lang, cls="coin"), "data"
     if best in DATA:
-        return handle(DATA[best], env, root, lang)
+        return handle(DATA[best], env, root, lang), "data"
     if best in TALK:
-        return tr(TALK[best], lang)
-    return tr("not_understood", lang) + "\n" + tr("menu", lang)
+        return tr(TALK[best], lang), "talk"
+    return tr("not_understood", lang) + "\n" + tr("menu", lang), "none"
 
 
 def _score(low, intent, lang):
@@ -1239,7 +1249,9 @@ def _handle_member(text, chat_id, env, root, admin):
         return chat(text, e2, root, lang, cid=chat_id)
     if _exec_intent(text.lower(), lang):
         return tr("exec_member_no", lang)
-    base = _rule_answer(text, e2, root, lang)
+    base, kind2 = _rule_answer(text, e2, root, lang)
+    if kind2 in ("talk", "data"):
+        return base
     if u.get("paid"):
         # paid members bring their own AI key (Claude/GPT/Gemini/Grok);
         # the operator's Claude key is only the fallback for members the
