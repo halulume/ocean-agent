@@ -566,8 +566,15 @@ def _prepare_local():
                 os.remove(part)
                 raise RuntimeError("다운로드 크기 불일치")
             os.replace(part, _MODEL_PATH)
+        try:
+            from llama_cpp import Llama
+            _LOCAL["llm"] = Llama(model_path=_MODEL_PATH, n_ctx=4096,
+                                  n_threads=max(6, (os.cpu_count() or 8) - 4),
+                                  verbose=False)
+        except Exception:
+            pass                     # lazy load will retry on first use
         _LOCAL["state"] = "ready"
-        print("[대화모드] 준비 완료", flush=True)
+        print("[대화모드] 준비 완료 (모델 프리로딩 포함)", flush=True)
     except Exception as ex:
         _LOCAL["state"] = "error"
         print(f"[대화모드] 준비 실패({type(ex).__name__}), 규칙 답변으로 "
@@ -578,14 +585,14 @@ def _local_answer(question, data, lang):
     from llama_cpp import Llama
     if _LOCAL["llm"] is None:
         _LOCAL["llm"] = Llama(model_path=_MODEL_PATH, n_ctx=4096,
-                              n_threads=max(4, (os.cpu_count() or 8) // 2),
+                              n_threads=max(6, (os.cpu_count() or 8) - 4),
                               verbose=False)
     r = _LOCAL["llm"].create_chat_completion(
         messages=[{"role": "system",
                    "content": _SYS_PROMPT.format(lang=lang)},
                   {"role": "user",
                    "content": f"[실데이터]\n{data}\n\n[질문]\n{question}"}],
-        max_tokens=512, temperature=0.3)
+        max_tokens=320, temperature=0.3)
     out = (r.get("choices") or [{}])[0].get("message", {}) \
         .get("content", "").strip()
     return out or None
@@ -1321,6 +1328,13 @@ def _process_update(u, env, root, gate, central, token):
     msg = u.get("message") or {}
     cid = str((msg.get("chat") or {}).get("id", ""))
     text = (msg.get("text") or "").strip().split("@")[0]
+    if cid and text:
+        # instant feedback: the local model takes seconds to write, so the
+        # chat shows "typing..." the moment the message lands (08-24)
+        try:
+            _call(token, "sendChatAction", chat_id=cid, action="typing")
+        except Exception:
+            pass
     # owner says the update word while a newer version is known -> the bot
     # upgrades itself and restarts; only the owner, never members
     if _UPD["latest"] and cid == gate:
