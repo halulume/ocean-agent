@@ -1488,7 +1488,8 @@ def _warn_once(st, key: str, msg: str) -> None:
         return
     seen[key] = {"msg": msg, "at": now}
     log(f"⚠️ {msg}")
-    notify.send(f"브래킷 경고: {msg}")
+    if _advisory_alerts:
+        notify.send(f"브래킷 경고: {msg}")
 
 
 def circuit_breakers(st, cfg) -> None:
@@ -1601,6 +1602,8 @@ _entry_limit: bool = False   # entry as resting limit at the anchor price
 _entry_wait: int = 120       # seconds before an unfilled entry is cancelled
 _sl_buf: float = 0.0         # SL limit buffer, in units of expected move
 _side_source: str = "touch"  # who calls long/short: "touch" or "signal" (08-24)
+_advisory_alerts: bool = True   # advisory warnings also go to Telegram; the
+                                # log line always stays (08-24 operator ask)
 
 
 def _signal_side(client, sym: str):
@@ -1766,8 +1769,9 @@ def main():
             return
     cfg = apply_budget(bracket_cfg(policy))
     global _selfgen_enabled, _tp_limit, _entry_limit, _entry_wait, _sl_buf
-    global _side_source
+    global _side_source, _advisory_alerts
     _selfgen_enabled = bool(policy.get("bracket_selfgen_seal", True))
+    _advisory_alerts = bool(policy.get("bracket_advisory_alerts", True))
     _tp_limit = bool(policy.get("bracket_tp_limit", False))
     _entry_limit = bool(policy.get("bracket_entry_limit", False))
     _entry_wait = int(policy.get("bracket_entry_wait_sec", 120) or 120)

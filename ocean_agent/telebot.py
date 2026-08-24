@@ -522,11 +522,16 @@ def _handle_member(text, chat_id, env, root, admin):
     e2 = dict(env)
     e2["ADDRESS"] = u["address"]
     lang = u.get("lang") or "en"
-    # Central mode never touches the operator's Claude CLI: member text must
-    # not become a local prompt (secret-exfiltration surface). Free members
-    # get rule answers; paid members get the operator's API key, once.
+    # Central mode never touches the operator's Claude CLI for MEMBER text:
+    # a member's sentence must not become a local prompt (secret-exfiltration
+    # surface). The admin is the operator, so their own text may mirror
+    # through their own `claude -p` (subscription, no API bill) when
+    # TELEBOT_CLI_MIRROR=1. Free members get rule answers; paid members get
+    # their own key, or the operator's key if sponsored via /승인.
     if text.startswith("/"):
         return handle(text, e2, root, lang)
+    if admin and chat_id == admin:
+        return chat(text, e2, root, lang)
     base = _rule_answer(text, e2, root, lang)
     if u.get("paid"):
         # paid members bring their own AI key (Claude/GPT/Gemini/Grok);
