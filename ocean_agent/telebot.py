@@ -719,6 +719,9 @@ def chat(text, env, root, lang="ko", cid="solo"):
     pf = _print_flow(text, text.lower(), cid, env, root, lang)
     if pf:
         return pf
+    of = _order_flow(text, text.lower(), cid, env, root, lang)
+    if of:
+        return of
     ex = _exec_step(text.lower(), cid, root, lang)
     if ex:
         return ex
@@ -879,6 +882,139 @@ def _exec_apply(action, root, lang):
         except Exception:
             pass
     return tr("exec_done_off", lang)
+
+
+# ── 수동 주문 흐름 (운영자 전용, 08-24 사용자 지시 "주문도 넣을 수 있게") ──
+# "BTC 롱 100불 5배" -> preview -> exact yes -> isolated margin + leverage
+# set -> market order WITH native TP/SL attached (the safety invariant no
+# order may skip). Defaults: 5x, TP +2% / SL -1%; every stage expires,
+# ordinary sentences pass through, members can never reach this.
+_PORDER = {}                    # cid -> (stage, spec, expires)
+_SIDE_WORDS = {
+    "long": ("롱", "long", "做多", "ロング", "лонг", "compra", "alış"),
+    "short": ("숏", "short", "做空", "ショート", "шорт", "venta", "satış"),
+}
+
+
+def _parse_order(text, low, env, lang):
+    import re
+    side = None
+    for sd, words in _SIDE_WORDS.items():
+        if any(w in low for w in words):
+            side = sd if side is None else side
+    if not side:
+        return None
+    try:
+        from .api_client import PacificaClient
+        cl = PacificaClient(env.get("PACIFICA_BASE_URL",
+                                    "https://api.pacifica.fi"))
+        syms = [m["symbol"] for m in cl.get_markets()]
+    except Exception:
+        return None
+    sym = _sym_in(text, syms, lang)
+    if not sym:
+        return None
+    spec = {"sym": sym, "side": side, "lev": 5.0, "tp": 2.0, "sl": 1.0,
+            "usd": None}
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(?:배|x|X|倍)", text)
+    if m:
+        spec["lev"] = float(m.group(1))
+    m = re.search(r"[\$]?\s*(\d+(?:\.\d+)?)\s*(?:불|달러|usd|USD|\$)", text) \
+        or re.search(r"\$\s*(\d+(?:\.\d+)?)", text)
+    if m:
+        spec["usd"] = float(m.group(1))
+    m = re.search(r"(?:익절|tp|TP)\s*\+?(\d+(?:\.\d+)?)\s*%", text)
+    if m:
+        spec["tp"] = float(m.group(1))
+    m = re.search(r"(?:손절|sl|SL)\s*-?(\d+(?:\.\d+)?)\s*%", text)
+    if m:
+        spec["sl"] = float(m.group(1))
+    return spec
+
+
+def _order_flow(text, low, cid, env, root, lang):
+    from .telebot_i18n import tr, intent_words
+    p = _PORDER.get(cid)
+    if p and time.time() >= p[2]:
+        _PORDER.pop(cid, None)
+        p = None
+    if p:
+        stage, spec = p[0], p[1]
+        t = low.strip(" !.?~,$")
+        if t in {k.strip() for k in intent_words("no", lang)}:
+            _PORDER.pop(cid, None)
+            return tr("exec_cancel", lang)
+        if stage == "amount":
+            try:
+                spec["usd"] = float(t.replace(",", ""))
+                assert spec["usd"] > 0
+            except (ValueError, AssertionError):
+                return None            # not an amount: let it pass through
+            _PORDER[cid] = ("confirm", spec, time.time() + 180)
+            return tr("order_confirm", lang).format(
+                spec["sym"], spec["side"], f"{spec['usd']:g}",
+                f"{spec['lev']:g}", f"{spec['tp']:g}", f"{spec['sl']:g}")
+        if stage == "confirm":
+            if t in {k.strip() for k in intent_words("yes", lang)}:
+                _PORDER.pop(cid, None)
+                return _order_place(env, spec, lang)
+            return None
+    spec = None
+    if any(w in low for words in _SIDE_WORDS.values() for w in words):
+        spec = _parse_order(text, low, env, lang)
+    if not spec:
+        return None
+    if spec["usd"] is None:
+        _PORDER[cid] = ("amount", spec, time.time() + 180)
+        return tr("order_ask_amount", lang).format(
+            spec["sym"], spec["side"], f"{spec['lev']:g}")
+    _PORDER[cid] = ("confirm", spec, time.time() + 180)
+    return tr("order_confirm", lang).format(
+        spec["sym"], spec["side"], f"{spec['usd']:g}",
+        f"{spec['lev']:g}", f"{spec['tp']:g}", f"{spec['sl']:g}")
+
+
+def _order_place(env, spec, lang):
+    from .telebot_i18n import tr
+    from .api_client import PacificaClient, PacificaError
+    from .position import _round_to_tick, _round_down_to_lot
+    try:
+        cl = PacificaClient(env.get("PACIFICA_BASE_URL",
+                                    "https://api.pacifica.fi"),
+                            address=env.get("ADDRESS", ""),
+                            private_key=env.get("PACIFICA_API_KEY", ""))
+        sym, side = spec["sym"], spec["side"]
+        m = next(x for x in cl.get_markets() if x["symbol"] == sym)
+        px = next(float(p.get("mark") or p.get("mid") or 0)
+                  for p in cl.get_prices() if p["symbol"] == sym)
+        lot = float(m.get("lot_size") or 0.0001)
+        tick = float(m.get("tick_size") or 0.01)
+        lev = min(spec["lev"], float(m.get("max_leverage") or spec["lev"]))
+        amount = _round_down_to_lot(spec["usd"] * lev / px, lot)
+        if float(amount) <= 0:
+            return tr("order_fail", lang).format("amount=0")
+        ok = True
+        try:
+            cl.update_margin_mode(sym, True)
+            cl.update_leverage(sym, int(lev))
+        except PacificaError:
+            ok = False
+        long_ = side == "long"
+        tp = _round_to_tick(px * (1 + spec["tp"] / 100 * (1 if long_ else -1)),
+                            tick)
+        sl = _round_to_tick(px * (1 - spec["sl"] / 100 * (1 if long_ else -1)),
+                            tick)
+        res = cl.create_market_order(
+            sym, "bid" if long_ else "ask", str(amount), "0.5",
+            take_profit_price=tp, stop_loss_price=sl,
+            take_profit_limit=True)
+        note = "" if ok else "\n⚠️ margin/leverage setting unconfirmed"
+        return tr("order_done", lang).format(
+            sym, side, f"{spec['usd']:g}", f"{lev:g}", f"{px:,.6g}",
+            tp, sl) + note
+    except Exception as e:
+        return tr("order_fail", lang).format(
+            f"{type(e).__name__}: {str(e)[:120]}")
 
 
 # ── 프린트 실행 흐름 (운영자 전용, 08-24 사용자 설계) ────────────────────
