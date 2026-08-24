@@ -751,6 +751,18 @@ T = {
         "pt": "Falha na atualização. Rode: pip install -U ocean-agent",
         "tr": "Güncelleme başarısız. Elle: pip install -U ocean-agent",
         "es": "Falló la actualización. Ejecuta: pip install -U ocean-agent"},
+    "print_wait": {
+        "ko": "⏳ 프린트 판정 계산 중입니다 (과거 데이터 전체 대조, 수십 초에서 몇 분). 끝나면 바로 보내드릴게요. 그동안 다른 질문은 계속 됩니다.",
+        "en": "⏳ Computing the Print verdict (full history check, tens of seconds to a few minutes). I will send it when done; other questions keep working meanwhile.",
+        "zh": "⏳ 正在计算 Print 判定（对照全部历史数据，数十秒到几分钟）。完成后立即发送，期间其他问题照常回答。",
+        "ja": "⏳ Print 判定を計算中です（全履歴と照合、数十秒〜数分）。完了次第お送りします。その間も他の質問には答えられます。",
+        "vi": "⏳ Đang tính phán định Print (đối chiếu toàn bộ lịch sử, vài chục giây đến vài phút). Xong sẽ gửi ngay; các câu hỏi khác vẫn hoạt động.",
+        "hi": "⏳ Print निर्णय की गणना हो रही है (पूरा इतिहास, दसियों सेकंड से कुछ मिनट)। पूरा होते ही भेजूँगा; बाकी सवाल चलते रहेंगे।",
+        "id": "⏳ Menghitung vonis Print (cek seluruh riwayat, puluhan detik hingga beberapa menit). Akan dikirim begitu selesai; pertanyaan lain tetap dilayani.",
+        "ru": "⏳ Считаю вердикт по Print (сверка всей истории, от десятков секунд до пары минут). Пришлю, как закончу; остальные вопросы работают.",
+        "pt": "⏳ Calculando o veredicto do Print (histórico completo, de dezenas de segundos a alguns minutos). Envio assim que terminar; outras perguntas continuam funcionando.",
+        "tr": "⏳ Print kararı hesaplanıyor (tüm geçmişle karşılaştırma, onlarca saniye ile birkaç dakika). Bitince göndereceğim; diğer sorular çalışmaya devam eder.",
+        "es": "⏳ Calculando el veredicto del Print (historial completo, de decenas de segundos a unos minutos). Lo envío al terminar; las demás preguntas siguen funcionando."},
     "print_yes": {
         "ko": "✅ 지금 잡을 만한 프린트가 있습니다 (실제 APY가 손익분기보다 높음). 아래 ✅ 줄을 보세요.",
         "en": "✅ There IS a print worth taking now (actual APY above breakeven). See the ✅ rows below.",

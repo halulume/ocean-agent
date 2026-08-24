@@ -130,6 +130,39 @@ def _carry_alerts(root, hours=24):
     return "\n".join(out) if out else "No data."
 
 
+_PRINT_BUSY = {"on": False, "token": "", "cid": ""}
+
+
+def _print_async(env, lang):
+    """recommend_now grinds through years of price history and can take
+    minutes; run sync it froze the whole poll loop and every later message
+    queued silently (08-24, seen live). The verdict is computed in a
+    worker thread and delivered when ready; the caller gets an instant
+    notice, and a second /print while one is running just says so."""
+    from .telebot_i18n import tr
+    import threading
+    if _PRINT_BUSY["on"]:
+        return tr("print_wait", lang)
+    tok, cid = _PRINT_BUSY["token"], _PRINT_BUSY["cid"]
+    if not tok or not cid:
+        return _print_answer(env, lang)      # no send channel: stay sync
+    _PRINT_BUSY["on"] = True
+
+    def work():
+        try:
+            out = _print_answer(env, lang)
+        except Exception as e:
+            out = f"Print 판정 실패: {type(e).__name__}"
+        finally:
+            _PRINT_BUSY["on"] = False
+        try:
+            _send(tok, cid, out)
+        except Exception:
+            pass
+    threading.Thread(target=work, daemon=True).start()
+    return tr("print_wait", lang)
+
+
 def _print_answer(env, lang="ko"):
     """Pacifica Print verdict: the shipped judge (print_eval.recommend_now)
     reprices every live print against 9y of history and the currently lit
@@ -202,7 +235,7 @@ def handle(cmd, env, root, lang="ko"):
     if cmd == "/pick":
         return _pick_table(root, lang)
     if cmd == "/print":
-        return _print_answer(env, lang)
+        return _print_async(env, lang)
     if cmd == "/funding":
         return _funding_table(cl, top=10)
     if cmd == "/carry":
@@ -1335,6 +1368,7 @@ def _process_update(u, env, root, gate, central, token):
             _call(token, "sendChatAction", chat_id=cid, action="typing")
         except Exception:
             pass
+        _PRINT_BUSY["token"], _PRINT_BUSY["cid"] = token, cid
     # owner says the update word while a newer version is known -> the bot
     # upgrades itself and restarts; only the owner, never members
     if _UPD["latest"] and cid == gate:
