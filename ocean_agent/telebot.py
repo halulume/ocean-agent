@@ -23,6 +23,7 @@ forwarded through the existing notify channel, which reads the same token.
 """
 import json
 import os
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -399,12 +400,17 @@ def _llm_answer(env, question, data, lang="ko", provider="claude",
     return None
 
 
-def chat(text, env, root, lang="ko"):
+def chat(text, env, root, lang="ko", cid="solo"):
     """자유 문장 → 의도 추정 → 실데이터 답. 모르면 메뉴.
     ANTHROPIC_API_KEY 가 있으면(유료 버전) 같은 데이터를 하이쿠가 문장으로
-    풀어서 답한다. 입출력 인터페이스는 무료 버전과 동일하다."""
+    풀어서 답한다. 입출력 인터페이스는 무료 버전과 동일하다.
+    이 함수에 도달하는 채팅은 운영자의 것뿐이라(개인 모드 게이트, 중앙
+    모드는 관리자만) 자동매매 켜고 끄기도 여기서 받는다."""
     if text.startswith("/"):
         return handle(text, env, root, lang)
+    ex = _exec_step(text.lower(), cid, root, lang)
+    if ex:
+        return ex
     base = _rule_answer(text, env, root, lang)
     cli_ok = env.get("TELEBOT_CLI_MIRROR", "") == "1"   # 옵트인 전엔 봉인
     return ((cli_ok and _cli_answer(text, base))
@@ -421,25 +427,131 @@ def _rule_answer(text, env, root, lang="ko"):
     syms = [m["symbol"] for m in cl.get_markets()]
     sym = _sym_in(text, syms, lang)
     low = text.lower()
-    # Keyword match on the union of English + the user's language.
-    has = lambda intent: any(k in low for k in intent_words(intent, lang))
-    if sym and has("why"):
+    if sym and _score(low, "why", lang):
         return _why(cl, env, sym, lang)
+    # "펀딩이 뭐야?" is a definition, not a data lookup: glossary first
+    # when the sentence carries a what-is marker and a known term.
+    g = _gloss_hit(low, lang)
+    if g:
+        return g
     if sym:
         return _sym_info(cl, sym, lang)
-    if has("pick"):
-        return handle("/pick", env, root, lang)
-    if has("carry"):
-        return handle("/carry", env, root, lang)
-    if has("funding"):
-        return handle("/funding", env, root, lang)
-    if has("balance"):
-        return handle("/balance", env, root, lang)
-    if has("trades"):
-        return handle("/trades", env, root, lang)
-    if has("bot"):
-        return handle("/bot", env, root, lang)
+    # Best-scoring intent wins, so word combinations resolve to the intent
+    # they share the most (and longest) keywords with, instead of whichever
+    # if-branch happened to come first.
+    DATA = {"pick": "/pick", "carry": "/carry", "funding": "/funding",
+            "balance": "/balance", "trades": "/trades", "bot": "/bot"}
+    TALK = {"help": "help_reply", "alerts": "alerts_info",
+            "greet": "greet_reply", "thanks": "thanks_reply"}
+    best, best_s = None, 0
+    for it in list(DATA) + list(TALK):
+        s = _score(low, it, lang)
+        if s > best_s:
+            best, best_s = it, s
+    if best in DATA:
+        return handle(DATA[best], env, root, lang)
+    if best in TALK:
+        return tr(TALK[best], lang)
     return tr("not_understood", lang) + "\n" + tr("menu", lang)
+
+
+def _score(low, intent, lang):
+    """Sum of matched keyword lengths: longer, more specific words weigh
+    more, so '펀딩 캐리 자리' lands on carry, not funding."""
+    from .telebot_i18n import intent_words
+    return sum(len(k) for k in intent_words(intent, lang) if k in low)
+
+
+def _gloss_hit(low, lang):
+    from .telebot_i18n import GLOSS, gloss, intent_words
+    if not any(k in low for k in intent_words("whatis", lang)):
+        return None
+    hit = None
+    for term, (key,) in GLOSS.items():
+        if term in low and (hit is None or len(term) > len(hit[0])):
+            hit = (term, key)
+    return gloss(hit[1], lang) if hit else None
+
+
+# ── 실행 (운영자 전용): 자동매매 켜고 끄기 ─────────────────────────────
+# Execution over Telegram is limited to the operator's own chat: members
+# registered an address only, and the bot's promise is "no orders leave
+# through me" for them. Every action asks for a yes/no first (the same
+# preview-then-confirm rule the MCP tools follow), and the pending request
+# expires after two minutes.
+_PENDING = {}                    # chat_id -> (action, expires_epoch)
+
+
+def _exec_intent(low, lang):
+    off = _score(low, "auto_off", lang)
+    on = _score(low, "auto_on", lang)
+    if off and off >= on:
+        return "off"
+    return "on" if on else None
+
+
+def _bot_pids():
+    """PIDs of running bracket_trader python processes, via CIM (works for
+    python.exe and pythonw.exe alike, any install path)."""
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "(Get-CimInstance Win32_Process | Where-Object { "
+             "$_.CommandLine -match 'ocean_agent.bracket_trader' -and "
+             "$_.Name -match 'python' }).ProcessId"],
+            capture_output=True, text=True, timeout=30)
+        return [int(x) for x in r.stdout.split() if x.strip().isdigit()]
+    except Exception:
+        return []
+
+
+def _exec_apply(action, root, lang):
+    from .telebot_i18n import tr
+    import subprocess
+    pids = _bot_pids()
+    if action == "on":
+        if pids:
+            return tr("exec_already_on", lang)
+        logf = open(os.path.join(root, "outputs", "bracket_live.log"), "a",
+                    encoding="utf-8")
+        # DETACHED_PROCESS | CREATE_NO_WINDOW: survives the telebot, shows
+        # nothing. stdin=DEVNULL is the MCP zombie lesson (08-22).
+        subprocess.Popen(
+            [sys.executable, "-u", "-m", "ocean_agent.bracket_trader"],
+            cwd=root, stdout=logf, stderr=logf,
+            stdin=subprocess.DEVNULL,
+            creationflags=0x08000008 if os.name == "nt" else 0)
+        return tr("exec_done_on", lang)
+    if not pids:
+        return tr("exec_already_off", lang)
+    for pid in pids:
+        try:
+            subprocess.run(["powershell", "-NoProfile", "-Command",
+                            f"Stop-Process -Id {pid} -Force"],
+                           capture_output=True, timeout=30)
+        except Exception:
+            pass
+    return tr("exec_done_off", lang)
+
+
+def _exec_step(low, cid, root, lang):
+    """Reply if this message belongs to the execution flow, else None."""
+    from .telebot_i18n import tr
+    p = _PENDING.get(cid)
+    if p and time.time() < p[1]:
+        if _score(low, "yes", lang):
+            _PENDING.pop(cid, None)
+            return _exec_apply(p[0], root, lang)
+        if _score(low, "no", lang):
+            _PENDING.pop(cid, None)
+            return tr("exec_cancel", lang)
+    act = _exec_intent(low, lang)
+    if act:
+        _PENDING[cid] = (act, time.time() + 120)
+        return tr("exec_confirm_on" if act == "on" else "exec_confirm_off",
+                  lang)
+    return None
 
 
 # ── 중앙 운영 모드 ────────────────────────────────────────────────────
@@ -531,7 +643,9 @@ def _handle_member(text, chat_id, env, root, admin):
     if text.startswith("/"):
         return handle(text, e2, root, lang)
     if admin and chat_id == admin:
-        return chat(text, e2, root, lang)
+        return chat(text, e2, root, lang, cid=chat_id)
+    if _exec_intent(text.lower(), lang):
+        return tr("exec_member_no", lang)
     base = _rule_answer(text, e2, root, lang)
     if u.get("paid"):
         # paid members bring their own AI key (Claude/GPT/Gemini/Grok);
@@ -541,6 +655,40 @@ def _handle_member(text, chat_id, env, root, admin):
                            provider=u.get("provider") or "claude",
                            token=u.get("token") or None) or base
     return base
+
+
+def _register_commands(token):
+    """setMyCommands: typing / in the chat pops the command list. English
+    is the default scope; Korean gets its own localized set."""
+    cmds = {
+        "en": [("pick", "latest pick ranking"),
+               ("funding", "funding ranking"),
+               ("carry", "funding-carry seats"),
+               ("bot", "bot status and recent fills"),
+               ("balance", "account balance"),
+               ("trades", "recent fills"),
+               ("menu", "everything I can do"),
+               ("mode", "free / paid tier")],
+        "ko": [("pick", "추천픽 순위 (최근 계산본)"),
+               ("funding", "펀딩 순위"),
+               ("carry", "펀딩캐리 자리·알람"),
+               ("bot", "봇 상태·최근 체결"),
+               ("balance", "계좌 잔고"),
+               ("trades", "최근 체결 이력"),
+               ("menu", "전체 기능 보기"),
+               ("mode", "무료/유료 모드 전환")],
+    }
+    for code, rows in cmds.items():
+        body = json.dumps([{"command": c, "description": d}
+                           for c, d in rows])
+        try:
+            if code == "en":
+                _call(token, "setMyCommands", commands=body)
+            else:
+                _call(token, "setMyCommands", commands=body,
+                      language_code=code)
+        except Exception:
+            pass                 # cosmetic; the bot works without it
 
 
 def main():
@@ -560,6 +708,7 @@ def main():
     print("텔레봇 시작"
           + (" (중앙 운영 모드)" if central else " (개인 모드)")
           + ". 중지: Ctrl+C")
+    _register_commands(token)
     offset = 0
     while True:
         try:
@@ -643,7 +792,7 @@ def _process_update(u, env, root, gate, central, token):
         else:
             if gate and cid != gate:
                 return        # 개인 모드: 등록된 챗만
-            out = chat(text, env, root)
+            out = chat(text, env, root, cid=cid)
     except Exception as ex:
         from .telebot_i18n import tr
         lang = "ko"

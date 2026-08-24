@@ -414,28 +414,207 @@ T = {
         "ja": "エラー: {}", "vi": "Lỗi: {}", "hi": "त्रुटि: {}",
         "id": "Kesalahan: {}", "ru": "Ошибка: {}", "pt": "Erro: {}",
         "tr": "Hata: {}", "es": "Error: {}"},
+    # Small-talk replies for the rule tier. Every other language falls back
+    # to English through tr(); only ko/en are written out.
+    "greet_reply": {
+        "ko": "안녕하세요! 픽 순위, 잔고, 봇 상태, 펀딩 같은 걸 물어보시면 "
+              "실데이터로 답해드립니다. /menu 를 치면 전체 목록이 나옵니다.",
+        "en": "Hello! Ask me about picks, balance, bot status or funding "
+              "and I answer from live data. /menu shows everything."},
+    "thanks_reply": {
+        "ko": "감사합니다! 더 궁금한 게 있으면 언제든 물어보세요.",
+        "en": "Thank you! Ask me anything else anytime."},
+    "alerts_info": {
+        "ko": "알림 안내: 이 봇이 보내는 알림은 체결·경고 같은 상태 알림입니다. "
+              "조언성 경고를 끄려면 policy.yaml 에 "
+              "bracket_advisory_alerts: false 를 넣으면 됩니다 (로그에는 "
+              "계속 남습니다). 체결 알림은 끄지 않는 걸 권장합니다.",
+        "en": "About alerts: this bot sends status alerts (fills, warnings). "
+              "To silence advisory warnings put bracket_advisory_alerts: "
+              "false in policy.yaml (they stay in the log). Fill alerts are "
+              "best left on."},
+    "help_reply": {
+        "ko": "저는 고정된 조회 질문에 실데이터로 답하는 무료 모드입니다. "
+              "자유로운 대화는 유료 모드(본인 AI 키 등록, /mode)에서 됩니다.\n"
+              "무료로 물어볼 수 있는 것: 픽 순위(/pick), 펀딩(/funding), "
+              "캐리(/carry), 봇 상태(/bot), 잔고(/balance), 체결(/trades), "
+              "종목명(예: 비트코인), \"왜 잃었어 SOL\" 같은 질문.",
+        "en": "I am the free tier: fixed lookup questions answered from "
+              "live data. Free-form conversation needs the paid tier (your "
+              "own AI key, /mode).\nFree questions: /pick /funding /carry "
+              "/bot /balance /trades, a symbol name, or \"why did SOL "
+              "lose\"."},
+    # Execution flow (operator only; members get exec_member_no)
+    "exec_confirm_on": {
+        "ko": "자동매매(브래킷 봇)를 시작할까요? 실제 주문이 나갑니다.\n"
+              "'예'라고 답하면 시작, '아니'면 취소합니다. (2분 내)",
+        "en": "Start auto trading (bracket bot)? Real orders will be "
+              "placed.\nReply 'yes' to start, 'no' to cancel. (2 min)"},
+    "exec_confirm_off": {
+        "ko": "자동매매를 중지할까요? 열려 있는 포지션은 거래소의 익절·손절이 "
+              "계속 지킵니다.\n'예'면 중지, '아니'면 취소합니다. (2분 내)",
+        "en": "Stop auto trading? Open positions stay protected by the "
+              "exchange-side TP/SL.\nReply 'yes' to stop, 'no' to cancel."},
+    "exec_done_on": {
+        "ko": "시작 명령을 보냈습니다. 안전가드(직전 봇 흔적 10분)에 걸리면 "
+              "거부될 수 있으니 잠시 후 /bot 으로 확인하세요.",
+        "en": "Start command sent. The safety guard (10-min trace of the "
+              "previous bot) may refuse; check /bot in a moment."},
+    "exec_done_off": {
+        "ko": "자동매매를 중지했습니다. 포지션 보호(거래소 익절·손절)는 그대로 "
+              "살아 있습니다. /bot 으로 확인하세요.",
+        "en": "Auto trading stopped. Exchange-side TP/SL protection stays "
+              "on. Check /bot."},
+    "exec_already_on": {
+        "ko": "자동매매가 이미 돌고 있습니다. /bot 으로 상태를 보세요.",
+        "en": "Auto trading is already running. See /bot."},
+    "exec_already_off": {
+        "ko": "지금 자동매매가 돌고 있지 않습니다.",
+        "en": "Auto trading is not running now."},
+    "exec_cancel": {
+        "ko": "취소했습니다.", "en": "Cancelled."},
+    "exec_member_no": {
+        "ko": "이 방에서는 주문·매매 실행이 되지 않습니다 (지갑 주소만 등록된 "
+              "조회 전용). 자동매매는 본인 컴퓨터에 ocean-agent 를 설치해 "
+              "본인 키로 돌리는 방식입니다: pip install ocean-agent",
+        "en": "Execution is not available here (address-only, read-only). "
+              "Auto trading runs on YOUR machine with your own keys: "
+              "pip install ocean-agent"},
+    "gloss_none": {
+        "ko": "그 용어는 아직 사전에 없습니다. /menu 로 물어볼 수 있는 것들을 "
+              "보여드립니다.",
+        "en": "That term is not in my glossary yet. /menu shows what you "
+              "can ask."},
 }
+
+# Mini glossary for the free tier ("펀딩이 뭐야?"). ko/en only; other
+# languages read the English entry through the same fallback as tr().
+GLOSS = {
+    "펀딩": ("funding",),
+    "funding": ("funding",),
+    "캐리": ("carry",),
+    "carry": ("carry",),
+    "브래킷": ("bracket",),
+    "bracket": ("bracket",),
+    "픽": ("pick",),
+    "pick": ("pick",),
+    "봉인": ("pick",),
+    "레버리지": ("leverage",),
+    "leverage": ("leverage",),
+    "청산": ("liquidation",),
+    "liquidation": ("liquidation",),
+    "숏": ("short",),
+    "short": ("short",),
+    "롱": ("long",),
+    "long": ("long",),
+}
+
+GLOSS_TEXT = {
+    "funding": {
+        "ko": "펀딩비: 무기한 선물에서 롱과 숏이 주기적으로 주고받는 수수료입니다. "
+              "선물 가격이 현물보다 높으면 롱이 숏에게, 낮으면 숏이 롱에게 냅니다. "
+              "/funding 으로 지금 순위를 볼 수 있습니다.",
+        "en": "Funding: the periodic fee longs and shorts exchange on "
+              "perpetuals. Perp above spot: longs pay shorts; below: shorts "
+              "pay longs. /funding shows the current ranking."},
+    "carry": {
+        "ko": "펀딩 캐리: 현물(또는 반대 포지션)과 무기한을 동시에 들어 가격 "
+              "위험을 지우고 펀딩비만 수취하는 전략입니다. /carry 로 지금 "
+              "자리를 볼 수 있습니다.",
+        "en": "Funding carry: hold the perp against an offsetting leg so "
+              "price risk cancels and you collect funding. /carry shows "
+              "current seats."},
+    "bracket": {
+        "ko": "브래킷: 진입과 동시에 거래소에 익절(예상변동 1.5배)과 손절(1.0배) "
+              "주문을 함께 걸어두는 방식입니다. 봇이 죽어도 거래소가 지킵니다.",
+        "en": "Bracket: entry placed together with exchange-side TP (1.5x "
+              "expected move) and SL (1.0x). The exchange protects the "
+              "position even if the bot dies."},
+    "pick": {
+        "ko": "픽(봉인): 매 시각 전 종목의 예상 변동폭을 재서 큰 순서로 뽑은 "
+              "추천 목록입니다. 결과가 나오기 전에 파일로 봉인해 두고 나중에 "
+              "채점합니다. /pick 으로 최신 픽을 봅니다.",
+        "en": "Pick (sealed): every hour all symbols are ranked by expected "
+              "move and the list is sealed to a file before outcomes exist, "
+              "then graded later. /pick shows the latest."},
+    "leverage": {
+        "ko": "레버리지: 증거금의 몇 배 크기로 포지션을 여는지입니다. 5배면 "
+              "가격이 1% 움직일 때 증거금 기준 5% 움직입니다. 청산 위험도 "
+              "같이 커집니다.",
+        "en": "Leverage: position size as a multiple of margin. At 5x a 1% "
+              "price move is 5% on margin. Liquidation risk grows with it."},
+    "liquidation": {
+        "ko": "청산: 손실이 증거금을 다 먹으면 거래소가 강제로 포지션을 닫는 "
+              "것입니다. 브래킷의 손절은 그 전에 먼저 끊어서 청산을 피하기 "
+              "위한 장치입니다.",
+        "en": "Liquidation: the exchange force-closes a position when losses "
+              "eat the margin. The bracket stop exists to cut earlier and "
+              "avoid it."},
+    "short": {
+        "ko": "숏: 내리면 버는 포지션입니다. 빌려서 팔고 싸게 되사는 구조라 "
+              "가격이 오르면 손실입니다.",
+        "en": "Short: a position that profits when price falls and loses "
+              "when it rises."},
+    "long": {
+        "ko": "롱: 오르면 버는 포지션입니다.",
+        "en": "Long: a position that profits when price rises."},
+}
+
+
+def gloss(term_key: str, lang: str) -> str:
+    d = GLOSS_TEXT.get(term_key, {})
+    return d.get(lang) or d.get("en") or ""
 
 # Intent keywords, lowercase; matched as substrings of the lowercased text.
 # English is always included as a base, the user's language is added on top.
 INTENT = {
     "ko": {
-        "pick": ["픽", "추천", "종목", "뭐 사", "뭐 잡", "뭐사", "뭐잡"],
-        "carry": ["캐리", "차익", "자리", "알람"],
+        "pick": ["픽", "추천", "종목", "뭐 사", "뭐 잡", "뭐사", "뭐잡",
+                 "오를", "유망"],
+        "carry": ["캐리", "차익", "자리"],
         "funding": ["펀딩"],
-        "balance": ["잔고", "얼마 있", "돈", "계좌"],
+        "balance": ["잔고", "잔액", "얼마 있", "돈", "계좌", "수익", "손실",
+                    "익절", "손절"],
         "trades": ["체결", "이력", "내역", "거래"],
-        "bot": ["봇", "상태", "잘 돌", "돌아가"],
-        "why": ["왜", "이유", "먹혔", "잃었", "졌"]},
+        "bot": ["봇", "상태", "잘 돌", "돌아가", "포지션", "매매", "지금 뭐",
+                "뭐하고", "뭐 하고"],
+        "why": ["왜", "이유", "먹혔", "잃었", "졌", "털렸"],
+        "greet": ["안녕", "하이", "ㅎㅇ", "반가", "안뇽", "헬로"],
+        "thanks": ["고마", "감사", "땡큐", "굿", "잘했", "좋아", "멋지"],
+        "alerts": ["경고", "알림", "알람"],
+        "help": ["도움", "도와", "사용법", "쓰는 법", "뭐 할 수", "뭐할수",
+                 "기능", "할 줄"],
+        "auto_on": ["자동매매", "자동 매매", "매매 시작", "매매 켜",
+                    "봇 켜", "봇 시작", "트레이딩 시작", "돌려줘", "가동"],
+        "auto_off": ["매매 꺼", "매매 중지", "매매 멈춰", "봇 꺼", "봇 중지",
+                     "봇 멈춰", "매매 그만", "정지시켜", "중단"],
+        "yes": ["예", "네", "응", "ㅇㅇ", "그래", "좋아 해", "확인", "고고",
+                "시작해", "해줘"],
+        "no": ["아니", "취소", "안 해", "안해", "하지마", "하지 마", "노노"],
+        "whatis": ["뭐야", "뭔데", "무엇", "뜻이", "란?", "이란", "라는게",
+                   "라는 게", "개념"]},
     "en": {
         "pick": ["pick", "recommend", "what to buy", "what should i buy",
-                 "suggestion"],
+                 "suggestion", "ranking"],
         "carry": ["carry", "arbitrage", " arb "],
         "funding": ["funding"],
-        "balance": ["balance", "how much", "money", "account"],
+        "balance": ["balance", "how much", "money", "account", "profit",
+                    "pnl", "loss"],
         "trades": ["trade", "fill", "history"],
-        "bot": ["bot", "status", "running"],
-        "why": ["why", "reason", "lost", "won"]},
+        "bot": ["bot", "status", "running", "position", "what are you doing"],
+        "why": ["why", "reason", "lost", "won"],
+        "greet": ["hello", "hi ", "hey", "good morning", "good evening"],
+        "thanks": ["thank", "thx", "nice", "great", "good job", "well done"],
+        "alerts": ["alert", "warning", "notification", "ping"],
+        "help": ["help", "how to", "what can you", "usage", "guide"],
+        "auto_on": ["auto trade", "auto-trade", "start trading", "start bot",
+                    "turn on", "run the bot"],
+        "auto_off": ["stop trading", "stop bot", "turn off", "halt",
+                     "shut down"],
+        "yes": ["yes", "yeah", "yep", "ok", "okay", "confirm", "go ahead",
+                "do it"],
+        "no": ["no ", "nope", "cancel", "don't", "stop it", "never mind"],
+        "whatis": ["what is", "what's", "meaning of", "explain", "define"]},
     "zh": {
         "pick": ["推荐", "买什么", "选币", "排行"],
         "carry": ["套利", "费率差"],
