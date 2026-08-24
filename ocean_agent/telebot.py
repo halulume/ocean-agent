@@ -163,6 +163,97 @@ def _print_async(env, lang):
     return tr("print_wait", lang)
 
 
+def _print_watch_loop(token, cid, env, root):
+    """Hourly Print watch for every shipped bot, not just the operator.
+
+    The operator's research watcher alarms only the operator's Telegram; a
+    pip user got /print on demand but no push (2026-08-25 user order:
+    "신규자도 알아서 알림받고 해야돼"). This thread reprices every live
+    Print each hour and pushes an alert when a combination clears its
+    breakeven. Dedup: only when the ✅ set changes, so the same list never
+    rings twice. The opportunity file it writes is the same one the
+    'print execute' flow reads, so alert -> reply -> amount -> order works
+    end to end. Never places an order by itself. Opt out:
+    TELEBOT_PRINT_WATCH=0.
+    """
+    from .telebot_i18n import tr
+    from .api_client import PacificaClient
+    from .print_eval import recommend_now
+    time.sleep(180)                       # let startup traffic settle
+    while True:
+        try:
+            if _PRINT_BUSY["on"]:
+                time.sleep(300)
+                continue
+            _print_watch_once(token, cid, env, root)
+        except Exception:
+            pass                          # a watcher must outlive one bad hour
+        time.sleep(3600)
+
+
+def _print_watch_once(token, cid, env, root):
+    """One watch pass: judge, dedup, write the opportunity file, push."""
+    from .telebot_i18n import tr
+    from .api_client import PacificaClient
+    from .print_eval import recommend_now
+    state_p = os.path.join(root, "outputs", "print_watch_state.json")
+    opp_p = os.path.join(root, "outputs", "print_opportunity.json")
+    _PRINT_BUSY["on"] = True
+    try:
+        cl = PacificaClient(env.get("PACIFICA_BASE_URL",
+                                    "https://api.pacifica.fi"))
+        txt = recommend_now(cl)
+    finally:
+        _PRINT_BUSY["on"] = False
+    game, hits = "", []
+    for ln in txt.splitlines():
+        s = ln.strip()
+        if s.startswith("=== "):
+            game = s.split()[1]
+        elif (s.startswith("✅") and not s.startswith("✅ =")
+                and "%" in s):
+            t = s.split()
+            try:
+                hits.append({"game": game, "side": t[1],
+                             "dist": float(t[2].rstrip("%")),
+                             "lev": float(t[3].rstrip("x")),
+                             "apy": float(t[4].rstrip("%")),
+                             "breakeven": float(t[5].rstrip("%")),
+                             "row": s})
+            except (IndexError, ValueError):
+                continue
+    oks = [h["row"] for h in hits]
+    try:
+        with open(state_p, encoding="utf-8") as f:
+            prev = json.load(f).get("ok", [])
+    except (OSError, ValueError):
+        prev = []
+    if oks and oks != prev:
+        best = max(hits, key=lambda h: h["apy"] - h["breakeven"])
+        os.makedirs(os.path.dirname(opp_p), exist_ok=True)
+        with open(opp_p, "w", encoding="utf-8") as f:
+            json.dump({"at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                       "best": best, "rows": hits}, f,
+                      ensure_ascii=False, indent=1)
+        lang = _pers_lang(root) or "ko"
+        combos = {}
+        for h in hits:
+            key = (h["game"], h["side"], h["dist"])
+            combos.setdefault(key, {"levs": [], "apy": h["apy"],
+                                    "be": h["breakeven"]})
+            combos[key]["levs"].append(f"{h['lev']:g}")
+        lines = [tr("print_yes", lang), ""]
+        for (g, side, dist), v in combos.items():
+            lines.append(tr("print_combo", lang).format(
+                g, side, f"{dist}%", "·".join(v["levs"]) + "x",
+                f"{v['apy']:.0f}%", f"{v['be']:.0f}%"))
+        lines += ["", tr("print_alert_hint", lang)]
+        _send(token, cid, "\n".join(lines))
+    os.makedirs(os.path.dirname(state_p), exist_ok=True)
+    with open(state_p, "w", encoding="utf-8") as f:
+        json.dump({"ok": oks}, f, ensure_ascii=False)
+
+
 def _print_answer(env, lang="ko"):
     """Pacifica Print verdict, compact (08-24 user order: no table dump).
 
@@ -1390,6 +1481,13 @@ def main():
         _LOCAL["state"] = "preparing"
         import threading
         threading.Thread(target=_prepare_local, daemon=True).start()
+    # Built-in hourly Print watch: every shipped bot pushes opportunities
+    # to its owner, alert -> 'print execute' -> amount -> order. Needs a
+    # chat to push to; central mode alerts the operator chat when set.
+    if gate and env.get("TELEBOT_PRINT_WATCH", "1") != "0":
+        import threading
+        threading.Thread(target=_print_watch_loop,
+                         args=(token, gate, env, root), daemon=True).start()
     offset = 0
     while True:
         # version watch: at startup and every six hours, tell the owner

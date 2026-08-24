@@ -800,6 +800,18 @@ T = {
         "pt": "Falha na ordem: {}",
         "tr": "Emir başarısız: {}",
         "es": "Orden fallida: {}"},
+    "print_alert_hint": {
+        "ko": "실행하려면 '프린트 실행'이라고 답하세요. 넘기려면 무시하면 됩니다.",
+        "en": "Reply 'print execute' to take it, or ignore to pass.",
+        "zh": "回复 'print execute' 即可执行，忽略则跳过。",
+        "ja": "実行するには 'print execute' と返信してください。無視すればスキップします。",
+        "vi": "Trả lời 'print execute' để thực hiện, bỏ qua nếu không muốn.",
+        "hi": "लेने के लिए 'print execute' का जवाब दें, छोड़ने के लिए अनदेखा करें।",
+        "id": "Balas 'print execute' untuk mengambil, abaikan untuk melewati.",
+        "ru": "Ответьте 'print execute', чтобы исполнить, или игнорируйте.",
+        "pt": "Responda 'print execute' para executar, ou ignore para pular.",
+        "tr": "Almak için 'print execute' yazın, geçmek için yok sayın.",
+        "es": "Responde 'print execute' para tomarlo, o ignora para pasar."},
     "print_combo": {
         "ko": "▶ {} {} 거리 {} · 가능 배수 {} · 실제 {} vs 본전 {}",
         "en": "▶ {} {} dist {} · leverages {} · actual {} vs breakeven {}",
