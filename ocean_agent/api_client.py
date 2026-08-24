@@ -165,7 +165,8 @@ class PacificaClient:
                             builder_code: str = "",
                             take_profit_price: str = "",
                             stop_loss_price: str = "",
-                            trigger_price_type: str = "mark_price") -> dict:
+                            trigger_price_type: str = "mark_price",
+                            take_profit_limit: bool = False) -> dict:
         """시장가 주문. side는 'bid'(매수) 또는 'ask'(매도).
 
         take_profit_price / stop_loss_price 를 넘기면 거래소에 TP/SL을 함께
@@ -210,6 +211,16 @@ class PacificaClient:
         if take_profit_price:
             payload["take_profit"] = {"stop_price": str(take_profit_price),
                                       "trigger_price_type": trigger_price_type}
+            # Limit execution for the TP leg (user decision 08-24): when
+            # triggered the exchange places a LIMIT at the same price instead
+            # of a market order, so the fill pays maker fee (0.015% vs 0.04%)
+            # and cannot slip past the line. The exchange still manages the
+            # TP/SL pair together. Documented risk: a wick that touches the
+            # trigger without trading through can leave the limit unfilled,
+            # in which case the position runs on to the SL or the 24h expiry.
+            # The price is the SAME tp, so the frozen geometry is untouched.
+            if take_profit_limit:
+                payload["take_profit"]["limit_price"] = str(take_profit_price)
         if stop_loss_price:
             payload["stop_loss"] = {"stop_price": str(stop_loss_price),
                                     "trigger_price_type": trigger_price_type}
@@ -318,7 +329,8 @@ class PacificaClient:
     def set_position_tpsl(self, symbol: str, side: str,
                           take_profit_price: str = "",
                           stop_loss_price: str = "",
-                          trigger_price_type: str = "mark_price") -> dict:
+                          trigger_price_type: str = "mark_price",
+                          take_profit_limit: bool = False) -> dict:
         """이미 열려 있는 포지션에 TP/SL을 사후 부착한다.
 
         side는 '포지션의 방향'(bid=롱, ask=숏)을 넘긴다. 파시피카 TP/SL 주문은
@@ -335,6 +347,8 @@ class PacificaClient:
             payload["take_profit"] = {"stop_price": str(take_profit_price),
                                       "trigger_price_type": trigger_price_type,
                                       "client_order_id": str(uuid.uuid4())}
+            if take_profit_limit:
+                payload["take_profit"]["limit_price"] = str(take_profit_price)
         if stop_loss_price:
             payload["stop_loss"] = {"stop_price": str(stop_loss_price),
                                     "trigger_price_type": trigger_price_type,

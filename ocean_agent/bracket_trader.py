@@ -912,7 +912,8 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             client.create_market_order(
                 sym, "bid" if long_ else "ask", str(amount), "0.5",
                 builder_code=policy.get("builder_code", ""),
-                take_profit_price=tp_s, stop_loss_price=sl_s)
+                take_profit_price=tp_s, stop_loss_price=sl_s,
+                take_profit_limit=_tp_limit)
             # read back the fill so the record holds reality, not intent.
             # a few retries (BR5); if it still cannot be read, record the
             # intent but say so, and let later loops repair it.
@@ -1017,7 +1018,8 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                         client.set_position_tpsl(
                             sym, "bid" if long_ else "ask",
                             take_profit_price="" if has_tp else tp_s,
-                            stop_loss_price="" if has_sl else sl_s)
+                            stop_loss_price="" if has_sl else sl_s,
+                            take_profit_limit=_tp_limit)
                         has_tp, has_sl, sym_orders = \
                             _exchange_brackets(client, sym)
                     except PacificaError:
@@ -1532,6 +1534,7 @@ _last_seal_gen: float = 0.0
 # bracket_selfgen_seal: false in policy.yaml so the bot never competes
 # with it; the shipped default (no key) keeps self-generation on.
 _selfgen_enabled: bool = True
+_tp_limit: bool = False      # TP leg executes as limit when triggered (08-24)
 
 
 def _newest_seal_age_h() -> float:
@@ -1656,8 +1659,11 @@ def main():
                 ".env 에 ADDRESS 와 PACIFICA_API_KEY 를 넣고 다시 시작하세요.")
             return
     cfg = apply_budget(bracket_cfg(policy))
-    global _selfgen_enabled
+    global _selfgen_enabled, _tp_limit
     _selfgen_enabled = bool(policy.get("bracket_selfgen_seal", True))
+    _tp_limit = bool(policy.get("bracket_tp_limit", False))
+    if _tp_limit:
+        log("익절 체결: 지정가 (메이커, bracket_tp_limit: true)")
     if not _selfgen_enabled:
         log("봉인 자체 생성 꺼짐 (bracket_selfgen_seal: false), 외부 생성기를 기다립니다")
     use_mode(bracket_mode(policy), args.dry)   # before any file is touched

@@ -166,6 +166,12 @@ bracket_leverage: 5         # 종목 상한이 더 낮으면 그 값
 bracket_deploy_pct: 0.97    # 가용 증거금의 97% 투입 (3%는 수수료·펀딩 버퍼)
 bracket_tp_mult: 1.5        # 익절 = 예상변동폭 x 1.5
 bracket_sl_mult: 1.0        # 손절 = 예상변동폭 x 1.0
+# Take-profit executes as a LIMIT at the same price when triggered (maker
+# fee 0.015% vs taker 0.04%, no slippage past the line). Off by default: a
+# wick that touches the trigger without trading through can leave the limit
+# unfilled, and the position then runs to the stop or the 24h expiry. The
+# stop-loss always executes as market: getting filled is its whole job.
+bracket_tp_limit: false
 bracket_vol_floor_pct: 0.8  # 예상변동 0.8% 미만 픽 제외
 # 호가가 얇아 왕복 비용이 익절폭을 갉아먹는 종목은 봉인에서 빼둔다.
 # 시장의 성질이라 계좌와 무관하게 같다 (2026-08-19 실측):
