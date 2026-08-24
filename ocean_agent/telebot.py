@@ -7,14 +7,14 @@ credit-less user lacks is an entrance. This is that entrance: fixed commands
 long-polling the Telegram API with nothing but the standard library and the
 same functions the MCP tools call.
 
-Commands are deliberately fixed rather than free-form. No model means no
-interpretation, so each command maps to exactly one function and its output
-is the function's own text. That also makes the surface auditable - there is
-nothing this bot can be talked into.
+Free-form sentences route through scored keyword intents (still no model:
+every phrase must be in the table), an optional LLM tier answers in
+conversation when a key is configured, and /commands stay fixed.
 
-No orders. Reading balances, positions, funding tables and alerts is safe to
-expose to a chat app; placing trades is not, and stays with the local
-launcher scripts where the user's own hands are on it.
+Orders: the OPERATOR's own chat can start and stop the bracket bot, always
+behind an exact yes/no confirmation (08-24 user decision). Member chats
+remain read-only - a member's text can never start a trade or reach the
+operator's machine as a prompt.
 
 Setup for a user: make a bot with @BotFather, put TELEGRAM_BOT_TOKEN and
 TELEGRAM_CHAT_ID in .env (the chat id gates who the bot answers), run
@@ -547,8 +547,12 @@ def _exec_intent(low, lang):
 
 def _bot_pids():
     """PIDs of running bracket_trader python processes, via CIM (works for
-    python.exe and pythonw.exe alike, any install path)."""
+    python.exe and pythonw.exe alike, any install path). None on platforms
+    where this lookup does not exist, so callers can tell "not running"
+    apart from "cannot look" (review M2)."""
     import subprocess
+    if os.name != "nt":
+        return None
     try:
         r = subprocess.run(
             ["powershell", "-NoProfile", "-Command",
@@ -564,20 +568,29 @@ def _bot_pids():
 def _exec_apply(action, root, lang):
     from .telebot_i18n import tr
     import subprocess
-    pids = _bot_pids()
+    pids = _bot_pids()                       # None: platform can't look
     if action == "on":
         if pids:
             return tr("exec_already_on", lang)
+        os.makedirs(os.path.join(root, "outputs"), exist_ok=True)
         logf = open(os.path.join(root, "outputs", "bracket_live.log"), "a",
                     encoding="utf-8")
         # DETACHED_PROCESS | CREATE_NO_WINDOW: survives the telebot, shows
-        # nothing. stdin=DEVNULL is the MCP zombie lesson (08-22).
+        # nothing. stdin=DEVNULL is the MCP zombie lesson (08-22). A
+        # duplicate start on platforms where pids is None is caught by the
+        # trader's own heartbeat guard.
         subprocess.Popen(
             [sys.executable, "-u", "-m", "ocean_agent.bracket_trader"],
             cwd=root, stdout=logf, stderr=logf,
             stdin=subprocess.DEVNULL,
             creationflags=0x08000008 if os.name == "nt" else 0)
+        logf.close()                         # the child holds its own copy
         return tr("exec_done_on", lang)
+    if pids is None:
+        # Non-Windows: no honest way to find the process from here yet,
+        # and a silent "not running" while it trades would be a lie
+        # (review M2). Say so instead.
+        return tr("exec_no_stop_platform", lang)
     if not pids:
         return tr("exec_already_off", lang)
     for pid in pids:
@@ -592,15 +605,28 @@ def _exec_apply(action, root, lang):
 
 def _exec_step(low, cid, root, lang):
     """Reply if this message belongs to the execution flow, else None."""
-    from .telebot_i18n import tr
+    from .telebot_i18n import tr, intent_words
     p = _PENDING.get(cid)
-    if p and time.time() < p[1]:
-        if _score(low, "yes", lang):
+    if p and time.time() >= p[1]:
+        _PENDING.pop(cid, None)              # expired: forget it (review M6)
+        p = None
+    if p:
+        # While a confirmation is pending, ONLY an exact yes/no counts.
+        # Substring scoring here approved real orders off the "예" inside
+        # "예측" and the "확인" inside "잔고 확인해줘" (review S1), and the
+        # en keyword "no " with its trailing space meant a literal "no"
+        # did not cancel (S2). Any other sentence falls through unanswered
+        # and the request simply keeps waiting or expires.
+        t = low.strip(" !.?~‼️,")
+        if t in {k.strip() for k in intent_words("yes", lang)}:
             _PENDING.pop(cid, None)
             return _exec_apply(p[0], root, lang)
-        if _score(low, "no", lang):
+        if t in {k.strip() for k in intent_words("no", lang)}:
             _PENDING.pop(cid, None)
             return tr("exec_cancel", lang)
+    # "자동매매란 뭐야?" is a definition question, not an order (review M1)
+    if any(k in low for k in intent_words("whatis", lang)):
+        return None
     act = _exec_intent(low, lang)
     if act:
         _PENDING[cid] = (act, time.time() + 120)

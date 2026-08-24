@@ -686,6 +686,28 @@ T = {
         "es": "La ejecución no está disponible aquí (solo dirección, solo "
               "lectura). El auto trading corre en su máquina con sus "
               "claves: pip install ocean-agent"},
+    "exec_no_stop_platform": {
+        "ko": "이 플랫폼에서는 원격 중지가 아직 지원되지 않습니다. 봇을 켠 "
+              "터미널에서 Ctrl+C 로 중지하세요.",
+        "en": "Remote stop is not supported on this platform yet. Stop the "
+              "bot with Ctrl+C in the terminal that started it.",
+        "zh": "此平台暂不支持远程停止。请在启动机器人的终端中按 Ctrl+C 停止。",
+        "ja": "このプラットフォームでは遠隔停止は未対応です。起動したターミナル"
+              "で Ctrl+C で停止してください。",
+        "vi": "Nền tảng này chưa hỗ trợ dừng từ xa. Dừng bot bằng Ctrl+C "
+              "trong terminal đã khởi động nó.",
+        "hi": "इस प्लेटफ़ॉर्म पर रिमोट स्टॉप समर्थित नहीं। जिस टर्मिनल में बॉट चला है वहाँ "
+              "Ctrl+C दबाएँ।",
+        "id": "Platform ini belum mendukung stop jarak jauh. Hentikan bot "
+              "dengan Ctrl+C di terminal yang menjalankannya.",
+        "ru": "На этой платформе удалённая остановка пока не поддерживается. "
+              "Остановите бота Ctrl+C в терминале, где он запущен.",
+        "pt": "Parada remota ainda não é suportada nesta plataforma. Pare o "
+              "bot com Ctrl+C no terminal que o iniciou.",
+        "tr": "Bu platformda uzaktan durdurma henüz desteklenmiyor. Botu "
+              "başlatan terminalde Ctrl+C ile durdurun.",
+        "es": "La parada remota aún no está soportada en esta plataforma. "
+              "Detenga el bot con Ctrl+C en la terminal que lo inició."},
     "gloss_none": {
         "ko": "그 용어는 아직 사전에 없습니다. /menu 로 물어볼 수 있는 것들을 "
               "보여드립니다.",
