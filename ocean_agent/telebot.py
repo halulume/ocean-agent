@@ -164,20 +164,40 @@ def _print_async(env, lang):
 
 
 def _print_answer(env, lang="ko"):
-    """Pacifica Print verdict: the shipped judge (print_eval.recommend_now)
-    reprices every live print against 9y of history and the currently lit
-    signals; the reply leads with a one-line verdict in the user's language
-    and attaches the table. First run on a fresh machine downloads price
-    history and can take minutes; the caller is told so up front."""
+    """Pacifica Print verdict, compact (08-24 user order: no table dump).
+
+    The shipped judge (print_eval.recommend_now) reprices every live print
+    against 9y of history and the lit signals; the reply is ONLY the
+    verdict, and when something passes, one line per enterable combination
+    with the leverages that clear breakeven."""
     from .telebot_i18n import tr
     from .api_client import PacificaClient
     from .print_eval import recommend_now
     cl = PacificaClient(env.get("PACIFICA_BASE_URL",
                                 "https://api.pacifica.fi"))
     txt = recommend_now(cl)
-    ok = "✅" in txt
-    head = tr("print_yes" if ok else "print_no", lang)
-    return head + "\n\n" + txt
+    game, combos = "", {}
+    for ln in txt.splitlines():
+        s = ln.strip()
+        if s.startswith("=== "):
+            game = s.split()[1]
+        elif s.startswith("✅") and not s.startswith("✅ =") and "%" in s:
+            t = s.split()
+            try:
+                key = (game, t[1], t[2])            # (game, side, dist)
+                combos.setdefault(key, {"levs": [], "apy": t[4],
+                                        "be": t[5]})
+                combos[key]["levs"].append(t[3].rstrip("x"))
+            except IndexError:
+                continue
+    if not combos:
+        return tr("print_no", lang)
+    lines = [tr("print_yes", lang), ""]
+    for (g, side, dist), v in combos.items():
+        levs = "·".join(v["levs"]) + "x"
+        lines.append(tr("print_combo", lang).format(
+            g, side, dist, levs, v["apy"], v["be"]))
+    return "\n".join(lines)
 
 
 def _pick_table(root, lang="ko", cls=None):

@@ -751,6 +751,19 @@ T = {
         "pt": "Falha na atualização. Rode: pip install -U ocean-agent",
         "tr": "Güncelleme başarısız. Elle: pip install -U ocean-agent",
         "es": "Falló la actualización. Ejecuta: pip install -U ocean-agent"},
+    # {}: game, side, distance, leverages, actual APY, breakeven APY
+    "print_combo": {
+        "ko": "▶ {} {} 거리 {} · 가능 배수 {} · 실제 {} vs 본전 {}",
+        "en": "▶ {} {} dist {} · leverages {} · actual {} vs breakeven {}",
+        "zh": "▶ {} {} 距离 {} · 可用倍数 {} · 实际 {} vs 盈亏平衡 {}",
+        "ja": "▶ {} {} 距離 {} · 可能倍率 {} · 実 {} vs 損益分岐 {}",
+        "vi": "▶ {} {} k/c {} · đòn bẩy {} · thực {} vs hòa vốn {}",
+        "hi": "▶ {} {} दूरी {} · लीवरेज {} · वास्तविक {} vs ब्रेक-ईवन {}",
+        "id": "▶ {} {} jarak {} · leverage {} · aktual {} vs impas {}",
+        "ru": "▶ {} {} дист. {} · плечи {} · факт {} vs безубыток {}",
+        "pt": "▶ {} {} dist {} · alavancagens {} · real {} vs equilíbrio {}",
+        "tr": "▶ {} {} mesafe {} · kaldıraçlar {} · gerçek {} vs başabaş {}",
+        "es": "▶ {} {} dist {} · apalancamientos {} · real {} vs equilibrio {}"},
     "print_wait": {
         "ko": "⏳ 프린트 판정 계산 중입니다 (과거 데이터 전체 대조, 수십 초에서 몇 분). 끝나면 바로 보내드릴게요. 그동안 다른 질문은 계속 됩니다.",
         "en": "⏳ Computing the Print verdict (full history check, tens of seconds to a few minutes). I will send it when done; other questions keep working meanwhile.",
