@@ -1,5 +1,22 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
-  "trailingSlash": false
+  "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/github",
+      "destination": "https://github.com/halulume/ocean-agent",
+      "permanent": false
+    },
+    {
+      "source": "/telegram",
+      "destination": "https://t.me/oceanagentai_bot",
+      "permanent": false
+    },
+    {
+      "source": "/pypi",
+      "destination": "https://pypi.org/project/ocean-agent/",
+      "permanent": false
+    }
+  ]
 }
