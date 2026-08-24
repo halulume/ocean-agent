@@ -186,8 +186,9 @@ bracket_entry_wait_sec: 120
 bracket_sl_limit_buffer: 0.5
 # Who calls long/short at entry. "touch": the seal's own touch-rate direction
 # (shipped behaviour). "signal": the 22-signal net vote on the last closed 1h
-# bar; a silent or tied vote skips the seat entirely. The seal's direction is
-# still recorded either way, so the two rules stay comparable afterwards.
+# bar; a silent or tied vote falls back to the seal's touch-rate direction so
+# every seat still trades (08-24). The record keeps which rule decided
+# ("signal" / "silent_touch"), so the two stay comparable afterwards.
 bracket_side_source: touch
 bracket_vol_floor_pct: 0.8  # 예상변동 0.8% 미만 픽 제외
 # Advisory warnings (thin-book slippage count, running-average shortfall)

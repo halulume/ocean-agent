@@ -834,12 +834,18 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             break
         sym, direction = p["sym"], p["dir"]
         touch_dir = direction
+        seat_src = _side_source
         if _side_source == "signal" and not dry:
             sig_dir = _signal_side(client, sym)
             if sig_dir is None:
-                log(f"{sym}: 신호 침묵/동점, 이 자리 스킵 (부호 결정: 신호)")
-                continue
-            direction = sig_dir
+                # Silence no longer skips the seat (08-24 evening order,
+                # reversing the earlier no-mixing rule): the seal's own
+                # touch-rate ratio decides instead, and the record says so.
+                log(f"{sym}: 신호 침묵/동점 → 봉인 도달률 방향({direction})"
+                    f"으로 진입 (08-24 사용자 지시)")
+                seat_src = "silent_touch"
+            else:
+                direction = sig_dir
         if sym in st["positions"]:
             continue
         if sym in live_syms:
@@ -907,7 +913,7 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             # reconciles this record against the exchange. (review H9)
             st.setdefault("pending_entries", []).append({
                 "sym": sym, "dir": direction, "amount": amount,
-                "touch_dir": touch_dir, "side_source": _side_source,
+                "touch_dir": touch_dir, "side_source": seat_src,
                 "entry_intent": px, "tp": float(tp_s), "sl": float(sl_s),
                 "exp_move_pct": p["exp_move_pct"], "leverage": lev,
                 "at": _now().isoformat(), "seal": key,
@@ -1784,8 +1790,8 @@ def main():
         log("체결 방식: " + " · ".join(modes) + " (08-24 사용자 결정)")
     _side_source = str(policy.get("bracket_side_source", "touch")).lower()
     if _side_source == "signal":
-        log("부호 결정: 22신호 순투표 (침묵이면 그 자리 스킵) — 08-24 사용자 "
-            "결정. 봉인의 도달률 방향은 기록으로만 남는다")
+        log("부호 결정: 22신호 순투표, 침묵이면 봉인 도달률 방향으로 진입 "
+            "(08-24 사용자 결정). 어느 쪽이 정했는지는 기록에 남는다")
     if not _selfgen_enabled:
         log("봉인 자체 생성 꺼짐 (bracket_selfgen_seal: false), 외부 생성기를 기다립니다")
     use_mode(bracket_mode(policy), args.dry)   # before any file is touched
