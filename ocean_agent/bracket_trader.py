@@ -1618,9 +1618,10 @@ def _signal_side(client, sym: str):
         return None
     if not bars or len(bars) < 260:
         return None
-    c = [float(b["c"]) for b in bars]
-    h = [float(b.get("h", b["c"])) for b in bars]
-    lo = [float(b.get("l", b["c"])) for b in bars]
+    # fetch_bars returns (t, o, h, l, c) tuples, not dicts
+    c = [float(b[4]) for b in bars]
+    h = [float(b[2]) for b in bars]
+    lo = [float(b[3]) for b in bars]
     sigs = _signals(_series(c, h, lo))
     net = 0
     j = len(c) - 1
