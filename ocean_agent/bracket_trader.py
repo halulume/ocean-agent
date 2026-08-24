@@ -833,6 +833,13 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
         if held_start + entered_n >= cfg["slots"]:
             break
         sym, direction = p["sym"], p["dir"]
+        touch_dir = direction
+        if _side_source == "signal" and not dry:
+            sig_dir = _signal_side(client, sym)
+            if sig_dir is None:
+                log(f"{sym}: 신호 침묵/동점, 이 자리 스킵 (부호 결정: 신호)")
+                continue
+            direction = sig_dir
         if sym in st["positions"]:
             continue
         if sym in live_syms:
@@ -900,6 +907,7 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             # reconciles this record against the exchange. (review H9)
             st.setdefault("pending_entries", []).append({
                 "sym": sym, "dir": direction, "amount": amount,
+                "touch_dir": touch_dir, "side_source": _side_source,
                 "entry_intent": px, "tp": float(tp_s), "sl": float(sl_s),
                 "exp_move_pct": p["exp_move_pct"], "leverage": lev,
                 "at": _now().isoformat(), "seal": key,
@@ -1592,6 +1600,39 @@ _tp_limit: bool = False      # TP leg executes as limit when triggered (08-24)
 _entry_limit: bool = False   # entry as resting limit at the anchor price
 _entry_wait: int = 120       # seconds before an unfilled entry is cancelled
 _sl_buf: float = 0.0         # SL limit buffer, in units of expected move
+_side_source: str = "touch"  # who calls long/short: "touch" or "signal" (08-24)
+
+
+def _signal_side(client, sym: str):
+    """22-signal net vote on the last closed 1h bar: 'long', 'short' or None.
+
+    Uses the live Pacifica bars through the same fetch the scanner uses, so
+    the vote is computed on exactly what the signal layer would see. None
+    means the signals are silent or tied; the caller skips the seat, per the
+    user's rule that silence is never padded with another decider.
+    """
+    from .signal_scanner import fetch_bars, _series, _signals
+    try:
+        bars = fetch_bars(client, sym, "1h", max_bars=400)
+    except Exception:
+        return None
+    if not bars or len(bars) < 260:
+        return None
+    c = [float(b["c"]) for b in bars]
+    h = [float(b.get("h", b["c"])) for b in bars]
+    lo = [float(b.get("l", b["c"])) for b in bars]
+    sigs = _signals(_series(c, h, lo))
+    net = 0
+    j = len(c) - 1
+    for name, (side, fn) in sigs.items():
+        try:
+            if fn(j):
+                net += 1 if side == "long" else -1
+        except (TypeError, IndexError):
+            pass
+    if net == 0:
+        return None
+    return "long" if net > 0 else "short"
 
 
 def _newest_seal_age_h() -> float:
@@ -1717,6 +1758,7 @@ def main():
             return
     cfg = apply_budget(bracket_cfg(policy))
     global _selfgen_enabled, _tp_limit, _entry_limit, _entry_wait, _sl_buf
+    global _side_source
     _selfgen_enabled = bool(policy.get("bracket_selfgen_seal", True))
     _tp_limit = bool(policy.get("bracket_tp_limit", False))
     _entry_limit = bool(policy.get("bracket_entry_limit", False))
@@ -1728,6 +1770,10 @@ def main():
     if _sl_buf > 0: modes.append(f"손절 트리거-지정가(버퍼 {_sl_buf}×변동)")
     if modes:
         log("체결 방식: " + " · ".join(modes) + " (08-24 사용자 결정)")
+    _side_source = str(policy.get("bracket_side_source", "touch")).lower()
+    if _side_source == "signal":
+        log("부호 결정: 22신호 순투표 (침묵이면 그 자리 스킵) — 08-24 사용자 "
+            "결정. 봉인의 도달률 방향은 기록으로만 남는다")
     if not _selfgen_enabled:
         log("봉인 자체 생성 꺼짐 (bracket_selfgen_seal: false), 외부 생성기를 기다립니다")
     use_mode(bracket_mode(policy), args.dry)   # before any file is touched

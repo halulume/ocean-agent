@@ -183,6 +183,11 @@ bracket_entry_wait_sec: 120
 # that a gap through the buffer leaves the position running to liquidation
 # protection, which is why market is the shipped default.
 bracket_sl_limit_buffer: 0
+# Who calls long/short at entry. "touch": the seal's own touch-rate direction
+# (shipped behaviour). "signal": the 22-signal net vote on the last closed 1h
+# bar; a silent or tied vote skips the seat entirely. The seal's direction is
+# still recorded either way, so the two rules stay comparable afterwards.
+bracket_side_source: touch
 bracket_vol_floor_pct: 0.8  # 예상변동 0.8% 미만 픽 제외
 # 호가가 얇아 왕복 비용이 익절폭을 갉아먹는 종목은 봉인에서 빼둔다.
 # 시장의 성질이라 계좌와 무관하게 같다 (2026-08-19 실측):

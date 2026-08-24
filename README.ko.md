@@ -182,7 +182,7 @@ PACIFICA_BASE_URL=https://api.pacifica.fi
   "mcpServers": {
     "ocean-agent": {
       "command": "uvx",
-      "args": ["ocean-agent@0.4.39"],
+      "args": ["ocean-agent@0.4.40"],
       "env": { "PACIFICA_ENV_FILE": "/절대경로/.env" }
     }
   }
