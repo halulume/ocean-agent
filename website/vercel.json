@@ -10,12 +10,17 @@
     },
     {
       "source": "/telegram",
-      "destination": "https://t.me/oceanagentai_bot",
+      "destination": "https://t.me/+Sv6baEgMS0xhM2I1",
       "permanent": false
     },
     {
       "source": "/pypi",
       "destination": "https://pypi.org/project/ocean-agent/",
+      "permanent": false
+    },
+    {
+      "source": "/bot",
+      "destination": "https://t.me/oceanagentai_bot",
       "permanent": false
     }
   ]
