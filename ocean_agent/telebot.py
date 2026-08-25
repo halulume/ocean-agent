@@ -470,11 +470,17 @@ def _print_watch_once(token, cid, env, root):
             combos.setdefault(key, {"levs": [], "apy": h["apy"],
                                     "be": h["breakeven"]})
             combos[key]["levs"].append(f"{h['lev']:g}")
+        # top three combos only (08-25 user order: the full grid is noise)
+        ranked = sorted(combos.items(),
+                        key=lambda kv: kv[1]["apy"] - kv[1]["be"],
+                        reverse=True)
         lines = [tr("print_yes", lang), ""]
-        for (g, side, dist), v in combos.items():
+        for (g, side, dist), v in ranked[:3]:
             lines.append(tr("print_combo", lang).format(
                 g, side, f"{dist}%", "·".join(v["levs"]) + "x",
                 f"{v['apy']:.0f}%", f"{v['be']:.0f}%"))
+        if len(ranked) > 3:
+            lines.append(f"(+{len(ranked) - 3})")
         lines += ["", tr("print_alert_hint", lang)]
         _send(token, cid, "\n".join(lines))
     os.makedirs(os.path.dirname(state_p), exist_ok=True)
@@ -511,11 +517,23 @@ def _print_answer(env, lang="ko"):
                 continue
     if not combos:
         return tr("print_no", lang)
+
+    def _edge(v):
+        try:
+            return (float(v["apy"].rstrip("%"))
+                    - float(v["be"].rstrip("%")))
+        except ValueError:
+            return 0.0
+    # top three combos only (08-25 user order: the full grid is noise)
+    ranked = sorted(combos.items(), key=lambda kv: _edge(kv[1]),
+                    reverse=True)
     lines = [tr("print_yes", lang), ""]
-    for (g, side, dist), v in combos.items():
+    for (g, side, dist), v in ranked[:3]:
         levs = "·".join(v["levs"]) + "x"
         lines.append(tr("print_combo", lang).format(
             g, side, dist, levs, v["apy"], v["be"]))
+    if len(ranked) > 3:
+        lines.append(f"(+{len(ranked) - 3})")
     return "\n".join(lines)
 
 
