@@ -712,28 +712,24 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
     <div class="eyebrow">Install · Mobile</div>
     <h2>Mobile: your bot in Telegram</h2>
     <p class="sec-lede">Everything Ocean Agent does can be driven from your phone through a Telegram bot that belongs to you alone. Your computer keeps running the engine; the bot is the private line between your phone and that machine. One bot serves one owner and we never see it, which is why you create your own in a minute instead of sharing anyone else's.</p>
-    <p class="body" style="margin-bottom:16px">Do the <a href="#installation"><b>Install</b></a> step first, then these five.</p>
+    <p class="body" style="margin-bottom:16px">Do the <a href="#installation"><b>Install</b></a> step first, then these four.</p>
     <div style="border:1px solid var(--accent-2);border-left:4px solid var(--accent);border-radius:12px;background:var(--accent-wash);padding:13px 16px;margin:0 0 20px;font-size:14px"><b>Your computer must stay on.</b> The engine, your keys and the bot all run on your PC; the phone is only the remote control. Phone off is fine. PC off or asleep means no alerts, no orders, no trading until it is back.</div>
     <div class="istep">
       <div class="ihead">1 · Create your bot (one minute, free)</div>
       <p class="body">In Telegram, open <b>@BotFather</b>, send <code>/newbot</code>, pick any name. Copy the token it hands back.</p>
     </div>
     <div class="istep">
-      <div class="ihead">2 · Get your chat id</div>
-      <p class="body">Open <b>@userinfobot</b>, send anything, copy the <b>Id</b> number it replies with. That number is what locks the bot to you alone.</p>
+      <div class="ihead">2 · One line in your .env</div>
+      <p class="body">Open the .env the installer created (Windows: <code>C:\Users\you\.ocean-agent\.env</code>, macOS/Linux: <code>~/.ocean-agent/.env</code>) and add your token:</p>
+      <div class="iwrap gated"><pre><code>TELEGRAM_BOT_TOKEN=your_token_from_botfather</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+      <p class="body">No chat id needed: the first person to message the bot becomes its owner and it locks to them. That is you, since you just created it.</p>
     </div>
     <div class="istep">
-      <div class="ihead">3 · Two lines in your .env</div>
-      <p class="body">Open the .env the installer created (Windows: <code>C:\Users\you\.ocean-agent\.env</code>, macOS/Linux: <code>~/.ocean-agent/.env</code>) and add:</p>
-      <div class="iwrap gated"><pre><code>TELEGRAM_BOT_TOKEN=your_token_from_botfather
-TELEGRAM_CHAT_ID=your_id_number</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
-    </div>
-    <div class="istep">
-      <div class="ihead">4 · Start the bot</div>
+      <div class="ihead">3 · Start the bot</div>
       <div class="iwrap gated"><pre><code>uv run --with ocean-agent python -m ocean_agent.telebot</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
     </div>
     <div class="istep">
-      <div class="ihead">5 · Say hello, finish in chat</div>
+      <div class="ihead">4 · Say hello, finish in chat</div>
       <p class="body">Open your bot on your phone and send <code>/start</code>. It walks you through the rest right in the chat: pick your language, paste your wallet address, paste your API key from <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a>. The bot checks both, saves them to your machine, and deletes the key message from the chat. That is the whole setup.</p>
     </div>
     <div class="istep">
