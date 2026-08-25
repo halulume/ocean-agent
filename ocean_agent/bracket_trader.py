@@ -267,6 +267,14 @@ def bracket_cfg(policy: dict) -> dict:
         "tp_pct": max(0.0, float(policy.get("bracket_tp_pct", 0))),
         "sl_mult": float(policy.get("bracket_sl_mult", 1.0)),
         "vol_floor_pct": float(policy.get("bracket_vol_floor_pct", 0.8)),
+        # Upper bound on the pick's expected move, i.e. on the stop
+        # distance (SL = 1.0x expected). 0 = off, the shipped default,
+        # because the 5.5y replay says a uniform ceiling costs more than
+        # it saves (ledger 136/137/138). The operator turned it on for
+        # their own account on 2026-08-25 after a single PUMP stop
+        # (-5.5%, expected move 5.8%) ate 3.5 take profits.
+        "vol_ceiling_pct": max(0.0,
+                               float(policy.get("bracket_vol_ceiling_pct", 0))),
         # What the operator said they wanted working, in dollars. Slots and
         # per-pick size come out of it: $300 at $50 a pick is six positions.
         # Percent-of-account is what a spreadsheet understands; a person
@@ -337,6 +345,11 @@ def select_picks(rec: dict, cfg: dict) -> list[dict]:
         if p.get("exp_move_pct", 0) < cfg["vol_floor_pct"]:
             log(f"변동폭 하한 미달로 건너뜀: {p['sym']} "
                 f"({p.get('exp_move_pct')}% < {cfg['vol_floor_pct']}%)")
+            continue
+        ceil = cfg.get("vol_ceiling_pct", 0)
+        if ceil and p.get("exp_move_pct", 0) > ceil:
+            log(f"변동폭 상한 초과로 건너뜀: {p['sym']} "
+                f"({p.get('exp_move_pct')}% > {ceil}%, 손절선이 그만큼 멀다)")
             continue
         out.append(p)
         if len(out) == cfg["slots"]:
