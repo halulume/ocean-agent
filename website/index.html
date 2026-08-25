@@ -724,8 +724,10 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
       <p class="body">Skipped it during install? Add one line, <code>TELEGRAM_BOT_TOKEN=your_token</code>, to <code>~/.ocean-agent/.env</code> and run <code>uv run --with ocean-agent python -m ocean_agent.telebot</code> once. On Windows the .env file will not open with a double click: <b>right click it &rarr; Open with &rarr; Notepad</b>, add the line, save.</p>
     </div>
     <div class="istep">
-      <div class="ihead">3 · Say hello, finish in chat</div>
-      <p class="body">Open your bot on your phone and send <code>/start</code>. It walks you through the rest right in the chat: pick your language, paste your wallet address, paste your API key from <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a>. The bot checks both, saves them to your machine, and deletes the key message from the chat. That is the whole setup.</p>
+      <div class="ihead">3 · Send /start, finish in chat</div>
+      <p class="body">Open your bot on your phone and send this one message first:</p>
+      <div class="iwrap"><pre><code>/start</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+      <p class="body">That first <b>/start</b> is required: it registers this chat as the bot's owner and locks it to you. The bot then walks you through the rest right in the chat: pick your language, paste your wallet address, paste your API key from <a href="https://app.pacifica.fi/apikey" target="_blank" rel="noopener"><b>app.pacifica.fi/apikey</b></a>. It checks both, saves them to your machine, and deletes the key message from the chat. That is the whole setup.</p>
     </div>
     <div class="istep">
       <div class="ihead">What you get on the phone</div>
