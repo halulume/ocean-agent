@@ -92,6 +92,46 @@ def evaluate(prices: list[float], distance_pct: float, side: str,
     }
 
 
+def breakeven_cliff(prices, distance_pct: float, side: str, lev: float,
+                    liq_dist_pct: float, hours: int = CYCLE_HOURS,
+                    mask=None) -> float:
+    """Breakeven APY with the liquidation cliff priced in, in percent.
+
+    Loss per window: the whole deposit when the hourly path crosses the
+    liquidation distance beyond the strike (the deposit is gone even if
+    price recovers), else lev x end overshoot capped at 100%, else zero.
+    Measured 2026-08-25 (research/print_lev_optimum.py, BTC 79k windows):
+    identical to the old linear model up to 5x, honest above it. The
+    exchange premium stays proportional to leverage until about 20x and
+    decays after, so the grid in recommend_now now runs to 20x and the
+    ranking finds the optimal leverage by itself (user order: "5배
+    상한정하지마 검토해보고 배수 최적인거면 기회 포착해")."""
+    d = distance_pct / 100.0
+    liq = liq_dist_pct / 100.0
+    total = 0
+    loss = 0.0
+    for i in range(len(prices) - hours):
+        if mask is not None and not mask[i]:
+            continue
+        p0 = prices[i]
+        w = prices[i:i + hours + 1]
+        end = w[-1] / p0 - 1.0
+        total += 1
+        if side == "long":
+            if min(w) / p0 - 1.0 <= -(d + liq):
+                loss += 1.0
+            elif end <= -d:
+                loss += min(1.0, lev * (-end - d))
+        else:
+            if max(w) / p0 - 1.0 >= d + liq:
+                loss += 1.0
+            elif end >= d:
+                loss += min(1.0, lev * (end - d))
+    if total == 0:
+        raise ValueError("데이터 부족")
+    return loss / total * (8760.0 / hours) * 100
+
+
 def evaluate_symbol(client: PacificaClient, symbol: str, distance_pct: float,
                     side: str, hours: int = CYCLE_HOURS,
                     deep: bool = True) -> dict:
@@ -346,7 +386,7 @@ def forecast(client: PacificaClient, asset: str) -> dict:
 
 def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
                   usd: float = 100.0, distances=(1.0, 1.5, 2.0),
-                  levs=(1, 2, 3, 5), top: int = 12) -> str:
+                  levs=(1, 2, 3, 5, 10, 20), top: int = 12) -> str:
     """지금 켜진 1시간봉 신호를 반영해 롱/숏 · 거리 · 배율을 순위 매긴다.
 
     Print 사이클(24h)과 매매 신호의 평가 지평(1시간봉 × 24봉)이 같은 길이라,
@@ -458,10 +498,23 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
                                                0 if side == "long" else 1,
                                                str(strike), str(lev))
                         prem = float(sim.get("premium") or 0)
+                        liq_px = float(sim.get("liquidation_price") or 0)
                     except Exception:
                         continue
                     apy = prem / usd * (8760.0 / hours) * 100
-                    be = st["breakeven_apy"] * 100 * lev
+                    # Breakeven with the liquidation cliff whenever the
+                    # exchange quotes a liq price; the linear scaling is
+                    # only the fallback. Same series and signal mask as
+                    # the fill statistics above.
+                    if liq_px > 0:
+                        liq_d = abs(strike - liq_px) / strike * 100
+                        try:
+                            be = breakeven_cliff(recent, d, side, lev,
+                                                 liq_d, hours, mask=mask)
+                        except ValueError:
+                            be = st["breakeven_apy"] * 100 * lev
+                    else:
+                        be = st["breakeven_apy"] * 100 * lev
                     rows.append((apy - be, side, d, lev, apy, be,
                                  st["p_fill"], tag))
         rows.sort(reverse=True)
