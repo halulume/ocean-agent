@@ -201,6 +201,13 @@ class _H(BaseHTTPRequestHandler):
                 "<label>Pacifica API key</label>"
                 "<input name='api_key' type='password' required "
                 "autocomplete='off' placeholder='from app.pacifica.fi/apikey'>"
+                "<label>Telegram bot token (optional)</label>"
+                "<input name='tg_token' autocomplete='off' "
+                "placeholder='from @BotFather, or leave empty'>"
+                "<div class='note'>Phone alerts and chat trading: in "
+                "Telegram open <b>@BotFather</b>, send <b>/newbot</b>, "
+                "paste the token here. The bot starts by itself; you just "
+                "send it /start. Skippable, you can add it later.</div>"
                 
                 f"{s.get('err', '')}"
                 "<button class='go'>Connect</button></form>"
@@ -213,7 +220,9 @@ class _H(BaseHTTPRequestHandler):
                 "<h1 style='text-align:center'>All set</h1>"
                 f"<div class='sub' style='text-align:center'>"
                 f"{s.get('bal', '')}</div>"
-                "<div class='msg'>Open Claude and just talk to it.<br>"
+                + (f"<div class='msg'><b>Telegram:</b> "
+                   f"{s['tg_note']}</div>" if s.get('tg_note') else "")
+                + "<div class='msg'>Open Claude and just talk to it.<br>"
                 "<b>show me today's picks</b> &middot; <b>start auto trading</b></div>"
                 "<div class='note'>You can close this window.</div>")
             return
@@ -278,9 +287,29 @@ class _H(BaseHTTPRequestHandler):
             s["err"] = ""
             # what they answered about size travels with the keys: an installed
             # user has no policy file to edit, theirs is inside site-packages
-            write_env(self.server.env_file, addr, key)
+            tg = (form.get("tg_token") or [""])[0].strip()
+            if tg and (":" not in tg or len(tg) < 30):
+                s["err"] = ("<div class='note bad'>That Telegram token "
+                            "does not look right; paste it exactly as "
+                            "BotFather sent it (or leave it empty).</div>")
+                self.send_response(303)
+                self.send_header("Location", f"/?n={self.server.nonce}")
+                self.end_headers()
+                return
+            extra = {"TELEGRAM_BOT_TOKEN": tg} if tg else None
+            write_env(self.server.env_file, addr, key, extra=extra)
             os.environ["ADDRESS"] = addr
             os.environ["PACIFICA_API_KEY"] = key
+            if tg:
+                os.environ["TELEGRAM_BOT_TOKEN"] = tg
+                try:
+                    _start_telebot(self.server.env_file)
+                    s["tg_note"] = ("Telegram bot is running: open your "
+                                    "bot and send /start.")
+                except Exception:
+                    s["tg_note"] = ("Token saved. Start the bot later "
+                                    "with: uv run --with ocean-agent "
+                                    "python -m ocean_agent.telebot")
             try:
                 from .api_client import PacificaClient
                 cl = PacificaClient(os.environ.get(
@@ -296,6 +325,44 @@ class _H(BaseHTTPRequestHandler):
             self.end_headers()
             return
         self._send(404, "<h1>Not found</h1>")
+
+
+def _start_telebot(env_file: str) -> None:
+    """Launch the telegram bot hidden, now and at every logon.
+
+    2026-08-25 user order: no terminal, ever. The form collects the token,
+    this starts the bot detached with its output in a log next to .env,
+    and on Windows drops a Startup shortcut (a silent .vbs) so a reboot
+    brings the bot back. The command re-resolves through uv each time, so
+    package updates apply on the next boot."""
+    import subprocess
+    import sys
+    home = os.path.dirname(env_file)
+    log = os.path.join(home, "telebot.log")
+    envv = dict(os.environ, PACIFICA_ENV_FILE=env_file,
+                PYTHONIOENCODING="utf-8")
+    flags = 0x08000208 if os.name == "nt" else 0   # detached, no window
+    with open(log, "a", encoding="utf-8") as out:
+        subprocess.Popen([sys.executable, "-u", "-m", "ocean_agent.telebot"],
+                         env=envv, stdout=out, stderr=subprocess.STDOUT,
+                         creationflags=flags)
+    if os.name != "nt":
+        return
+    uv = os.path.join(os.path.expanduser("~"), ".local", "bin", "uv.exe")
+    if not os.path.exists(uv):
+        return
+    startup = os.path.join(os.environ.get("APPDATA", ""),
+                           "Microsoft", "Windows", "Start Menu",
+                           "Programs", "Startup")
+    if not os.path.isdir(startup):
+        return
+    vbs = os.path.join(startup, "OceanAgentBot.vbs")
+    cmd = (f'cmd /c set "PACIFICA_ENV_FILE={env_file}" && '
+           f'""{uv}"" run --with ocean-agent python -u -m '
+           f'ocean_agent.telebot >> ""{log}"" 2>&1')
+    with open(vbs, "w", encoding="utf-8") as f:
+        f.write('CreateObject("WScript.Shell").Run "'
+                + cmd.replace('"', '""') + '", 0, False' + "\n")
 
 
 def serve(env_file: str, brand: str = "claude") -> tuple:
