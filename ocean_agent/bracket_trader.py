@@ -1169,13 +1169,22 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                        f"진입 0건: 계좌가 이 자리 크기에 못 미칩니다 "
                        f"(픽 {len(picks)}개 전부 최소 주문 미달). "
                        f"입금하거나 픽당 금액을 낮추세요.")
-        if entered_n > 0 or attempt_failed == 0:
+        if attempt_failed == 0:
             st["entered_seals"].append(key)
         else:
+            # Unfilled picks get retried at the SAME anchor while this seal
+            # is current (every ENTRY_RETRY_COOLDOWN_SEC), not once per
+            # hour. Before 2026-08-25 a single fill marked the whole seal
+            # consumed, so every 60s-cancelled sibling lost its hour: live
+            # fill rate ran 71% while the measured winner of the entry
+            # style bake-off (ledger §134, "앵커지정가") assumes the full
+            # hour of chances at the anchor. Same price, same maker fee,
+            # no chasing: only more attempts. Held symbols are skipped by
+            # the position check, so retries touch only the unfilled.
             global _retry_not_before
             _retry_not_before = time.time() + ENTRY_RETRY_COOLDOWN_SEC
-            log(f"봉인 미소진: 진입 0건, 일시 실패 {attempt_failed}건, "
-                f"{ENTRY_RETRY_COOLDOWN_SEC // 60}분 뒤 재시도")
+            log(f"봉인 미소진: 진입 {entered_n}건, 미체결 {attempt_failed}건, "
+                f"{ENTRY_RETRY_COOLDOWN_SEC // 60}분 뒤 같은 기준가로 재시도")
         save_state(st)
         if opened:
             notify.send("브래킷 진입:\n" + "\n".join(opened))
