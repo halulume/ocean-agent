@@ -59,7 +59,10 @@ SCAM_WORDS = ("리딩방", "수익보장", "수익 보장", "원금보장", "코
 
 def _env():
     out = dict(os.environ)
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # this file sits at the repo ROOT (never inside the package), so .env
+    # is right next to it; the telebot's double-dirname pattern pointed one
+    # level too high and found nothing (2026-08-25 first run)
+    root = os.path.dirname(os.path.abspath(__file__))
     p = os.path.join(root, ".env")
     if os.path.exists(p):
         for ln in open(p, encoding="utf-8", errors="replace"):
@@ -176,6 +179,12 @@ def _on_join(token, chat, user, st, admin):
     name = (user.get("first_name") or "") + " " + (user.get("last_name") or "")
     name = name.strip() or user.get("username") or uid
     if user.get("is_bot"):
+        if uid == token.split(":", 1)[0]:
+            # the safebot itself being added: never kick yourself (first
+            # run 2026-08-25 tried exactly that and threw HTTPError)
+            _report(token, admin, "세이프봇이 그룹에 들어왔습니다. "
+                                  "관리자 권한을 확인해 주세요.")
+            return
         _kick(token, chat, int(uid))
         _report(token, admin, f"봇 계정 즉시 퇴장: {name}")
         return
@@ -308,6 +317,11 @@ def _handle(u, token, st, flood, admin):
     if chat.get("type") not in ("group", "supergroup"):
         return
     cid = chat["id"]
+    # remember the guarded group so rights can be checked from outside
+    if st.get("chat_id") != cid:
+        st["chat_id"] = cid
+        _save(st)
+        log(f"그룹 인식: {cid} · {chat.get('title', '')}")
     # joins arrive as service messages
     for nm in msg.get("new_chat_members", []) or []:
         _on_join(token, cid, nm, st, admin)

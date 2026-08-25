@@ -91,11 +91,15 @@ def log(msg: str) -> None:
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(line + "\n")
         if os.path.getsize(log_path) > 2_000_000:   # ~2MB 넘으면 절반 트림
-            with open(log_path, encoding="utf-8") as f:
+            # errors="replace": a single foreign byte (e.g. a cp949 line a
+            # console redirect once mixed in) crashed every start the
+            # moment the file crossed 2MB (2026-08-25, three-hour outage).
+            # A log trimmer must never be able to kill the trader.
+            with open(log_path, encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
             with open(log_path, "w", encoding="utf-8") as f:
                 f.writelines(lines[len(lines) // 2:])
-    except OSError:
+    except (OSError, ValueError):
         pass
 
 
