@@ -268,11 +268,14 @@ def bracket_cfg(policy: dict) -> dict:
         "sl_mult": float(policy.get("bracket_sl_mult", 1.0)),
         "vol_floor_pct": float(policy.get("bracket_vol_floor_pct", 0.8)),
         # Upper bound on the pick's expected move, i.e. on the stop
-        # distance (SL = 1.0x expected). 0 = off, the shipped default,
-        # because the 5.5y replay says a uniform ceiling costs more than
-        # it saves (ledger 136/137/138). The operator turned it on for
-        # their own account on 2026-08-25 after a single PUMP stop
-        # (-5.5%, expected move 5.8%) ate 3.5 take profits.
+        # distance (SL = 1.0x expected). 0 here is only the fallback when
+        # the key is missing; policy_default.yaml ships 5.0, so a fresh
+        # install runs with the ceiling ON (2026-08-25 user decision after
+        # one PUMP stop, -5.5% on a 5.8% expected move, ate 3.5 take
+        # profits). Users with their own policy.yaml are unaffected until
+        # they add the key. Note the 5.5y replay rejects uniform ceilings
+        # (ledger 136/137/138): this is a live-trading judgment, not a
+        # measured rule, and emptying it is one line.
         "vol_ceiling_pct": max(0.0,
                                float(policy.get("bracket_vol_ceiling_pct", 0))),
         # What the operator said they wanted working, in dollars. Slots and
