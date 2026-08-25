@@ -1735,9 +1735,14 @@ def main():
         return
     central = env.get("TELEBOT_CENTRAL", "") == "1"
     if not central and not gate:
-        print("개인 모드에는 TELEGRAM_CHAT_ID 가 필수다. 없으면 아무나 "
-              "접근할 수 있어 기동을 거부한다.")
-        return
+        # First-owner claim (2026-08-25 user decision, option 2): with no
+        # TELEGRAM_CHAT_ID the bot starts anyway and the FIRST private
+        # chat that messages it becomes the owner, written to .env and
+        # locked. Safe because the owner just created this bot at
+        # BotFather and nobody else knows its username yet. This kills
+        # the @userinfobot step: .env needs only the bot token.
+        print("TELEGRAM_CHAT_ID 없음: 처음 말을 거는 사람을 주인으로 "
+              "등록합니다. 지금 텔레그램에서 봇에게 /start 를 보내세요.")
     print("텔레봇 시작"
           + (" (중앙 운영 모드)" if central else " (개인 모드)")
           + ". 중지: Ctrl+C")
@@ -1779,6 +1784,23 @@ def main():
             continue
         for u in d.get("result", []):
             offset = u["update_id"] + 1
+            if not central and not gate:
+                chat = ((u.get("message") or {}).get("chat")
+                        or ((u.get("callback_query") or {})
+                            .get("message", {}).get("chat")) or {})
+                if str(chat.get("type")) == "private" and chat.get("id"):
+                    gate = str(chat["id"])
+                    _env_set(root, "TELEGRAM_CHAT_ID", gate)
+                    env["TELEGRAM_CHAT_ID"] = gate
+                    try:
+                        _send(token, gate,
+                              "✅ 이 채팅이 봇의 주인으로 등록되었습니다. "
+                              "This chat is now the owner of this bot.")
+                    except Exception:
+                        pass
+                    print(f"주인 등록: chat_id {gate} (.env 저장)")
+                else:
+                    continue          # 그룹 등은 주인 후보가 아니다
             try:
                 _process_update(u, env, root, gate, central, token)
             except Exception as ex:
