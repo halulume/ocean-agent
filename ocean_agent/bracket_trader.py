@@ -877,6 +877,21 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             log(f"{sym}: 가격 조회 실패, 건너뜀")
             attempt_failed += 1
             continue
+        # Retry attempts reuse the FIRST attempt's anchor for this seal
+        # (audit 0.4.53): re-anchoring each retry at the then-current mark
+        # is the "chase the book" style the entry bake-off rejected
+        # (ledger §134); the measured winner waits at one price for the
+        # hour. Keyed by seal, so a fresh seal starts a fresh anchor.
+        anchors = st.setdefault("entry_anchor", {})
+        akey = f"{key}|{sym}"
+        if akey in anchors:
+            px = float(anchors[akey])
+        else:
+            anchors[akey] = px
+            # prune anchors from older seals so the state never grows
+            for old in [k for k in anchors if not k.startswith(f"{key}|")]:
+                anchors.pop(old, None)
+            save_state(st)
         lev = min(cfg["leverage"], int(m.get("max_leverage") or cfg["leverage"]))
         lot = float(m.get("lot_size") or 0.0001)
         tick = float(m.get("tick_size") or 0.01)
