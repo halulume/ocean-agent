@@ -7,7 +7,7 @@ name = "ocean-agent"
 version = "0.4.55"
 description = "Pacifica trading MCP server, measured-edge setups, exchange-native brackets, funding carry, and a policy-governed autonomous trading entity"
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "BUSL-1.1" }
 requires-python = ">=3.10"
 keywords = ["mcp", "pacifica", "trading", "funding-rate", "delta-neutral", "solana"]
 classifiers = ["Development Status :: 4 - Beta"]
