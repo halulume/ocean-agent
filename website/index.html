@@ -721,7 +721,7 @@ PACIFICA_BASE_URL=https://api.pacifica.fi</code></pre><button class="cbtn" oncli
     <div class="istep">
       <div class="ihead">2 · Paste the token into the install form</div>
       <p class="body">The install opens a page in your browser for your wallet address and API key; it also has a <b>Telegram bot token</b> box. Paste the token there. The bot starts by itself and comes back after every reboot: no file to edit, no window to keep open.</p>
-      <p class="body">Skipped it during install? Add one line, <code>TELEGRAM_BOT_TOKEN=your_token</code>, to <code>~/.ocean-agent/.env</code> and run <code>uv run --with ocean-agent python -m ocean_agent.telebot</code> once.</p>
+      <p class="body">Skipped it during install? Add one line, <code>TELEGRAM_BOT_TOKEN=your_token</code>, to <code>~/.ocean-agent/.env</code> and run <code>uv run --with ocean-agent python -m ocean_agent.telebot</code> once. On Windows the .env file will not open with a double click: <b>right click it &rarr; Open with &rarr; Notepad</b>, add the line, save.</p>
     </div>
     <div class="istep">
       <div class="ihead">3 · Say hello, finish in chat</div>
