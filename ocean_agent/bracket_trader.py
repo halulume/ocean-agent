@@ -802,7 +802,10 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
     too_small = 0
     held_start = len(st["positions"])
     # After two consecutive stops in the same direction, stop chasing that
-    # side. A win or a direction flip clears the block (tail-counted).
+    # side. A win, a direction flip, OR a day of quiet clears the block:
+    # before 2026-08-25 a blocked symbol could stay blocked forever (it
+    # cannot win because it cannot enter), and the user asked for a 24h
+    # expiry ("하루정도 지나면 해제해").
     def _stop_streak(sym, direction):
         n = 0
         for rec in reversed(st["closed"]):
@@ -814,6 +817,15 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             # for the rest of the day (VVV, 08-19).
             if rec.get("dir") != direction or cause != "stop_loss":
                 break
+            if n == 0:
+                try:
+                    seen = dt.datetime.fromisoformat(rec["closed_at"])
+                    now = (dt.datetime.now(seen.tzinfo) if seen.tzinfo
+                           else dt.datetime.now())
+                    if (now - seen).total_seconds() > 24 * 3600:
+                        return 0          # the last stop is a day old
+                except (KeyError, ValueError, TypeError):
+                    pass
             n += 1
         return n
 
