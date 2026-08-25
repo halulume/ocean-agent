@@ -1,6 +1,6 @@
 # ocean-agent
 
-> **🌊 OPEN BETA**: Ocean Agent has been open to everyone since Aug 19, 2026.
+> **🌊 OPEN BETA**: Ocean Agent is in open beta for everyone as of Aug 26, 2026.
 > No invitation and no waitlist: install it and connect your own account.
 > The bracket engine is still being live-validated with our own funds too.
 > Follow the daily scorecard on [Telegram](https://t.me/+V7wwRr6n4ZtmOGFl).
@@ -219,4 +219,6 @@ you understand exactly what it does, and only risk what you can afford to lose.
 
 ## License
 
-MIT
+Business Source License 1.1 (BUSL-1.1): the source is fully visible; trading with your own accounts, research and
+non-commercial use are free; offering a competing commercial trading service is not. Converts automatically to MIT
+on 2030-08-25.
