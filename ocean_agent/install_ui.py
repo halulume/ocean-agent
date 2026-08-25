@@ -357,9 +357,11 @@ def _start_telebot(env_file: str) -> None:
     if not os.path.isdir(startup):
         return
     vbs = os.path.join(startup, "OceanAgentBot.vbs")
+    # plain quotes here; the vbs-escape below doubles them exactly once,
+    # so paths with spaces survive (0.4.54 audit note)
     cmd = (f'cmd /c set "PACIFICA_ENV_FILE={env_file}" && '
-           f'""{uv}"" run --with ocean-agent python -u -m '
-           f'ocean_agent.telebot >> ""{log}"" 2>&1')
+           f'"{uv}" run --with ocean-agent python -u -m '
+           f'ocean_agent.telebot >> "{log}" 2>&1')
     with open(vbs, "w", encoding="utf-8") as f:
         f.write('CreateObject("WScript.Shell").Run "'
                 + cmd.replace('"', '""') + '", 0, False' + "\n")

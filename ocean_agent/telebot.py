@@ -1799,6 +1799,13 @@ def main():
                     except Exception:
                         pass
                     print(f"주인 등록: chat_id {gate} (.env 저장)")
+                    # the watch/settle thread was skipped at startup when
+                    # no owner existed; give the fresh owner theirs now
+                    if env.get("TELEBOT_PRINT_WATCH", "1") != "0":
+                        import threading as _th
+                        _th.Thread(target=_print_watch_loop,
+                                   args=(token, gate, env, root),
+                                   daemon=True).start()
                 else:
                     continue          # 그룹 등은 주인 후보가 아니다
             try:
