@@ -5,7 +5,7 @@
   "redirects": [
     {
       "source": "/github",
-      "destination": "https://github.com/halulume/ocean-agent",
+      "destination": "https://github.com/oceanagent/ocean-agent",
       "permanent": false
     },
     {
