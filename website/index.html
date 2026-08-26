@@ -1316,6 +1316,12 @@ OKX_API_PASSPHRASE=...</code></pre>
           <span class="tg fix">fix</span>
           <span class="chev">&#8250;</span>
         </a>
+        <a class="upd-row" href="#u-closed-beta-bracket-engine" data-date="2026-08-11">
+          <span class="d">AUG 11</span>
+          <span class="t">0.4.0: A measured trading engine</span>
+          <span class="tg feat">feature</span>
+          <span class="chev">&#8250;</span>
+        </a>
         <a class="upd-row" href="#u-security-hardening-audit" data-date="2026-08-10">
           <span class="d">AUG 10</span>
           <span class="t">Routine security review</span>
@@ -1478,6 +1484,39 @@ OKX_API_PASSPHRASE=...</code></pre>
             Grading now measures exactly the stated 24-hour horizon. And the new Telegram
             bot answers in 11 languages: add it, pick your language, paste a public
             wallet address, and ask about your balance, trades, or the day's setups.</p>
+    </div>
+  </section>
+
+  <section class="page" id="u-closed-beta-bracket-engine">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 11</div>
+    <h2>0.4.0: A measured trading engine</h2>
+    <div class="upd-meta"><span class="tg feat">feature</span><span class="st">2026-08-11</span></div>
+    <div class="upd-article">
+          <p class="lede">Version 0.4.0 ships a new bracket
+            trading engine built the way everything here gets built: by
+            measurement. We tested roughly 430 strategy variants against causal replays
+            and live sealed predictions. Three survived, and together they are the
+            engine.</p>
+
+          <p>The surviving design: trade the top three of the daily sealed picks, exit
+            at a near take profit or a wide stop placed on the exchange itself, hold at
+            most 24 hours. In replay it wins about four trades in five. We are honest
+            about why: most of that win rate comes from the bracket geometry itself, and
+            the measured edge on top of it is a few points. Those few points are the
+            difference between making and losing money, which is why the next step is
+            not marketing, it is validation.</p>
+
+          <p>So it trades our own funds first, under pre registered stop conditions
+            that halt it loudly if reality disagrees with the measurements. The daily
+            scorecard, wins and misses both, is public on
+            <a href="https://t.me/+V7wwRr6n4ZtmOGFl" target="_blank"
+            rel="noopener">Telegram</a>. Nothing opens wider until the forward numbers
+            hold.</p>
+
+          <p>Also in 0.4.0: seals now record their bracket prices and trade ranks
+            before the outcome exists, so every day of validation is pre registered and
+            auditable after the fact.</p>
     </div>
   </section>
 
