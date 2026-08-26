@@ -1274,6 +1274,18 @@ OKX_API_PASSPHRASE=...</code></pre>
       regimes, not forecasts.</p>
 
     <div class="upd-list">
+        <a class="upd-row" href="#u-open-beta-2026-08-26" data-date="2026-08-26">
+          <span class="d">AUG 26</span>
+          <span class="t">Open beta begins</span>
+          <span class="tg new">new</span>
+          <span class="chev">&#8250;</span>
+        </a>
+        <a class="upd-row" href="#u-short-horizon-side" data-date="2026-08-26">
+          <span class="d">AUG 26</span>
+          <span class="t">0.4.58: A shorter horizon for direction, and a wider bracket</span>
+          <span class="tg new">new</span>
+          <span class="chev">&#8250;</span>
+        </a>
         <a class="upd-row" href="#u-first-ask-answers" data-date="2026-08-24">
           <span class="d">AUG 24</span>
           <span class="t">0.4.38: The first ask now answers</span>
@@ -1288,7 +1300,7 @@ OKX_API_PASSPHRASE=...</code></pre>
         </a>
         <a class="upd-row" href="#u-open-beta-begins" data-date="2026-08-19">
           <span class="d">AUG 19</span>
-          <span class="t">Open beta begins</span>
+          <span class="t">Testers go live on real orders</span>
           <span class="tg new">new</span>
           <span class="chev">&#8250;</span>
         </a>
@@ -1351,6 +1363,52 @@ OKX_API_PASSPHRASE=...</code></pre>
     <div class="upd-count" id="updCount"></div>
   </section>
 
+  <section class="page" id="u-open-beta-2026-08-26">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 26</div>
+    <h2>Open beta begins</h2>
+    <div class="upd-meta"><span class="tg new">new</span><span class="st">2026-08-26</span></div>
+    <div class="upd-article">
+          <p class="lede">Ocean Agent is open to everyone from today. Install
+            it, connect your own account, and run the same engine we run, with
+            the same picks and the same rules. No invitation, no waitlist, and
+            nothing of yours held on our side.</p>
+
+          <p>One thing we would rather say now than have you find out: keep
+            the auto trader small. It runs on live orders and its record is
+            still young, and we are still changing it as measurements come in,
+            including twice this week. Use an amount you would not mind losing
+            while those numbers build. Everything else is yours to use in
+            full: the hourly picks, the Print judgments, the bot in eleven
+            languages, and the free local model that answers without an API
+            key.</p>
+    </div>
+  </section>
+
+  <section class="page" id="u-short-horizon-side">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 26</div>
+    <h2>0.4.58: A shorter horizon for direction, and a wider bracket</h2>
+    <div class="upd-meta"><span class="tg new">new</span><span class="st">2026-08-26</span></div>
+    <div class="upd-article">
+          <p class="lede">Direction was being read off a 24 hour statistic
+            while trades were resolving in a few hours. It now reads the
+            horizon the trade actually lives in, and the bracket moved with
+            it.</p>
+
+          <p>Take profit sits at 1.0 times the expected move and the stop at
+            1.3, replacing 1.5 and 1.0. Expect to win less often and win more
+            when you do: the old pair was picked when the side carried no
+            information, and once it does the best pair moves. Expiry exits
+            now rest as a limit and re post until filled rather than taking
+            the market, with the exchange stop live throughout. Asking the bot
+            to stop now kills every engine and confirms each one is gone
+            instead of reporting success on the request. And installing from
+            this site had been fetching an old build no matter what was
+            published; it now follows the current release.</p>
+    </div>
+  </section>
+
   <section class="page" id="u-first-ask-answers">
     <a class="upd-back" href="#updates">&#8249; All updates</a>
     <div class="eyebrow">Updates &middot; AUG 24</div>
@@ -1390,12 +1448,12 @@ OKX_API_PASSPHRASE=...</code></pre>
   <section class="page" id="u-open-beta-begins">
     <a class="upd-back" href="#updates">&#8249; All updates</a>
     <div class="eyebrow">Updates &middot; AUG 19</div>
-    <h2>Open beta begins</h2>
+    <h2>Testers go live on real orders</h2>
     <div class="upd-meta"><span class="tg new">new</span><span class="st">2026-08-19</span></div>
     <div class="upd-article">
-          <p class="lede">Ocean Agent is open. Anyone can install it, connect an
-            account, and run the same engine we run, with the same picks and the
-            same rules. No invitation, no waitlist.</p>
+          <p class="lede">A small group of testers started running the engine
+            on live orders, at sizes chosen to make a mistake cheap. Their
+            week is what the open beta is built on.</p>
 
           <p>Ask your AI for today's picks and it answers without an account:
             the ranked list, each symbol's expected 24 hour move, the odds of
