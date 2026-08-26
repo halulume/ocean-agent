@@ -609,11 +609,55 @@ T = {
               "10 dk izi) reddedebilir; /bot ile bakın.",
         "es": "Comando de inicio enviado. La protección (rastro de 10 min "
               "del bot anterior) puede rechazarlo; revise /bot."},
+    # Failure has to be as loud as success: a user who asked to stop and was
+    # told "stopped" while it kept trading is the worst outcome this file
+    # can produce. {pids} is filled in by the caller. (2026-08-26)
+    "exec_stop_failed": {
+        "ko": "자동매매를 여러 번 강제 종료했지만 아직 살아 있습니다 "
+              "(PID {pids}). 잠시 뒤 다시 꺼달라고 말해 주세요. 그래도 "
+              "안 되면 컴퓨터를 재시작하면 확실히 꺼집니다. 포지션은 "
+              "거래소 익절·손절이 계속 지킵니다.",
+        "en": "Force stopped it several times but it is still alive (PID "
+              "{pids}). Ask me to stop it again in a moment. If it still "
+              "will not stop, restarting the computer always works. Your "
+              "positions stay protected by the exchange TP/SL.",
+        "zh": "已多次强制停止，但仍在运行（PID {pids}）。请稍后再让我停止一次。"
+              "若仍无效，重启电脑一定可以停止。交易所止盈止损继续保护仓位。",
+        "ja": "強制終了を数回試しましたがまだ動いています (PID {pids})。少し"
+              "経ってからもう一度停止と伝えてください。それでも止まらない"
+              "場合はパソコンの再起動で確実に止まります。取引所の TP/SL は"
+              "ポジションを守り続けます。",
+        "vi": "Đã buộc dừng nhiều lần nhưng vẫn chạy (PID {pids}). Lát nữa "
+              "hãy bảo tôi dừng lại lần nữa. Nếu vẫn không được, khởi động "
+              "lại máy tính chắc chắn dừng. TP/SL của sàn vẫn bảo vệ vị thế.",
+        "hi": "कई बार ज़बरदस्ती बंद किया पर अब भी चल रहा है (PID {pids})। थोड़ी देर "
+              "बाद फिर बंद करने को कहें। तब भी न रुके तो कंप्यूटर रीस्टार्ट करने से "
+              "ज़रूर रुकेगा। एक्सचेंज TP/SL आपकी पोज़िशन बचाता रहेगा।",
+        "id": "Sudah dipaksa berhenti beberapa kali tapi masih jalan (PID "
+              "{pids}). Minta saya hentikan lagi sebentar lagi. Kalau tetap "
+              "tidak bisa, restart komputer pasti berhasil. TP/SL bursa "
+              "tetap melindungi posisi Anda.",
+        "ru": "Несколько раз принудительно остановил, но процесс жив (PID "
+              "{pids}). Попросите остановить ещё раз чуть позже. Если не "
+              "поможет, перезагрузка компьютера остановит точно. Биржевой "
+              "TP/SL продолжает защищать позиции.",
+        "pt": "Forcei a parada várias vezes e ainda está ativo (PID {pids}). "
+              "Peça para eu parar de novo daqui a pouco. Se ainda assim não "
+              "parar, reiniciar o computador resolve. O TP/SL da corretora "
+              "continua protegendo suas posições.",
+        "tr": "Birkaç kez zorla durdurdum ama hâlâ çalışıyor (PID {pids}). "
+              "Biraz sonra tekrar durdurmamı isteyin. Yine durmazsa "
+              "bilgisayarı yeniden başlatmak kesin çözümdür. Borsa TP/SL "
+              "pozisyonlarınızı korumaya devam ediyor.",
+        "es": "Lo forcé a detenerse varias veces y sigue activo (PID "
+              "{pids}). Pídame detenerlo otra vez en un momento. Si aun así "
+              "no para, reiniciar el ordenador siempre funciona. El TP/SL "
+              "del exchange sigue protegiendo sus posiciones."},
     "exec_done_off": {
-        "ko": "자동매매를 중지했습니다. 포지션 보호(거래소 익절·손절)는 그대로 "
-              "살아 있습니다. /bot 으로 확인하세요.",
-        "en": "Auto trading stopped. Exchange-side TP/SL protection stays "
-              "on. Check /bot.",
+        "ko": "자동매매를 중지했고, 꺼진 것까지 확인했습니다. 포지션 보호"
+              "(거래소 익절·손절)는 그대로 살아 있습니다. /bot 으로 확인하세요.",
+        "en": "Auto trading stopped, and verified stopped. Exchange-side "
+              "TP/SL protection stays on. Check /bot.",
         "zh": "自动交易已停止。交易所止盈止损仍然有效。请用 /bot 确认。",
         "ja": "自動売買を停止しました。取引所側 TP/SL は有効のままです。"
               "/bot で確認を。",
@@ -951,27 +995,37 @@ T = {
               "lenguaje (aprox. 1GB, una vez). En unos minutos responderé "
               "cualquier frase. Mientras tanto, la respuesta estándar:"},
     "exec_no_stop_platform": {
-        "ko": "이 플랫폼에서는 원격 중지가 아직 지원되지 않습니다. 봇을 켠 "
-              "터미널에서 Ctrl+C 로 중지하세요.",
-        "en": "Remote stop is not supported on this platform yet. Stop the "
-              "bot with Ctrl+C in the terminal that started it.",
-        "zh": "此平台暂不支持远程停止。请在启动机器人的终端中按 Ctrl+C 停止。",
-        "ja": "このプラットフォームでは遠隔停止は未対応です。起動したターミナル"
-              "で Ctrl+C で停止してください。",
-        "vi": "Nền tảng này chưa hỗ trợ dừng từ xa. Dừng bot bằng Ctrl+C "
-              "trong terminal đã khởi động nó.",
-        "hi": "इस प्लेटफ़ॉर्म पर रिमोट स्टॉप समर्थित नहीं। जिस टर्मिनल में बॉट चला है वहाँ "
-              "Ctrl+C दबाएँ।",
-        "id": "Platform ini belum mendukung stop jarak jauh. Hentikan bot "
-              "dengan Ctrl+C di terminal yang menjalankannya.",
-        "ru": "На этой платформе удалённая остановка пока не поддерживается. "
-              "Остановите бота Ctrl+C в терминале, где он запущен.",
-        "pt": "Parada remota ainda não é suportada nesta plataforma. Pare o "
-              "bot com Ctrl+C no terminal que o iniciou.",
-        "tr": "Bu platformda uzaktan durdurma henüz desteklenmiyor. Botu "
-              "başlatan terminalde Ctrl+C ile durdurun.",
-        "es": "La parada remota aún no está soportada en esta plataforma. "
-              "Detenga el bot con Ctrl+C en la terminal que lo inició."},
+        "ko": "이 컴퓨터에서 실행 중인 프로그램 목록을 읽을 수 없어 껐는지 "
+              "확인하지 못했습니다. 잠시 뒤 다시 꺼달라고 말해 주세요. "
+              "그래도 안 되면 컴퓨터를 재시작하면 확실히 꺼집니다.",
+        "en": "Could not read this computer's running programs, so I cannot "
+              "confirm it stopped. Ask me to stop it again in a moment. If "
+              "that fails, restarting the computer always works.",
+        "zh": "无法读取本机运行中的程序，因此无法确认是否已停止。请稍后再让我"
+              "停止一次。若仍无效，重启电脑一定可以。",
+        "ja": "このパソコンの実行中プログラムを読めず、停止を確認できません"
+              "でした。少し経ってからもう一度停止と伝えてください。それでも"
+              "だめならパソコンの再起動で確実に止まります。",
+        "vi": "Không đọc được danh sách chương trình đang chạy nên chưa xác "
+              "nhận được đã dừng. Lát nữa hãy bảo tôi dừng lại. Nếu vẫn "
+              "không được, khởi động lại máy tính chắc chắn dừng.",
+        "hi": "इस कंप्यूटर के चल रहे प्रोग्राम नहीं पढ़ पाया, इसलिए बंद होना पक्का नहीं। "
+              "थोड़ी देर बाद फिर बंद करने को कहें। तब भी न हो तो रीस्टार्ट करें।",
+        "id": "Tidak bisa membaca daftar program yang berjalan, jadi belum "
+              "bisa memastikan sudah berhenti. Minta saya hentikan lagi "
+              "sebentar lagi. Kalau gagal, restart komputer pasti berhasil.",
+        "ru": "Не удалось прочитать список запущенных программ, поэтому "
+              "остановка не подтверждена. Попросите остановить ещё раз чуть "
+              "позже. Если не поможет, перезагрузите компьютер.",
+        "pt": "Não consegui ler os programas em execução, então não confirmo "
+              "a parada. Peça para eu parar de novo daqui a pouco. Se "
+              "falhar, reiniciar o computador resolve.",
+        "tr": "Bu bilgisayarda çalışan programları okuyamadım, bu yüzden "
+              "durduğunu doğrulayamıyorum. Biraz sonra tekrar durdurmamı "
+              "isteyin. Olmazsa bilgisayarı yeniden başlatın.",
+        "es": "No pude leer los programas en ejecución, así que no confirmo "
+              "la parada. Pídame detenerlo otra vez en un momento. Si falla, "
+              "reiniciar el ordenador siempre funciona."},
     "gloss_none": {
         "ko": "그 용어는 아직 사전에 없습니다. /menu 로 물어볼 수 있는 것들을 "
               "보여드립니다.",

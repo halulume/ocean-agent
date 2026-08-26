@@ -175,22 +175,213 @@ def clear_heartbeat() -> None:
         pass
 
 
+def _pid_alive(pid) -> bool:
+    """Is that process id still running? Unknown counts as running.
+
+    No psutil: POSIX asks the kernel with signal 0, Windows opens the
+    process handle and reads its exit code. A pid that cannot be checked is
+    reported alive, because refusing to start is the safe direction and the
+    freshness window releases it anyway.
+    """
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return True
+    if pid <= 0:
+        return True
+    if os.name != "nt":
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True                  # exists, owned by someone else
+        except OSError:
+            return True
+    try:
+        import ctypes
+        k = ctypes.windll.kernel32
+        # SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION
+        h = k.OpenProcess(0x00100000 | 0x1000, False, pid)
+        if not h:
+            return False                 # gone, or no rights to look at it
+        try:
+            code = ctypes.c_ulong()
+            if not k.GetExitCodeProcess(h, ctypes.byref(code)):
+                return True
+            return code.value == 259     # STILL_ACTIVE
+        finally:
+            k.CloseHandle(h)
+    except (OSError, AttributeError, ValueError):
+        return True
+
+
+def running_bots(include_dry: bool = False):
+    """PIDs of bracket trader processes now running, or None if unknowable.
+
+    None and [] are different answers and callers must not merge them: []
+    means "looked, nothing there", None means "could not look", and telling
+    a user their trading is off when we never checked is the one outcome
+    worth refusing. Dry runs place no orders, so they are excluded unless
+    asked for. No psutil: CIM on Windows, ps elsewhere.
+    """
+    import subprocess
+    me = os.getpid()
+    try:
+        if os.name == "nt":
+            q = ("Get-CimInstance Win32_Process | Where-Object { "
+                 "$_.Name -match 'python' -and "
+                 "$_.CommandLine -match 'ocean_agent.bracket_trader'")
+            if not include_dry:
+                q += " -and $_.CommandLine -notmatch '--dry'"
+            q += " } | ForEach-Object { $_.ProcessId }"
+            r = subprocess.run(["powershell", "-NoProfile", "-Command", q],
+                               capture_output=True, text=True, timeout=40,
+                               creationflags=0x08000000)
+            if r.returncode != 0:
+                return None
+            pids = [int(x) for x in r.stdout.split() if x.strip().isdigit()]
+        else:
+            r = subprocess.run(["ps", "-eo", "pid=,args="],
+                               capture_output=True, text=True, timeout=40)
+            if r.returncode != 0:
+                return None
+            pids = []
+            for ln in r.stdout.splitlines():
+                ln = ln.strip()
+                head, _, rest = ln.partition(" ")
+                if not head.isdigit():
+                    continue
+                if "ocean_agent.bracket_trader" not in rest:
+                    continue
+                if not include_dry and "--dry" in rest:
+                    continue
+                pids.append(int(head))
+        return [x for x in pids if x != me]
+    except Exception:                                       # noqa: BLE001
+        return None
+
+
+def mark_stopped_by_user() -> None:
+    """Write the intent down for every mode, not just the one that ran.
+
+    A stop that lives only in a dead process is not a stop: anything that
+    asks "is a bot running?" starts one again. Recorded per mode because
+    the operator's file layout keeps one state file each.
+    """
+    keep = MODE
+    for mode in MODES:
+        try:
+            use_mode(mode)
+            st = load_state()
+            st["stopped_by_user"] = True
+            st["stopped_at"] = _now().isoformat(timespec="seconds")
+            save_state(st)
+        except Exception:                                   # noqa: BLE001
+            pass
+    use_mode(keep)
+
+
+def stop_all_bots(wait_s: float = 20.0) -> dict:
+    """Kill every running bracket bot, then prove it. Never assume.
+
+    Dry runs are killed too. They place no orders, so an earlier version
+    left them alone, but "stop" means stop: a process the user did not ask
+    for and cannot see is not something to leave behind on their machine.
+    (2026-08-26 user: "드라이봇은 왜 돌아가? 필요없어 이제")
+
+    Returns {checked, before, left}. `checked` is False only when the
+    process list could not be read at all, and then `left` is unknown
+    rather than empty. A kill request returning success is not evidence the
+    process died, so this polls until the list is empty or the clock runs
+    out, with one more round of kills partway through.
+    (2026-08-26 user instruction: stop unconditionally, then verify.)
+    """
+    import subprocess
+    before = running_bots(include_dry=True)
+    if before is None:
+        return {"checked": False, "before": None, "left": None}
+
+    def _kill(pids):
+        """Force, always. There is no polite variant of this call.
+
+        The user asking to stop is not asking us to request a stop: on
+        Windows /F /T takes the tree, and POSIX goes straight to SIGKILL.
+        SIGTERM would let a bot in the middle of a network call linger for
+        the length of that call, which is exactly the window in which it
+        can still place an order. (2026-08-26 user: "무조건 강제종료해")
+        """
+        for pid in pids:
+            try:
+                if os.name == "nt":
+                    subprocess.run(["taskkill", "/PID", str(pid), "/F", "/T"],
+                                   capture_output=True, timeout=30)
+                else:
+                    import signal
+                    os.kill(int(pid), signal.SIGKILL)
+            except Exception:                               # noqa: BLE001
+                pass
+
+    _kill(before)
+    deadline = time.time() + max(3.0, wait_s)
+    left = before
+    while time.time() < deadline:
+        time.sleep(1.0)
+        left = running_bots(include_dry=True)
+        if left is None:
+            break                        # cannot verify; reported as such
+        if not left:
+            break
+        _kill(left)                      # keep hitting it until it is gone
+    for mode in MODES:
+        for dry in (False, True):
+            try:
+                os.remove(heartbeat_path(mode, dry))
+            except OSError:
+                pass
+    mark_stopped_by_user()
+    return {"checked": left is not None, "before": before, "left": left}
+
+
 def live_bracket() -> tuple[str, float] | None:
     """A bracket instance still holding the account: (mode, minutes ago).
 
     One account means one margin pool, so two bracket instances must never
     run at once - the same reason the X1 guard refuses to start beside the
     old EV bot. Own-mode files count too: a second copy of the same mode is
-    just as bad. Freshness (not a pid) is the test, so a killed process
-    releases the account by itself.
+    just as bad.
+
+    Freshness used to be the only test, which meant a bot that was killed
+    kept the account locked for HEARTBEAT_FRESH_MIN minutes even though
+    nothing was running. That is five minutes of no trading after every
+    restart, and it bit the operator on 2026-08-26. The heartbeat already
+    carries the pid, so a fresh file whose process is gone is a corpse and
+    is cleared on sight. A fresh file whose process is alive still refuses,
+    which is the case the lock exists for. An unreadable or unparseable
+    file is treated as a live claim and left to expire. (2026-08-26)
     """
     for other in MODES:
         path = heartbeat_path(other)
         if not os.path.exists(path):
             continue
         age_min = (time.time() - os.path.getmtime(path)) / 60
-        if age_min < HEARTBEAT_FRESH_MIN:
-            return other, age_min
+        if age_min >= HEARTBEAT_FRESH_MIN:
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                pid = json.load(f).get("pid")
+        except (OSError, ValueError, AttributeError):
+            return other, age_min        # cannot read it: assume it is live
+        if pid is not None and pid != os.getpid() and not _pid_alive(pid):
+            log(f"{other} 모드 흔적(pid {pid})은 이미 꺼진 봇입니다. "
+                f"자리를 비우고 계속합니다")
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+            continue
+        return other, age_min
     return None
 
 
@@ -288,6 +479,17 @@ def bracket_cfg(policy: dict) -> dict:
         "skip_syms": {str(s).upper()
                       for s in (policy.get("bracket_skip_syms") or [])},
         "horizon_h": int(policy.get("bracket_horizon_h", 24)),
+        # How the expiry closes. "limit" rests a reduce-only limit at the
+        # mark and re-posts it every wait window until it fills; "market"
+        # is the old behaviour. The 2026-08-26 geometry (TP 1.0x / SL 1.3x)
+        # takes the expiry on about one trade in five instead of one in
+        # thirty, so the taker fee on that exit stopped being a rounding
+        # error: 0.040% a side against 0.015% maker, i.e. +0.025%p on a
+        # trade whose measured edge is +0.098%. The position keeps its
+        # exchange-side stop while the limit rests, so an unfilled chase is
+        # bounded by the same stop it always had. (2026-08-26 user decision)
+        "expiry_exit": str(policy.get("bracket_expiry_exit", "limit")).lower(),
+        "expiry_wait_s": max(10, int(policy.get("bracket_expiry_wait_s", 60))),
         # fixed per-pick notional in USD; 0 keeps proportional sizing.
         # Added 2026-08-14 (user): their own account trades a fixed $30 a
         # pick while the shipped default stays proportional to the account.
@@ -881,6 +1083,17 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
         sym, direction = p["sym"], p["dir"]
         touch_dir = direction
         seat_src = _side_source
+        if _side_source == "touch2h":
+            s2 = _touch2h_side(sym)
+            if s2 is None:
+                log(f"{sym}: 2시간 도달률 계산 불가(캐시 없음·오래됨) → "
+                    f"봉인 방향({direction})으로 진입")
+                seat_src = "no_bars_touch24"
+            else:
+                if s2 != direction:
+                    log(f"{sym}: 방향 교체 {direction} → {s2} "
+                        f"(2시간 도달률, §140)")
+                direction = s2
         if _side_source == "signal" and not dry:
             sig_dir = _signal_side(client, sym)
             if sig_dir is None:
@@ -1314,6 +1527,34 @@ def _flat_pct(client, sym: str, pos: dict, since_ms: int) -> float:
     return 0.0
 
 
+def close_limit(client, policy, sym: str, pos: dict, live: dict,
+                mark: float, tick: float):
+    """Rest a reduce-only limit at the mark and return its order id.
+
+    Priced one tick to our side of the mark so the order rests instead of
+    crossing: a sell sits a tick above, a buy a tick below. That is the
+    whole point, since an exit that crosses pays the taker fee this
+    replaces. Unfilled orders are cancelled and re-posted at the refreshed
+    mark by the caller.
+    """
+    amt = pos["amount"]
+    lp = live.get(sym)
+    if lp:
+        try:
+            amt = abs(float(lp.get("amount") or amt))
+        except (TypeError, ValueError):
+            pass
+    long_ = pos["dir"] == "long"
+    px = mark + tick if long_ else mark - tick
+    if px <= 0:
+        px = mark
+    res = client.create_limit_order(
+        sym, "ask" if long_ else "bid", str(amt),
+        _round_to_tick(px, tick), tif="GTC", reduce_only=True,
+        builder_code=policy.get("builder_code", ""))
+    return (res or {}).get("order_id")
+
+
 def close_market(client, policy, sym: str, pos: dict, live: dict) -> None:
     # close what the exchange actually holds, not what the ledger remembers
     # (BR6: partial fills or partial closes make the two diverge)
@@ -1402,6 +1643,13 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                             hit = ("take_profit" if px_close <= tp_v
                                    else "stop_loss" if px_close >= sl_v else "")
                     cause = hit or ("추정:이익" if est >= 0 else "추정:손실")
+                    if not hit and pos.get("exit_limit"):
+                        # Our own resting expiry order is what filled: it
+                        # sits one tick off the mark, far inside both
+                        # bracket lines, so "hit" is empty by construction.
+                        # Labelled so the ledger can measure expiry exits
+                        # on their own (ledger 142).
+                        cause = "만기:지정가"
                 if cause == "liquidation" and HALT_ON_LIQUIDATION:
                     # Warned, not halted: every position carries an
                     # exchange-side stop, so a liquidation means that line
@@ -1428,6 +1676,18 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                 cause = "추정(이력 조회 실패)"
             st["closed"].append(
                 _close_row(sym, pos, round(est, 3), cause))
+            # An expiry limit may still be resting when the exchange bracket
+            # is what actually closed the position. A reduce-only order with
+            # nothing to reduce is usually dropped by the venue, but leaving
+            # one on the book means the next entry in this symbol could meet
+            # its own stale exit. (2026-08-26)
+            _el = pos.get("exit_limit")
+            if _el and _el.get("oid") is not None:
+                try:
+                    client.cancel_order(sym, order_id=_el["oid"])
+                    log(f"{sym}: 남아 있던 만기 지정가를 취소했다")
+                except PacificaError:
+                    pass                 # already gone, which is the point
             del st["positions"][sym]
             save_state(st)
             notify.send(f"브래킷 청산: {sym} {est:+.2f}% ({cause})")
@@ -1484,8 +1744,13 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
         hit_sl = mark > 0 and ((long_ and mark <= pos["sl"])
                                or (not long_ and mark >= pos["sl"]))
         if held_h >= cfg["horizon_h"] or hit_tp or hit_sl:
-            why = ("만기" if held_h >= cfg["horizon_h"]
-                   else "손절 트리거 잔류" if hit_sl else "익절 트리거 잔류")
+            # A crossed line outranks the expiry. Before the limit exit
+            # existed both causes ended in the same market close so the
+            # order did not matter; now "만기" rests an order instead, and
+            # a position that has jumped its stop with the exchange order
+            # dead must not be left resting. (2026-08-26)
+            why = ("손절 트리거 잔류" if hit_sl
+                   else "익절 트리거 잔류" if hit_tp else "만기")
             if why != "만기":
                 # Price crossed a bracket line and the position is still open,
                 # so the exchange-side order did not fire. That order is the
@@ -1495,6 +1760,17 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                            f"{sym}: 거래소 브래킷이 걸리지 않아 봇이 대신 "
                            f"청산합니다 ({why}). 그 종목의 익절·손절 주문이 "
                            f"살아 있는지 확인하세요.")
+            if why == "만기" and cfg.get("expiry_exit") == "limit" and mark > 0:
+                # A resting limit instead of a market sweep. Only the expiry
+                # takes this path: the two "트리거 잔류" causes mean the
+                # exchange-side bracket is dead, and an unprotected position
+                # gets out now, at any price. (2026-08-26 user decision)
+                try:
+                    _handle_expiry_limit(client, policy, st, cfg, sym, pos,
+                                         live, mark)
+                except PacificaError as e:
+                    notify.send(f"브래킷 만기 지정가 실패 {sym}: {str(e)[:120]}")
+                continue
             try:
                 since_ms = _since_open(pos)
                 close_market(client, policy, sym, pos, live)
@@ -1507,6 +1783,75 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                 notify.send(f"브래킷 {why} 청산: {sym} {move:+.2f}%")
             except PacificaError as e:
                 notify.send(f"브래킷 청산 실패 {sym}: {str(e)[:120]}")
+
+
+_TICKS: dict = {}
+
+
+def _tick_of(client, sym: str) -> float:
+    """Tick size for one symbol. Cached for the life of the process."""
+    if sym not in _TICKS:
+        try:
+            for m in client.get_markets():
+                _TICKS[m["symbol"]] = float(m.get("tick_size") or 0.01)
+        except (PacificaError, TypeError, ValueError, KeyError):
+            pass
+    return float(_TICKS.get(sym) or 0.01)
+
+
+def _order_alive(client, oid) -> bool:
+    """Is that order still on the book? Unknown counts as alive.
+
+    A cancel can fail because the order already filled, because it never
+    existed (a restart carrying stale state), or because the request itself
+    failed. Only the middle case may be re-posted over, so anything this
+    cannot establish is treated as still live and left alone.
+    """
+    if oid is None:
+        return False
+    try:
+        return any(str(o.get("order_id")) == str(oid)
+                   for o in client.get_open_orders())
+    except PacificaError:
+        return True
+
+
+def _handle_expiry_limit(client, policy, st, cfg, sym, pos, live,
+                         mark: float) -> None:
+    """Rest, wait, re-post. The position keeps its stop the whole time.
+
+    State lives on the position record as exit_limit {oid, at, px, tries}.
+    Nothing here books a close: when the limit fills the position leaves
+    the venue, and the disappeared-position branch above grades it off the
+    venue's own history exactly as it does for a stop or a target.
+    """
+    tick = _tick_of(client, sym)
+    el = pos.get("exit_limit")
+    if el:
+        waited = (_now() - dt.datetime.fromisoformat(el["at"])).total_seconds()
+        if waited < cfg["expiry_wait_s"]:
+            return                       # still resting, leave it alone
+        try:
+            client.cancel_order(sym, order_id=el.get("oid"))
+        except PacificaError as e:
+            # Filled in the race, or stale state from a restart. Re-posting
+            # on top of a live order would put two reduce-only exits on the
+            # book, so the book decides, not the exception text.
+            if _order_alive(client, el.get("oid")):
+                log(f"{sym}: 만기 지정가 취소 실패({str(e)[:60]}), "
+                    f"주문이 살아 있어 그대로 둔다")
+                return
+            log(f"{sym}: 만기 지정가가 이미 사라졌다({str(e)[:60]}), 다시 건다")
+    tries = int((el or {}).get("tries", 0)) + 1
+    oid = close_limit(client, policy, sym, pos, live, mark, tick)
+    pos["exit_limit"] = {"oid": oid, "at": _now().isoformat(),
+                         "px": mark, "tries": tries}
+    save_state(st)
+    if tries == 1:
+        log(f"{sym}: 만기 도달, 지정가 청산 대기 (기준가 {mark}, "
+            f"{cfg['expiry_wait_s']}초마다 갱신). 손절선은 그대로 살아 있다")
+    elif tries % 10 == 0:
+        log(f"{sym}: 만기 지정가 {tries}회째 미체결, 계속 갱신 중")
 
 
 def _since_open(pos: dict) -> int:
@@ -1710,6 +2055,52 @@ _advisory_alerts: bool = True   # advisory warnings also go to Telegram; the
                                 # log line always stays (08-24 operator ask)
 _strong_bonus: bool = False     # empty special seats double a pick whose
                                 # strong 1h vote agrees with its direction
+
+
+def _touch2h_side(sym, per_hours=2, level=0.010, max_stale_h=6.0):
+    """Direction from the SHORT-horizon touch rate (ledger 140).
+
+    The seal calls direction from a 24h +-3% touch rate, but live trades
+    resolve in 2.7 hours (median) and never reach the 24h expiry. Measured
+    over 5.5 years on the same seats and geometry, the 2h +-1.0% rate is
+    positive in 8 of 12 half-years against 2 of 12 for the 24h rate, and
+    has no negative year since 2022. 2026-08-26 user decision to trade it.
+
+    Bars come from the hourly Pacifica cache the collector refreshes, so
+    stock and RWA tokens are covered as well as coins. Returns "long" /
+    "short", or None when the cache is missing or stale (the caller then
+    keeps the seal's own direction and says so in the log)."""
+    import gzip
+    p = os.path.expanduser(
+        f"~/.ocean_agent_bincache/pac_{sym}_1h_ohlc.json.gz")
+    if not os.path.exists(p):
+        return None
+    try:
+        with gzip.open(p, "rt", encoding="utf-8") as fh:
+            bars = json.load(fh)["bars"]
+    except (OSError, ValueError, KeyError):
+        return None
+    if len(bars) < 300 + per_hours:
+        return None
+    if (time.time() * 1000 - float(bars[-1]["t"])) / 3.6e6 > max_stale_h:
+        return None                      # stale cache: do not guess
+    hi = [float(b["h"]) for b in bars]
+    lo = [float(b["l"]) for b in bars]
+    c = [float(b["c"]) for b in bars]
+    n = len(c)
+    up = dn = cnt = 0
+    for i in range(max(0, n - 720 - per_hours), n - per_hours - 1):
+        base = c[i]
+        if base <= 0:
+            continue
+        cnt += 1
+        if max(hi[i + 1:i + 1 + per_hours]) / base - 1.0 >= level:
+            up += 1
+        if 1.0 - min(lo[i + 1:i + 1 + per_hours]) / base >= level:
+            dn += 1
+    if not cnt:
+        return None
+    return "long" if up >= dn else "short"
 
 
 def _vote_net(sigs, j, tf):
@@ -1943,6 +2334,7 @@ def main():
     if _strong_bonus:
         log("특별석 보너스: 빈 특별석 수만큼, 강신호(1h 순투표 ±2 이상)가 "
             "진입 방향과 일치하는 픽의 명목을 2배로 (08-24 사용자 결정)")
+    _cfg_banner = bracket_cfg(policy)
     _tp_limit = bool(policy.get("bracket_tp_limit", False))
     _entry_limit = bool(policy.get("bracket_entry_limit", False))
     _entry_wait = int(policy.get("bracket_entry_wait_sec", 120) or 120)
@@ -1951,12 +2343,19 @@ def main():
     if _entry_limit: modes.append(f"진입 지정가(미체결 {_entry_wait}s 후 취소)")
     if _tp_limit: modes.append("익절 지정가")
     if _sl_buf > 0: modes.append(f"손절 트리거-지정가(버퍼 {_sl_buf}×변동)")
+    if _cfg_banner.get("expiry_exit") == "limit":
+        modes.append(f"만기 청산 지정가(미체결 {_cfg_banner['expiry_wait_s']}s"
+                     f"마다 갱신)")
     if modes:
-        log("체결 방식: " + " · ".join(modes) + " (08-24 사용자 결정)")
+        log("체결 방식: " + " · ".join(modes) + " (08-24·08-26 사용자 결정)")
     _side_source = str(policy.get("bracket_side_source", "touch")).lower()
     if _side_source == "signal":
         log("부호 결정: 22신호 순투표, 동점이면 4h·8h·12h 신호 합산, 그래도 "
             "동점이면 RSI 판정 (08-24 사용자 결정). 신호가 항상 방향을 낸다")
+    if _side_source == "touch2h":
+        log("부호 결정: 2시간 ±1.0% 도달률 (08-26 사용자 결정, §140). "
+            "봉인의 24시간 도달률 대신, 실제 보유 시간에 맞춘 지평. "
+            "캐시가 없거나 오래되면 봉인 방향으로 물러선다")
     if not _selfgen_enabled:
         log("봉인 자체 생성 꺼짐 (bracket_selfgen_seal: false), 외부 생성기를 기다립니다")
     use_mode(bracket_mode(policy), args.dry)   # before any file is touched
@@ -2008,10 +2407,15 @@ def main():
     running = live_bracket() if not args.close_all else None
     if running:
         other, age_min = running
-        msg = (f"{other} 모드가 {age_min:.0f}분 전까지 돌고 있어 시작을 "
-               "거부합니다. 한 계좌를 두 모드가 나눠 쓰면 안 됩니다. 그 창에서 "
-               "Ctrl+C로 끄고 다시 실행하세요 "
-               f"(꺼진 봇의 흔적이면 {HEARTBEAT_FRESH_MIN}분 뒤 자동 해제).")
+        # No Ctrl+C here: nobody who installed this has a terminal window
+        # to press it in. The bot is launched detached by the installer, the
+        # Telegram bot, or the MCP tool, so the only handle a user has is
+        # the same sentence they would say to turn it off.
+        # (2026-08-26 user: "신규자들은 봇을 안 키는데 왜 넣어")
+        msg = (f"{other} 모드 봇이 이미 돌고 있어 시작을 거부합니다 "
+               f"({age_min:.0f}분 전 신호). 한 계좌를 두 봇이 나눠 쓰면 "
+               "증거금이 겹칩니다. 이미 돌고 있으니 그대로 두시면 되고, "
+               "끄고 싶으면 \"자동매매 꺼줘\" 라고 말하세요.")
         log(msg)
         notify.send("브래킷: " + msg)
         return

@@ -226,7 +226,13 @@ chat_local: true
 # 그 측정이 아니라 실거래 관찰에 근거한 운영 판단이며, 사용자는 자기
 # policy.yaml 에서 언제든 비울 수 있다.
 bracket_skip_syms: ["CHIP", "BP", "PUMP", "PIPPIN"]
-bracket_horizon_h: 24       # 만기: 다음 봉인 전 시장가 청산
+bracket_horizon_h: 24       # 만기: 다음 봉인 전 청산
+# 만기 청산을 시장가로 쓸지 지정가로 쓸지. limit 이면 마크에서 한 틱
+# 물러난 자리에 축소전용 지정가를 걸고, 안 채워지면 아래 초마다 가격을
+# 갱신해 다시 건다. 기다리는 동안에도 거래소 손절은 그대로 살아 있다.
+# market 으로 두면 예전처럼 시장가로 쓸어 담는다. (2026-08-26)
+bracket_expiry_exit: limit
+bracket_expiry_wait_s: 60
 
 # ── 하드 모드 기본값 (⚠️ 아직 전방 검증 안 됨) ──
 # 위 bracket_mode 를 hard 로 바꾸고 아래 주석을 풀어야 적용된다.

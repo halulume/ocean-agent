@@ -666,82 +666,51 @@ def set_trading_budget(budget_usd: float = 0, per_pick_usd: float = 0) -> str:
 @mcp.tool(title="Stop Auto Trading",
           annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True,
                                       idempotentHint=True, openWorldHint=False))
-def stop_auto_trading(confirm: bool = False) -> str:
+def stop_auto_trading(confirm: bool = True) -> str:
     """Stop the background bracket trading engine started by
     start_auto_trading. Open positions are NOT closed: their TP/SL stay
     registered on the exchange, so they remain protected; only new entries
-    and expiry management stop. Ask the user before calling with
-    confirm=true."""
-    from .bracket_trader import MODES, heartbeat_path
-    import json
-    import time as _time
-    target = None
-    for mode in MODES:
-        hp = heartbeat_path(mode)
-        if not os.path.exists(hp):
-            continue
-        if (_time.time() - os.path.getmtime(hp)) / 60 < 10:
-            try:
-                with open(hp, encoding="utf-8") as f:
-                    target = (mode, json.load(f).get("pid"), hp)
-                    break        # first live mode wins; the loop used to keep the last
-            except (OSError, ValueError):
-                continue
-    if target is None:
-        # No heartbeat is not no intent: a bot that just died, or one the
-        # watchdog is about to revive, still has to stay off.
-        try:
-            from .bracket_trader import load_state, save_state
-            st = load_state()
-            st["stopped_by_user"] = True
-            st["stopped_at"] = _dt.datetime.now().isoformat(timespec="seconds")
-            save_state(st)
-        except Exception:                                  # noqa: BLE001
-            pass
-        return ("실행 중인 자동매매 엔진이 없습니다 (심장박동 없음). "
-                "중지 상태로 기록했으니 감시기도 띄우지 않습니다.")
-    if not confirm:
-        return (f"[미리보기] 자동매매 중지: {target[0]} 모드 엔진(PID "
-                f"{target[1]})을 끕니다. 보유 포지션은 청산하지 않으며 "
-                f"거래소 익절·손절은 그대로 남아 보호됩니다. 새 진입과 "
-                f"만기 관리만 멈춥니다. 사용자 동의 후 confirm=true 로 "
-                f"다시 호출하세요.")
-    import subprocess
-    mode, pid, hp = target
-    if not pid:
-        raise ToolError("심장박동에 PID 가 없어 안전하게 중지할 수 없습니다.")
-    if os.name == "nt":
-        r = subprocess.run(["taskkill", "/PID", str(pid), "/F"],
-                           capture_output=True, text=True)
-        ok = r.returncode == 0
-    else:
-        import signal
-        try:
-            os.kill(int(pid), signal.SIGTERM)
-            ok = True
-        except OSError:
-            ok = False
-    if not ok:
-        raise ToolError(f"PID {pid} 종료 실패. 이미 꺼졌거나 권한 문제일 수 "
-                        f"있습니다. 잠시 후 다시 확인하세요.")
-    try:
-        os.remove(hp)
-    except OSError:
-        pass
-    # Write the intent down, not just the kill. A watchdog that only asks
-    # "is a bot running?" revives one within the hour, so a stop that lives
-    # only in a dead process is not a stop at all. Starting again clears it.
-    try:
-        from .bracket_trader import load_state, save_state, use_mode
-        use_mode(mode)
-        st = load_state()
-        st["stopped_by_user"] = True
-        st["stopped_at"] = _dt.datetime.now().isoformat(timespec="seconds")
-        save_state(st)
-    except Exception:                                      # noqa: BLE001
-        pass
-    return (f"자동매매 중지 완료 ({mode} 모드). 보유 포지션은 거래소 "
-            f"익절·손절로 계속 보호됩니다. 다시 켜려면 start_auto_trading.")
+    and expiry management stop. Call this whenever the user asks to turn
+    auto trading off - stopping is the safe direction and needs no second
+    confirmation."""
+    from .bracket_trader import stop_all_bots, mark_stopped_by_user
+    # 2026-08-26 user instruction: "turn it off unconditionally, and check
+    # that it actually stopped". The old version looked for a heartbeat
+    # under ten minutes old, killed the single pid written in it, and
+    # reported success on the kill request alone. Three ways that failed a
+    # user who asked for the engine to stop: a running bot whose heartbeat
+    # had gone stale was reported as "not running", a second bot on the
+    # same account survived because the search stopped at the first, and
+    # nothing ever confirmed the process was gone. Now the process list is
+    # the source of truth, every match dies, and the answer is checked.
+    r = stop_all_bots()
+    if not r["checked"]:
+        mark_stopped_by_user()
+        raise ToolError(
+            "[tell the user in their language] 자동매매를 껐는지 확인하지 "
+            "못했습니다. 이 컴퓨터의 실행 중인 프로그램 목록을 읽을 수 "
+            "없습니다. 중지 의사는 기록했으니 잠시 뒤 다시 꺼달라고 "
+            "말해 주세요. 그래도 확인이 안 되면 컴퓨터를 재시작하면 "
+            "확실히 꺼집니다. 보유 포지션은 거래소 익절·손절이 계속 "
+            "지키므로 그 사이에도 보호됩니다.")
+    left = r["left"] or []
+    if left:
+        raise ToolError(
+            f"[tell the user in their language] 자동매매를 끄려고 여러 번 "
+            f"강제 종료했지만 아직 살아 있습니다 (PID "
+            f"{', '.join(str(x) for x in left)}). 잠시 뒤 다시 꺼달라고 "
+            f"말해 주세요. 그래도 안 되면 컴퓨터를 재시작하면 확실히 "
+            f"꺼집니다. 보유 포지션은 거래소 익절·손절이 계속 지키므로 "
+            f"그 사이에도 보호됩니다.")
+    before = r["before"] or []
+    if not before:
+        return ("자동매매는 이미 꺼져 있었습니다 (실행 중인 엔진 없음). "
+                "중지 상태로 기록했으니 다시 켜기 전까지 시작하지 않습니다. "
+                "보유 포지션은 거래소 익절·손절이 계속 지킵니다.")
+    return (f"자동매매를 껐고, 꺼진 것까지 확인했습니다 "
+            f"(종료한 엔진 {len(before)}개, 남은 프로세스 0개). "
+            f"보유 포지션은 청산하지 않았고 거래소 익절·손절이 그대로 "
+            f"지킵니다. 다시 켜려면 start_auto_trading.")
 
 
 @mcp.tool(title="Open Funding Farm Position", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True))

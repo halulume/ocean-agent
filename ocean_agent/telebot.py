@@ -1213,21 +1213,22 @@ def _exec_apply(action, root, lang):
             creationflags=0x08000008 if os.name == "nt" else 0)
         logf.close()                         # the child holds its own copy
         return tr("exec_done_on", lang)
-    if pids is None:
-        # Non-Windows: no honest way to find the process from here yet,
-        # and a silent "not running" while it trades would be a lie
-        # (review M2). Say so instead.
+    # Stopping goes through the trader's own routine so that Telegram and
+    # the MCP tool cannot drift apart: kill every match, poll until the
+    # process list is empty, and write the stop down so nothing revives it.
+    # The old path here fired one kill per pid and returned "done" without
+    # looking, and it never recorded the stop at all.
+    # (2026-08-26 user instruction: stop unconditionally, then verify.)
+    from .bracket_trader import stop_all_bots
+    r = stop_all_bots()
+    if not r["checked"]:
         return tr("exec_no_stop_platform", lang)
-    if not pids:
+    left = r["left"] or []
+    if left:
+        return tr("exec_stop_failed", lang).format(
+            pids=", ".join(str(x) for x in left))
+    if not (r["before"] or []):
         return tr("exec_already_off", lang)
-    for pid in pids:
-        try:
-            subprocess.run(["powershell", "-NoProfile", "-Command",
-                            f"Stop-Process -Id {pid} -Force"],
-                           capture_output=True, timeout=30,
-                           creationflags=0x08000000)
-        except Exception:
-            pass
     return tr("exec_done_off", lang)
 
 
