@@ -245,7 +245,7 @@ mcp = FastMCP(_agent_name(default="mustache"), instructions=_INSTRUCTIONS)
 
 
 def _client() -> PacificaClient:
-    # Mainnet is the default everywhere (의도적결정 §1). This one defaulted
+    # Mainnet is the default everywhere, deliberately. This one defaulted
     # the other way, so a hand-configured user with no env var traded on a
     # different network than the one the file tags claimed (08-20 review).
     _base = os.environ.get("PACIFICA_BASE_URL", "https://api.pacifica.fi")

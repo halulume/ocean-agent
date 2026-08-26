@@ -28,28 +28,27 @@ from .indicators import INTERVAL_MS, ema_series, rsi_series
 # rebuilds on mismatch; walkforward stamps it and refuses to answer, which
 # drops the caller back to evidence shrinkage rather than to a wrong number.
 #   1  ~2026-08-19  original definitions
-#   2   2026-08-20  §108: sRSI smoothing, wick fractals, RSI band split,
+#   2   2026-08-20  sRSI smoothing, wick fractals, RSI band split,
 #                   entry form, hour-based horizon
-#   3   2026-08-20  §110: lower Bollinger band and squeeze flip to long;
+#   3   2026-08-20  lower Bollinger band and squeeze flip to long;
 #                   RSI band entry guarded by approach side (the guard is on
 #                   the RSI 70-80 and 20-30 bands, not on Bollinger)
-#   4   2026-08-21  §111: all four band signals take the reversal sign, the
+#   4   2026-08-21  all four band signals take the reversal sign, the
 #                   two squeeze signals go through _enter (firings halve),
 #                   and the scoring horizon becomes 24 hours on every
 #                   timeframe instead of 24 candles
 DEFS_VERSION = 4
 
 # How bad a thin-sample cell has to read before the gate stops calling it
-# unknown. -1% is twelve times the 0.08% round trip; the worst cell measured
-# on 2026-08-21 was -4.51% on 175 samples.
+# unknown. -1% is many times the round trip, so a cell this bad is not noise.
 THIN_EV_FLOOR = -0.01
 
 # Which signals actually changed meaning at DEFS_VERSION 3. A file-level stamp
 # is right for the matrix, which is remeasured whole, but wrong for the live
 # observation database, which accumulates one grading at a time: rejecting the
 # whole file there would throw away MA and MACD samples that still describe
-# exactly the same event. §108 and §110 touched these fourteen; the other
-# eight fire on identical bars and their history stays valid.
+# exactly the same event. Two definition changes touched these fourteen; the
+# other eight fire on identical bars and their history stays valid.
 CHANGED_AT_DEFS_3 = frozenset({
     # sRSI: unsmoothed fast %K to a 3-period slow %K, gates 40/60 to 20/80
     "sRSI>80 과열", "sRSI<20 과매도", "sRSI 골든크로스", "sRSI 데드크로스",
@@ -72,7 +71,7 @@ FEE_RT = 0.0008          # 시장가 왕복 수수료 (0.04% × 2, 명목 기준
 MIN_N = 30               # 최소 표본, 이 미만이면 진입하지 않는다
 # 2026-08-06에 이 값을 5까지 낮춰 '전 종목 9년 합산을 물려받게' 해봤다.
 # 표본이 부족한 종목을 버리는 게 아까웠기 때문인데, 하네스로 재보니 30 → 20 →
-# 15 → 10 으로 낮출수록 건당 수익이 단조롭게 나빠졌다 (수치는 측정기록 참조).
+# 15 → 10 으로 낮출수록 건당 수익이 단조롭게 나빠졌다.
 # 승률은 물려받을 수 있어도 '이 종목에서 이 신호가 어떻게 움직이는가'는
 # 물려받을 수 없다, 표본이 얇으면 그걸 모르는 채로 진입하는 것이다.
 #
@@ -165,7 +164,7 @@ PREDICTIONS_FILE = os.path.join(os.path.dirname(os.path.dirname(
 
 # 전 시간봉 매트릭스(2026-07-21, 633조합) 실측 기본값:
 #   1m~15m = 평균 EV 음수 (수수료가 다 먹음), 1d/1w = 표본 부족(신호 발생 거의 없음)
-#   중간 시간봉이 남고 그중 8h 가 EV·순수엣지 둘 다 최고 (수치는 측정기록 참조)
+#   중간 시간봉이 남고 그중 8h 가 EV·순수엣지 둘 다 최고
 # 자가 재측정(rematrix)이 돌면 그 결과가 이 기본값을 대체한다, 국면이 바뀌면
 # 최적 시간봉도 바뀌기 때문 (7월엔 8h가 '전부 무효'였다가 지금은 최고가 됨).
 _DEFAULT_HORIZONS = {"단타": "4h", "스윙": "8h", "장타": "12h"}
@@ -225,7 +224,7 @@ def _matrix_rejects(sig: str, tf: str) -> bool:
     통과하고 있었다. 반대로 엣지가 있는 숏(MA 데드크로스 +1.34%)은 막혔다.
     ①이 없으면 반대로 엣지는 있지만 돈은 안 되는 조합이 통과한다.
     측정 비교(표본 200+ 193조합): ①만 82조합 · ②만 97조합 · 둘 다 54조합.
-    둘 다 걸었을 때가 절대EV·순수엣지 양쪽에서 우세했다 (수치는 측정기록 참조).
+    둘 다 걸었을 때가 절대EV·순수엣지 양쪽에서 우세했다.
     """
     try:
         from .rematrix import signal_ev, baseline_ev
@@ -459,7 +458,7 @@ def _enter(cond, approach=None):
     was a cooling one. Across all 43 cached symbols at 1h that is 2,599 of
     19,976 band entries, 13.0%, and 11.3% on the oversold mirror. Those bars
     also fire RSI 과열이탈, so the same information voted twice on the way
-    down, which is the duplication §108 set out to remove.
+    down, which is the duplication this definition pass set out to remove.
 
     Its effect is narrower than the firing counts suggest. MIN_N counts
     deduplicated observations, not firings, and the guard moves those by only
@@ -532,23 +531,16 @@ def _signals(s):
                          and hist[i] > 0 >= hist[i-1]),
         "MACD 데드크로스": ("short", lambda i: i > 0 and x(i, hist)
                          and hist[i] < 0 <= hist[i-1]),
-        # Band exits are reversal, all four of them, on the one standard 작업
-        # 규칙 §11 sets: train AND test both positive, never the raw count.
-        # §110's 43-symbol boundary table, read as 학습/시험 per boundary:
-        #
-        #   upper as long    train +0.1 +0.2 +0.3 -0.1   test -0.8 -1.1 -1.6 -1.5
-        #   upper as short   (exact mirror)              test +0.8 +1.1 +1.6 +1.5
-        #   lower as long    train +0.8 +0.3 +0.6 +0.6   test +1.3 +1.9 +2.0 +2.4
-        #
-        # A first pass kept the upper band at continuation because its raw
-        # count read 3/8 against the lower band's 0/8, but every one of those
-        # three sits in a training half and its test half is 0 of 4, which is
-        # the shape §11 exists to reject. Δ is an exact mirror on one sample,
-        # so "not enough evidence to flip" is the same sentence as "not enough
-        # evidence to keep", and the point estimate favours the flip.
-        #
-        # Weak family either way: on the 08-21 Bonferroni line of |t| > 3.62,
-        # none of the four clear it, the best being the lower band at 3.13.
+        # Band exits are reversal, all four of them, on the one standard
+        # this project holds to: train AND test both positive, never the raw
+        # count. A first pass kept the upper band at continuation on a raw
+        # count, but those wins all sat in training halves and the test
+        # halves did not hold, which is exactly the shape that standard
+        # exists to reject. The mirror side is an exact reflection on one
+        # sample, so "not enough evidence to flip" is the same sentence as
+        # "not enough evidence to keep", and the point estimate favours the
+        # flip. Weak family either way: none of the four clears a multiple
+        # comparison correction.
         # Recorded as the best available sign, not as an established edge.
         "볼린저 상단이탈": ("short", _enter(lambda i: bb[i] is not None and bb[i] > 2)),
         "볼린저 하단이탈": ("long", _enter(lambda i: bb[i] is not None and bb[i] < -2)),
@@ -581,8 +573,8 @@ def _signals(s):
         # break is a subset of bb > 2 yet fired more often than its own
         # superset, purely from repeats, and that double weight flowed into
         # _matrix_rejects' n >= 200, rematrix's MIN_N and the sample-weighted
-        # pooling in signal_ev. This is the duplication §108 removed, left
-        # behind inside one family.
+        # pooling in signal_ev. This is the same duplication the definition
+        # pass removed elsewhere, left behind inside one family.
         "볼린저 스퀴즈 상방": ("short", _enter(lambda i: _squeeze_break(bw, bb, i, +1))),
         "볼린저 스퀴즈 하방": ("long", _enter(lambda i: _squeeze_break(bw, bb, i, -1))),
         # 극단에서 '되돌아오는 순간', 극단 상태 자체보다 유효할 수 있음
@@ -614,7 +606,7 @@ def _squeeze_break(bw, bb, i, direction):
     But that log ran at 16:00 on 08-20 and the definition fixes landed at
     16:11, so every number in it predates smoothed sRSI, wick fractals and
     the RSI band split, and it pools the upper and lower bands into one row
-    where §110 later found they disagree. **The threshold has not been tested
+    where a later pass found they disagree. **The threshold has not been tested
     on direction under the current definitions.** Until it is, 2σ stands on
     the definition alone: a band is 2σ, so 1.5σ is inside it.
     """
@@ -934,7 +926,7 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 # 낙관 가정으로도 0 이하라 판정 방식과 무관하게 마이너스다.
                 # 풀 백테스트도 독립적으로 같은 답을 냈다, 1시간봉 517건
                 # 승률이 기준선 아래고 건당도 마이너스였다 (수익은 전부
-                # 4h/1d 에서 나왔다, 수치는 측정기록 참조).
+                # 4h/1d 에서 나왔다).
                 # 그래서 모든 시간봉이 자기 측정값(avg_win/avg_loss)을 쓴다.
                 # 변동성 관문도 같은 종가 기준으로 고른 것이라 함께 뺐다.
                 # ── 기대값은 '경로'로 계산한다 (단타·스윙 공통) ──

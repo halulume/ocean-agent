@@ -38,7 +38,7 @@ def deep_prices(client: PacificaClient, symbol: str, log=lambda *a: None):
     빠지면 체결 확률과 오버슛을 실제보다 낙관하게 된다. 매매 쪽에서 이미 받아
     캐시해 둔 9년치를 그대로 재사용한다(추가 다운로드 없음).
 
-    Closes only, by design. §108 moved fractals onto the wick and every other
+    Closes only, by design. Fractals moved onto the wick and every other
     _series() caller now passes highs and lows, but this module cannot: it
     scores Print fills against an hourly close series, and the three
     _series(...) calls below have no OHLC to hand over. That is not an

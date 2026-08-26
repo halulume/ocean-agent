@@ -104,10 +104,10 @@ WARN_COOLDOWN_SEC = 6 * 3600
 # opened_at when the fill is booked, about two seconds later, so a window that
 # starts at opened_at misses the row carrying the opening fee.
 OPEN_SKEW_MS = 60_000
-# Taker round trip, in percentage points of notional. Measured on the venue's
-# own history 2026-08-21: an opening row and a closing row each carry about
-# 0.04% of notional as a negative pnl. 작업규칙 §11 records 0.07%, which is
-# one side short of what the exchange actually charges.
+# Taker round trip, in percentage points of notional. Taken from the venue's
+# own fee rows rather than a published rate: an opening row and a closing row
+# each carry about 0.04% of notional as a negative pnl, so both sides have to
+# be counted.
 FEE_RT_PCT = 0.08
 
 
@@ -464,9 +464,9 @@ def bracket_cfg(policy: dict) -> dict:
         # install runs with the ceiling ON (2026-08-25 user decision after
         # one PUMP stop, -5.5% on a 5.8% expected move, ate 3.5 take
         # profits). Users with their own policy.yaml are unaffected until
-        # they add the key. Note the 5.5y replay rejects uniform ceilings
-        # (ledger 136/137/138): this is a live-trading judgment, not a
-        # measured rule, and emptying it is one line.
+        # they add the key. A long replay does not support a uniform
+        # ceiling, so treat this as a live-trading judgment rather than a
+        # measured rule. Emptying it is one line.
         "vol_ceiling_pct": max(0.0,
                                float(policy.get("bracket_vol_ceiling_pct", 0))),
         # What the operator said they wanted working, in dollars. Slots and
@@ -484,8 +484,8 @@ def bracket_cfg(policy: dict) -> dict:
         # is the old behaviour. The 2026-08-26 geometry (TP 1.0x / SL 1.3x)
         # takes the expiry on about one trade in five instead of one in
         # thirty, so the taker fee on that exit stopped being a rounding
-        # error: 0.040% a side against 0.015% maker, i.e. +0.025%p on a
-        # trade whose measured edge is +0.098%. The position keeps its
+        # error: taker is 0.040% a side against 0.015% maker, and paying
+        # that on one exit in five is worth avoiding. The position keeps its
         # exchange-side stop while the limit rests, so an unfilled chase is
         # bounded by the same stop it always had. (2026-08-26 user decision)
         "expiry_exit": str(policy.get("bracket_expiry_exit", "limit")).lower(),
@@ -595,9 +595,9 @@ def _recorded_distances(pos: dict, cfg: dict) -> tuple[float, float]:
     """This position's own take-profit and stop distances, in percent.
 
     Read off the prices the orders were actually placed at, not recomputed
-    from today's multipliers. §100 made the same point about the ledger: on a
-    day the geometry changes, the book holds two generations and reading one
-    with the other's ruler is wrong. The code had the same bug. It matters for
+    from today's multipliers. On a day the geometry changes the book holds
+    two generations, and reading one with the other's ruler is wrong. It
+    matters for
     the slippage breaker, which asks whether a stop filled worse than its own
     distance, and for the estimated-PnL cap.
 
@@ -623,7 +623,7 @@ def _recorded_distances(pos: dict, cfg: dict) -> tuple[float, float]:
         return tp_distance_pct(cfg, exp), cfg["sl_mult"] * exp
     # Nothing to measure against, so say so instead of answering (0, 0). The
     # caller caps its estimate at min(move, tp_d) and max(move, -sl_d), so
-    # zeros would book every close, win or loss, as exactly 0.00%p and make
+    # zeros would book every close, win or loss, as exactly zero and make
     # the slippage counter read every stop as slipped. No position on file
     # lacks these fields; this is a guard, not a path.
     return None, None
@@ -657,9 +657,9 @@ def _close_row(sym: str, pos: dict, est, cause: str) -> dict:
     The book used to keep eight fields, none of them the bracket the trade
     actually wore, so a row could not be re-read later: -3.155% might be a
     stop hit cleanly or a stop slipped through, and nothing on the row said
-    which. §100 made this point about reading a book that spans a geometry
-    change, and the analysis side was corrected while the writing side was
-    not. Additive, so nothing that reads the old eight fields changes.
+    which. A book that spans a geometry change has to carry its own ruler,
+    and the analysis side was corrected while the writing side was not.
+    Additive, so nothing that reads the old eight fields changes.
     """
     row = {"sym": sym, "dir": pos.get("dir", ""),
            "pnl_pct_est": est, "cause": cause,
@@ -672,8 +672,8 @@ def _close_row(sym: str, pos: dict, est, cause: str) -> dict:
         if v is not None:
             row[k] = v
     # Which fee convention priced this row. Rows written before 08-21 09:44
-    # summed closing rows only, so they are optimistic by the opening fee,
-    # about 0.04%p of notional; rows written after include both sides. A book
+    # summed closing rows only, so they are optimistic by one side's fee;
+    # rows written after include both sides. A book
     # that spans the change cannot be averaged without saying which is which,
     # and the earlier rows cannot all be repaired because the venue's history
     # only reaches back about fifty round trips.
@@ -1092,7 +1092,7 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             else:
                 if s2 != direction:
                     log(f"{sym}: 방향 교체 {direction} → {s2} "
-                        f"(2시간 도달률, §140)")
+                        f"(2시간 도달률)")
                 direction = s2
         if _side_source == "signal" and not dry:
             sig_dir = _signal_side(client, sym)
@@ -1120,9 +1120,9 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             continue
         # Retry attempts reuse the FIRST attempt's anchor for this seal
         # (audit 0.4.53): re-anchoring each retry at the then-current mark
-        # is the "chase the book" style the entry bake-off rejected
-        # (ledger §134); the measured winner waits at one price for the
-        # hour. Keyed by seal, so a fresh seal starts a fresh anchor.
+        # is the "chase the book" style the entry comparison rejected; the
+        # style that won waits at one price for the hour. Keyed by seal, so
+        # a fresh seal starts a fresh anchor.
         anchors = st.setdefault("entry_anchor", {})
         akey = f"{key}|{sym}"
         if akey in anchors:
@@ -1431,10 +1431,9 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             # Unfilled picks get retried at the SAME anchor while this seal
             # is current (every ENTRY_RETRY_COOLDOWN_SEC), not once per
             # hour. Before 2026-08-25 a single fill marked the whole seal
-            # consumed, so every 60s-cancelled sibling lost its hour: live
-            # fill rate ran 71% while the measured winner of the entry
-            # style bake-off (ledger §134, "앵커지정가") assumes the full
-            # hour of chances at the anchor. Same price, same maker fee,
+            # consumed, so every 60s-cancelled sibling lost its hour, while
+            # the entry style this bot uses assumes the full hour of
+            # chances at the anchor. Same price, same maker fee,
             # no chasing: only more attempts. Held symbols are skipped by
             # the position check, so retries touch only the unfilled.
             global _retry_not_before
@@ -1462,17 +1461,15 @@ def realized_close(client, sym: str, since_ms: int) -> dict | None:
     (100 of 100 on 08-21), so the cause branch never fired and only close
     rows were summed. But an open row's pnl IS the opening fee as a negative
     number, and dropping it made every trade look better than it was by one
-    side of the round trip: FARTCOIN booked +3.943% where the real result was
-    +3.903%. Across the book that is 0.04%p a trade, turning -0.5304%p into
-    -0.5704%p. The round trip is 0.08%, not the 0.07% 작업규칙 §11 records.
+    side of the round trip. The round trip is both sides, not one.
 
     The cause and price still come from the last close, because an open row
     describes an entry, not an ending.
 
     The window ends at this position's own close. since_ms opens it, but the
     same symbol is often re-entered minutes later, and those rows belong to
-    the next position: counting them pulled a second opening fee in and made
-    one FARTCOIN round trip read -0.081%p instead of its true -0.040%p.
+    the next position: counting them pulled a second opening fee in and
+    doubled the fee charged against a single round trip.
     """
     # limit, or the venue returns its default 100 rows, which on 08-21 was
     # only two days: eight slots refilling hourly reach that quickly, and
@@ -1647,8 +1644,8 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                         # Our own resting expiry order is what filled: it
                         # sits one tick off the mark, far inside both
                         # bracket lines, so "hit" is empty by construction.
-                        # Labelled so the ledger can measure expiry exits
-                        # on their own (ledger 142).
+                        # Labelled so expiry exits can be graded on
+                        # their own later.
                         cause = "만기:지정가"
                 if cause == "liquidation" and HALT_ON_LIQUIDATION:
                     # Warned, not halted: every position carries an
@@ -1912,12 +1909,12 @@ def _warn_once(st, key: str, msg: str) -> None:
     Suppressed per key on a cooldown, which is the middle these warnings need.
     Comparing message text fired every 30-minute pass, because the average
     warning carries the running average and any close moves it a thousandth;
-    the state file held -1.516 while the number had walked to -1.279.
+    the state file held one running average while the number had walked on.
     Suppressing on the key alone went too far the other way: nothing in the
     codebase clears `warned`, --resume included, so a key that rang once went
     silent for the life of the state file. It had already happened, and with
-    it the account had neither a halt nor a warning. 의도적결정 13 traded the
-    halt away for the warning, so the warning has to keep working.
+    it the account had neither a halt nor a warning. This bot deliberately
+    trades the halt away for the warning, so the warning has to keep working.
 
     Six hours, so a worsening account is told again up to four times a day.
     Old entries were plain strings; those count as "rang, time unknown" and
@@ -1938,7 +1935,7 @@ def circuit_breakers(st, cfg) -> None:
     # 08-24 operator order ("이거 하지마"): with advisory alerts off, the
     # breaker checks themselves are skipped, not just their pings. The
     # account's real protection is the exchange-side stop on every
-    # position (의도적결정 13); these checks only produced warnings anyway.
+    # position; these checks only produced warnings anyway.
     # Shipped default keeps them (bracket_advisory_alerts: true).
     if not _advisory_alerts:
         return
@@ -1947,8 +1944,7 @@ def circuit_breakers(st, cfg) -> None:
     # Operator closes are not strategy results. --close-all books its exits
     # here like any other, so a breaker meant to ask "is the strategy paying"
     # was averaging in whatever the operator did by hand, and the answer moved
-    # with it: on the 08-20 book the same 30 rows read -1.279%p with them and
-    # -1.415%p without. Count the last HALT_AVG_AFTER *strategy* closes rather
+    # with it. Count the last HALT_AVG_AFTER *strategy* closes rather
     # than filtering inside a fixed window, or the sample silently shrinks on
     # a day with many manual exits.
     closed = [c for c in st["closed"] if _is_strategy(c)]
@@ -1979,11 +1975,10 @@ def status(st) -> str:
                         if p.get("unprotected") else ""))
     if st["closed"]:
         # Same separation the breaker makes, because this is the line a person
-        # actually reads every cycle. Operator exits are not strategy results:
-        # on the 08-21 book they moved the score from 19/47 to 20/57 and the
-        # total from -23.41%p to -30.24%p, mostly because --close-all books
-        # eight fee-only closes. 작업규칙 §11 grades on per-trade return, so
-        # that goes first and the sum second.
+        # actually reads every cycle. Operator exits are not strategy
+        # results, and they move both the score and the total, mostly because
+        # --close-all books a run of fee-only closes. Per-trade return is the
+        # honest unit, so that goes first and the sum second.
         strat = [c for c in st["closed"] if _is_strategy(c)]
         other = len(st["closed"]) - len(strat)
         if strat:
@@ -2058,13 +2053,13 @@ _strong_bonus: bool = False     # empty special seats double a pick whose
 
 
 def _touch2h_side(sym, per_hours=2, level=0.010, max_stale_h=6.0):
-    """Direction from the SHORT-horizon touch rate (ledger 140).
+    """Direction from the SHORT-horizon touch rate.
 
-    The seal calls direction from a 24h +-3% touch rate, but live trades
-    resolve in 2.7 hours (median) and never reach the 24h expiry. Measured
-    over 5.5 years on the same seats and geometry, the 2h +-1.0% rate is
-    positive in 8 of 12 half-years against 2 of 12 for the 24h rate, and
-    has no negative year since 2022. 2026-08-26 user decision to trade it.
+    The seal calls direction from a 24h touch rate, but live trades resolve
+    in a few hours and rarely reach the 24h expiry, so the side was being
+    read off a horizon the trade never lived through. A long replay favours
+    the short horizon on the same seats and geometry. 2026-08-26 user
+    decision to trade it.
 
     Bars come from the hourly Pacifica cache the collector refreshes, so
     stock and RWA tokens are covered as well as coins. Returns "long" /
@@ -2114,8 +2109,7 @@ def _vote_net(sigs, j, tf):
     bet"), so gating it away contradicts its reason to exist. Raw counting
     also matches what the forward shadow ledger records. The correlated-
     family duplication (four sRSI variants = four votes) likewise stays,
-    documented, until the forward record says the bet is worth refining.
-    의도적결정 §21 추가 참조."""
+    documented, until the forward record says the bet is worth refining."""
     net = 0
     for name, (side, fn) in sigs.items():
         try:
@@ -2353,7 +2347,7 @@ def main():
         log("부호 결정: 22신호 순투표, 동점이면 4h·8h·12h 신호 합산, 그래도 "
             "동점이면 RSI 판정 (08-24 사용자 결정). 신호가 항상 방향을 낸다")
     if _side_source == "touch2h":
-        log("부호 결정: 2시간 ±1.0% 도달률 (08-26 사용자 결정, §140). "
+        log("부호 결정: 2시간 ±1.0% 도달률 (08-26 사용자 결정). "
             "봉인의 24시간 도달률 대신, 실제 보유 시간에 맞춘 지평. "
             "캐시가 없거나 오래되면 봉인 방향으로 물러선다")
     if not _selfgen_enabled:

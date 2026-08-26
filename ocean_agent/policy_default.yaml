@@ -164,15 +164,19 @@ bracket_capital_pct: 30     # 가용 증거금 중 이만큼만 사용 (100 = �
 bracket_slots: 8            # 봉인의 trade_rank 상위 픽 수 (일반 6 + 특별 2)
 bracket_leverage: 5         # 종목 상한이 더 낮으면 그 값
 bracket_deploy_pct: 0.97    # 가용 증거금의 97% 투입 (3%는 수수료·펀딩 버퍼)
-bracket_tp_mult: 1.5        # 익절 = 예상변동폭 x 1.5
-bracket_sl_mult: 1.0        # 손절 = 예상변동폭 x 1.0
+# 2026-08-26 사용자 결정. 방향을 짧은 지평으로 바꾸면서 최적 기하도 함께
+# 옮겼다. 방향에 정보가 없던 시절의 값은 익절 1.5 / 손절 1.0 이었고, 그
+# 조합은 승률이 높은 대신 건당이 얇았다. 지금 값은 승률이 낮아지는 대신
+# 이길 때 더 번다. 되돌리려면 두 줄을 1.5 / 1.0 으로 바꾸면 된다.
+bracket_tp_mult: 1.0        # 익절 = 예상변동폭 x 1.0
+bracket_sl_mult: 1.3        # 손절 = 예상변동폭 x 1.3
 # Take-profit executes as a LIMIT at the same price when triggered (maker
 # fee 0.015% vs taker 0.04%, no slippage past the line). Shipped ON since
-# 0.4.43 (08-24 decision). Rationale, dated honestly: §127 (08-24) measured
-# the REPLAY's gap to break-even as roughly the fee's size, which made
-# execution cost the one provable lever AT THAT TIME; live per-trade results
-# have been far worse than the fee alone (review 15-1), so this saves real
-# money on every fill but does not by itself reach break-even. Known
+# 0.4.43 (08-24 decision). Rationale, dated honestly: a replay put the gap
+# to break-even at roughly the fee's size, which made execution cost the one
+# provable lever AT THAT TIME; live per-trade results have been worse than
+# the fee alone, so this saves real money on every fill but does not by
+# itself reach break-even. Known
 # trade-off: a wick that touches the trigger without trading through can
 # leave the limit unfilled and the position runs to the stop or expiry.
 bracket_tp_limit: true
@@ -190,9 +194,14 @@ bracket_sl_limit_buffer: 0.5
 # (shipped behaviour). "signal": the 22-signal net vote on the last closed 1h
 # bar, escalating to the 4h/8h/12h votes and finally an RSI verdict, so the
 # signals always produce a side; only a failed bar fetch falls back to the
-# seal's touch direction. The record keeps which rule decided ("signal" /
-# "no_bars_touch"), so the two stay comparable afterwards.
-bracket_side_source: touch
+# seal's touch direction. "touch2h": the same touch rate read over a short
+# horizon instead of 24 hours, computed at entry from the hourly bar cache,
+# falling back to the seal's direction when that cache is missing or stale.
+# The record keeps which rule decided, so the rules stay comparable
+# afterwards. Shipped on touch2h since 2026-08-26 (user decision): live
+# trades resolve in a few hours and rarely reach the 24h expiry, so the
+# 24h rate was answering a question the trade never lived through.
+bracket_side_source: touch2h
 bracket_vol_floor_pct: 0.8  # 예상변동 0.8% 미만 픽 제외
 # 예상 변동 상한. 손절선이 예상 변동 1.0배이므로 이 값이 곧 "손절이
 # 이보다 멀면 안 잡는다"는 뜻이다. 08-25 사용자 결정으로 5.0 을 기본값에
@@ -218,11 +227,11 @@ chat_local: true
 # 지우면 다시 거래한다. 다른 종목을 막고 싶으면 같은 줄에 추가하면 된다.
 # 2026-08-25 사용자 결정: 운영자 계좌와 같은 제외 목록을 배포 기본값으로.
 #   CHIP·BP  봉인 슬리피지가 0.375~0.421% 로 왕복 비용이 익절폭의 1/4
-#   PUMP     최악 손절 -6.32% (예상 변동 5.8%), 손절 한 방 = 익절 3.5회
-#   PIPPIN   손절 평균 -3.22% > 익절 평균 +3.05%, 15건 누적 -10.7%p
+#   PUMP     예상 변동보다 크게 벌어진 손절이 반복됐다
+#   PIPPIN   손절 평균이 익절 평균보다 커서 누적이 마이너스였다
 # KAITO 는 해제(08-25): -6.33% 이탈은 손절이 시장가이던 시절 사고이고
 # 지금은 트리거-지정가+버퍼가 막는다. 슬리피지도 0.07~0.10% 로 정상.
-# 5.5년 재생은 균일 변동 상한을 기각했다(§136·§137·§138). 아래 둘은
+# 긴 재생은 균일 변동 상한을 기각했다. 아래 둘은
 # 그 측정이 아니라 실거래 관찰에 근거한 운영 판단이며, 사용자는 자기
 # policy.yaml 에서 언제든 비울 수 있다.
 bracket_skip_syms: ["CHIP", "BP", "PUMP", "PIPPIN"]
@@ -247,5 +256,5 @@ bracket_expiry_wait_s: 60
 # lend their margin to conviction: when the plain 1h net vote of the 22
 # signals is at least +-2 AND agrees with the pick's entry direction, that
 # pick trades at double notional, one seat per bonus. Off by default: net
-# votes carry no measured edge (ledger §125); this is an operator's bet.
+# votes carry no measured edge; this is an operator's bet.
 bracket_strong_bonus: false

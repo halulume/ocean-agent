@@ -59,10 +59,10 @@ MIN_ROWS = 25            # refuse to seal on a thinner cross-section
 # disagreed: the touch side beat the cross-section by a wide margin on both
 # average and hit rate, and it held in both halves of the period (figures in
 # the measurement ledger, kept out of the shipped package). Two picks in
-# one falling session were a regime, not a rule (§100), so stocks are back
-# on the touch side. RWA stays: it is the one class where the cross-section
-# wins over the whole period (§90), and its 34 split picks are too thin and
-# too mixed to move it either way.
+# one falling session were a regime, not a rule, so stocks are back on the
+# touch side. RWA stays: it is the one class where the cross-section wins
+# over the whole period, and its split picks are too thin and too mixed to
+# move it either way.
 XSEC_DIR_CLASSES = {"기타·RWA"}
 # Individual symbols that ride it regardless of class. CHIP was here for
 # the same one-day reason as stocks and left with them; it is on the skip
@@ -483,9 +483,9 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
     rec = {"made_at": now.isoformat(),
            "horizon_h": 24,
            # Every pick is filed under this sentence, so it has to describe
-           # what actually chose the direction. §100 cut cross-sectional
-           # ranking back to one class and the sentence kept claiming it for
-           # all of them; §83⑥ had already fixed this once. Built from the
+           # what actually chose the direction. Cross-sectional ranking
+           # was cut back to one class while the sentence kept claiming it
+           # for all of them, twice now. Built from the
            # live constants rather than typed out, so it cannot drift again.
            # bracket_trader.latest_seal() matches on "자산군" only, so the
            # rest of the line is record, not behaviour.

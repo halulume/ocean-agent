@@ -151,7 +151,7 @@ def precompute(bars: list[dict], tf: str = "1h"):
     _fwd = _fwd_for(tf)
     closes = [b["c"] for b in bars]
     # Pass the wicks so the harness scores the same fractal definition the
-    # bot fires on (§108). bars already carries them.
+    # bot fires on. bars already carries them.
     if all("h" in b and "l" in b for b in bars):
         s = ss._series(closes, [b["h"] for b in bars], [b["l"] for b in bars])
     else:

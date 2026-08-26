@@ -48,7 +48,7 @@ def send(text: str) -> None:
             json={"chat_id": chat_id, "text": text},
             timeout=10,
         )
-        # The warning path is the account's only voice now (의도적결정 13
+        # The warning path is the account's only voice now (the halt was
         # traded halts for warnings), so a silent delivery failure means no
         # protection at all. An expired token or wrong chat_id returns 4xx
         # with ok=false and no exception; say so instead of believing it.

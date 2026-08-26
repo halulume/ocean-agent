@@ -54,7 +54,7 @@ def _firings(closes, fwd=FWD, highs=None, lows=None):
     bot would have taken, so the walk-forward pass is pure bookkeeping after
     this, no re-running indicators per checkpoint.
 
-    highs/lows are the fractal definition (§108). This table calibrates live
+    highs/lows are the fractal definition. This table calibrates live
     win rates, so measuring a different definition than the one that fires
     would miscalibrate every signal that uses a wick."""
     from .signal_scanner import _series, _signals
@@ -75,7 +75,7 @@ def _firings(closes, fwd=FWD, highs=None, lows=None):
             signed = move if side == "long" else -move
             hits.append((i, 1 if signed > 0 else 0))
         # Firings that overlap inside one forward horizon are one observation
-        # seen repeatedly, not several. 작업규칙 §11 requires the thinning and
+        # seen repeatedly, not several. The house standard requires thinning and
         # this file never did it, so a signal that stays true for twenty bars
         # contributed twenty resolved outcomes of the same move to the
         # calibration curve. That matters more here than almost anywhere:
@@ -268,7 +268,7 @@ def run(symbols=None, tfs=None, fwd=FWD, log=print) -> "Agg":
         for tf in tfs:
             try:
                 # _fetch returns closes only; the fractal definition needs the
-                # wicks, so pull whole bars (§108).
+                # wicks, so pull whole bars.
                 bars = _fetch_ohlc(client, sym, tf, use_extended=True, log=log)
                 closes = [x["c"] for x in bars]
             except Exception as e:

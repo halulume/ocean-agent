@@ -248,7 +248,7 @@ def analyze_multi(client: PacificaClient, symbol: str,
         fwd = _fwd_for(tf)
         # fetch_bars, not fetch_closes: the wrapper drops the wicks and the
         # fractals shown to the user would then be a different definition
-        # from the one the bot trades on (§108).
+        # from the one the bot trades on.
         ohlc = fetch_bars(client, symbol, tf, max_bars=1500)
         closes = [b[4] for b in ohlc]
         n = len(closes)

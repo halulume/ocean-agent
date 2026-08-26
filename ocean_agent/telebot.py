@@ -363,7 +363,7 @@ def _print_cycle_check(token, cid, env, root):
     when the 24h cycle ends the funds must come back automatically and the
     owner is asked whether to go again. Settlement of an ENDED game only
     recovers the owner's own deposit plus premium and opens no position,
-    so it runs without a per-event confirmation (의도적결정 §23 추가).
+    so it runs without a per-event confirmation.
     Re-entry is never automatic: it goes through the same yes -> judge ->
     confirm -> amount flow as every money action.
     """

@@ -96,7 +96,7 @@ MATRIX_START_MS = 1_609_459_200_000        # 2021-01-01 00:00 UTC
 #
 # 자른 근거는 "봇의 실전 채점 경로는 1h·4h·8h·12h 를 쓴다" 였는데, 08-20 재계산
 # 에서 best_horizons() 가 단타로 15분봉을 골랐다. 전제가 깨진 것이다. 그 상태
-# 에서는 60일짜리 기대값과 5.5년짜리 기대값을 한 표에 놓고 1등을 뽑게 되고,
+# 에서는 짧은 창의 기대값과 긴 창의 기대값을 한 표에 놓고 1등을 뽑게 되고,
 # 운 좋은 60일이 이긴다. 국면이 하나뿐인 창은 국면을 못 이긴다.
 #
 # 다운로드 비용이 컸다는 당시 판단도 지금은 안 맞는다. 캐시에 이미 15분봉
@@ -223,9 +223,9 @@ def _path_result(bars, closes, i, side, sl, tp, fwd):
     쪼개 실제 순서를 확인해 비교했더니:
         8h   손절우선 -5.579% · 익절우선 -5.262% · 실제순서 -5.528%
         12h  손절우선 -7.322% · 익절우선 -7.055% · 실제순서 -7.264%
-    한 봉에 둘 다 닿는 경우가 0.1~0.3%뿐이라(익절과 손절이 서로 멀다) 실제
-    순서와의 차이가 0.05%p 에 그친다. 하위 봉을 들여다보는 복잡도를 더할
-    이유가 없어 손절 우선으로 둔다."""
+    한 봉에 둘 다 닿는 경우가 드물어서(익절과 손절이 서로 멀다) 실제 순서와
+    거의 차이가 없다. 하위 봉을 들여다보는 복잡도를 더할 이유가 없어 손절
+    우선으로 둔다."""
     e = closes[i]
     if e <= 0:
         return None
@@ -279,7 +279,7 @@ def _measure_series(closes, fwd, bars=None):
             if cnt >= 50:
                 ev = tot / cnt
         base[side] = {"wr": wr, "n": len(mv), "ev": ev, "ev_end": ev_end}
-    # Fractals need the wick, not the close. §108 fixed that in the scanner
+    # Fractals need the wick, not the close. That was fixed in the scanner
     # but this call kept passing closes only, so the gate that decides which
     # signals may trade was built from a different definition than the one
     # that fires. On 1000BONKUSDT 1h over 6,000 bars the two definitions
@@ -378,7 +378,7 @@ def _fwd_for(tf: str, fwd_hours: int = 24) -> int:
 
     fwd 는 캔들 수였다. 그래서 4시간봉은 96시간, 12시간봉은 288시간 뒤를 보고
     채점했는데 실제 매매는 24시간 만기다. 시간봉마다 지평이 다른 표를 한 장으로
-    읽고 있었던 것이고, 22신호가 전부 기대값 마이너스라는 §105 의 판정도 그
+    읽고 있었던 것이고, 22신호가 전부 기대값 마이너스라는 옛 판정도 그
     표에서 나왔다. 최소 1봉은 봐야 하므로 짧은 봉만 그대로 캔들 수가 커진다.
     """
     h = TF_HOURS.get(tf)
@@ -580,7 +580,7 @@ def best_horizons(default: dict | None = None) -> dict:
 
     일봉은 평균으로 꼴찌인데 상위 기준으론 1위다(-1.33% → +1.00%). 평균으로
     고르면 마이너스 시간봉만 남는다. 풀 백테스트도 같은 답을 냈다, 1시간봉만
-    건당 마이너스고 4h·1d 는 플러스였다 (수치는 측정기록 참조).
+    건당 마이너스고 4h·1d 는 플러스였다.
 
     신호 단위로 먼저 묶는 이유: 행이 (종목 × 시간봉 × 신호)라 그냥 상위 3행을
     뽑으면 운 좋은 한 종목이 독차지한다. 종목을 가로질러 신호별로 합친 뒤

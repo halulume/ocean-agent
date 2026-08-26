@@ -150,7 +150,7 @@ def observe(client: PacificaClient, universe: int = 15,
             try:
                 # fetch_closes is a wrapper that throws the wicks away, and
                 # this is where win rates are learned, so the definition here
-                # has to be the one that fires in signal_scanner (§108).
+                # has to be the one that fires in signal_scanner.
                 ohlc = fetch_bars(client, sym, tf)
             except Exception:
                 continue
@@ -347,7 +347,7 @@ def _side_current(entry) -> bool:
 
     observer.grade() scores won = move > 0 for a long and move < 0 for a
     short, but signal_winrate and pooled_winrate returned win/total without
-    asking which side produced it. When §110 flipped the lower Bollinger band
+    asking which side produced it. When a later pass flipped the lower Bollinger band
     and its squeeze to long, 1,343 gradings kept their short verdicts and were
     read as long win rates, i.e. exactly inverted. Records whose side no longer
     matches are dropped rather than flipped: a definition change moves which
