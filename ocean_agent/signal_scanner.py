@@ -119,7 +119,7 @@ MIN_MARGIN_USD = 25.0
 
 # ── 스윙 고정 손절/익절, 2026-08-05 채택했다가 08-06 철회 ──
 # ⚠️ 현재 코드에서 쓰이지 않는다. 종가 기준으로 골랐던 값인데, 고가/저가로
-# 다시 재니 마이너스였다(낙관 가정으로도 -0.013%). 되살릴 일이 있을 때
+# 다시 재니 마이너스였다(낙관 가정으로도). 되살릴 일이 있을 때
 # 근거를 함께 보라고 상수와 주석만 남긴다. 지금은 각 신호가 자기 실측값을 쓴다.
 # 손절 1.5% / 익절 5.0% 가 1.5~3.0% × 3~12% 격자에서 최적이었고, 기간을
 # 3등분해도 순위가 유지됐다. 손익비 3.33 이라 손익분기 승률이 24.3%뿐이다.
@@ -144,7 +144,7 @@ SL_WIDTH_MULT = 2.0
 # ⚠️ 아래도 현재 미사용 (위 스윙 블록과 함께 철회).
 # 변동성 관문: 직전 VOL_LOOKBACK 시간의 변동폭이 익절의 VOL_GATE_MULT 배
 # 미만이면 진입하지 않는다. 되돌아보기 24h/3일/7일/14일을 비교해 3일이
-# 가장 좋았고(상위40% 기준 +3.046%), 배수 2.0 은 실측 60분위(10.3%)다.
+# 가장 좋았고, 배수 2.0 은 실측 분포의 중상위다.
 VOL_LOOKBACK = 72
 VOL_GATE_MULT = 2.0
 # 선별 편향 보정 강도, 순위 점수에 n/(n+이 값)을 곱한다.
@@ -218,10 +218,10 @@ def _matrix_rejects(sig: str, tf: str) -> bool:
       ② 순수 엣지 > 0   , 신호가 없을 때(무조건 진입)보다 나은가 = 실력인가
 
     ②가 없으면 '시장이 올랐다'를 '신호가 좋다'로 착각한다. 2017~2026 측정에서
-    1일봉 기준선은 롱 +5.03% / 숏 -5.19%였다. 절대 EV만 보면 롱 신호는 실력과
+    1일봉 기준선은 롱이 크게 플러스, 숏이 크게 마이너스였다. 절대 EV만 보면 롱 신호는 실력과
     무관하게 전부 통과하고 숏은 전부 차단된다, 실제로 82조합 중 78개가 롱이었고,
-    그중엔 순수 엣지가 마이너스인 것(sRSI<20 과매도 -0.01%, 프랙탈 저점 -0.06%)도
-    통과하고 있었다. 반대로 엣지가 있는 숏(MA 데드크로스 +1.34%)은 막혔다.
+    그중엔 순수 엣지가 마이너스인 것(sRSI<20 과매도, 프랙탈 저점)도
+    통과하고 있었다. 반대로 엣지가 있는 숏(MA 데드크로스)은 막혔다.
     ①이 없으면 반대로 엣지는 있지만 돈은 안 되는 조합이 통과한다.
     측정 비교(표본 200+ 193조합): ①만 82조합 · ②만 97조합 · 둘 다 54조합.
     둘 다 걸었을 때가 절대EV·순수엣지 양쪽에서 우세했다.
@@ -237,7 +237,7 @@ def _matrix_rejects(sig: str, tf: str) -> bool:
     if n < 200:
         # "Not enough evidence" is the right default for a thin cell, and it
         # is what lets a newly listed symbol ever enter. But it was letting
-        # anything through, including RSI>80 극과열 at 8h reading -4.51% on
+        # anything through, including RSI>80 극과열 at 8h reading badly on
         # 175 samples: fifty-six times the round trip against us is not a
         # cell we know nothing about. Below the floor the sample is genuinely
         # too thin to say; above it in the wrong direction, we can say.
@@ -265,7 +265,7 @@ def fetch_bars(client, symbol, interval, max_bars=1500):
 
     예전엔 종가만 돌려줬다. 그러면 '봉 안에서 손절가를 스치고 회복한' 경우를
     볼 수 없어 손절 도달률이 과소평가된다, 실측(2026-08-05, 1시간봉 4.4만건):
-    종가 기준 손절율 55% vs 고저 기준 68%, EV 는 +0.298% vs -0.148% 로
+    종가 기준과 고저 기준은 손절율이 크게 갈리고, EV 는 부호까지 갈려서
     부호까지 뒤집혔다. 파시피카 kline 이 이미 o/h/l/c 를 다 주는데 버리고
     있었을 뿐이다.
 
@@ -597,7 +597,7 @@ def _squeeze_break(bw, bb, i, direction):
 
     ⚠️ The measurement once quoted here, 4h +0.345 against +0.239 and 12h
     +0.486 against +0.180, is the per-trade money column of
-    research/fork_bollinger.log and was labelled as direction. Direction is
+    an operator log and was labelled as direction. Direction is
     the criterion now, so here is that log's market-removed test column, the
     direction one, for the continuation reading: 1h 2σ +0.019 against 1.5σ
     +0.012, 4h +0.051 against +0.057, 12h +0.135 against +0.124. Two of three
@@ -754,7 +754,7 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                             _ni += 1
                             _lf = _f
                 if _ni < MIN_N:      # gate on independent observations (S3)
-                    # Measured 2026-08-21, 43 symbols x 1,500 bars, the live
+                    # Measured across the symbol set, the live
                     # fetch_bars default. Under the 24-hour horizon:
                     #   4h  11/22   8h  13/22   1d  11/22, and the three
                     # lists differ. MACD both ways, all four sRSI, both
@@ -896,8 +896,8 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 # 예전엔 avg_loss 로 통과 판정을 하고 실제로는 max(avg_loss, 0.005)
                 # 를 걸었다. avg_loss 가 0.5% 미만이면 관문이 본 손실보다 실제
                 # 손실이 커서, 통과 당시 플러스였던 EV가 실전에선 마이너스가 됐다.
-                # (2026-08-05 실측: BTC 5m 볼린저 하단이탈, 목표 +0.392% 인데
-                #  손절이 바닥값 0.5%로 올라가 실제 EV -0.088%. 그 상태로 진입했다.)
+                # (실측 사례: 목표가 바닥값 손절보다 좁아 EV 가 음수인 채로
+                #  진입한 적이 있다.)
                 # These two are the LIVE bracket for the entry we may open
                 # now, and they are what Setup reports. The historical path
                 # EV below no longer uses them, it rebuilds the same formula
@@ -909,7 +909,7 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 # 실측(2026-08-05, 1시간봉 장기 이력, 겹침 제거):
                 # 손절을 좁히고 익절을 넓히면 승률은 55%→39%로 떨어지지만
                 # 손익비가 3.3배가 되어 기대값이 크게 는다. 기간을 3등분해도
-                # 모든 구간에서 유지됐다(앞 +1.83% / 가운데 +1.68% / 뒤 +1.16%).
+                # 모든 구간에서 부호가 유지됐다.
                 #
                 # 왜 되는지: 방향 예측력은 24시간 52.9%, 1주면 50%(무작위)라
                 # 사실상 기여가 없다. 이 구조의 손익분기 승률이 24.3%인데
@@ -920,9 +920,9 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 # 채택 근거가 종가 기준 측정이었는데, 종가만 보면 봉 안에서
                 # 손절을 스치고 회복한 경우를 못 봐 EV가 크게 부풀려진다.
                 # 같은 설정을 고가/저가로 다시 재니:
-                #   종가만        +2.549%   ← 이걸 보고 채택했다
-                #   고저·익절우선  -0.013%   (가장 낙관적인 가정)
-                #   고저·손절우선  -0.647%
+                #   종가만        크게 플러스   ← 이걸 보고 채택했다
+                #   고저·익절우선  거의 0 (가장 낙관적인 가정)
+                #   고저·손절우선  마이너스
                 # 낙관 가정으로도 0 이하라 판정 방식과 무관하게 마이너스다.
                 # 풀 백테스트도 독립적으로 같은 답을 냈다, 1시간봉 517건
                 # 승률이 기준선 아래고 건당도 마이너스였다 (수익은 전부
@@ -933,14 +933,14 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 # ⚠️ pwin × avg_win − (1−pwin) × sl 은 틀린 식이다. pwin 은
                 # '지평 끝에 방향이 맞나'인데(실측 55%), 실제 청산은 익절·손절 중
                 # 먼저 닿는 쪽이라 확률이 다르다(익절 5%를 먼저 칠 확률은 39%).
-                # 섞어 쓰면 스윙 EV가 실제(+0.32%)의 6배(+2.1%)로 나왔고,
+                # 섞어 쓰면 스윙 EV가 실제의 여러 배로 나왔고,
                 # 단타는 하루 +18% 같은 값이 찍혔다(실측은 마이너스).
                 # 그래서 과거 발생 지점마다 경로를 따라가 먼저 닿는 쪽으로 판정한다.
                 # 어느 쪽도 안 닿으면 만기 종가로 청산한다(스윙 실측 26%).
                 # 도달 판정은 봉의 고가/저가로 한다. 종가만 보면 '봉 안에서
                 # 손절을 스치고 회복한' 경우를 놓쳐 손절율이 과소평가된다,
                 # 실측(1시간봉 4.4만건): 손절율 55%(종가) vs 68%(고저),
-                # EV +0.298% vs -0.148% 로 부호까지 뒤집혔다.
+                # EV 의 부호까지 뒤집혔다.
                 # 한 봉에서 양쪽 다 닿으면 손절을 먼저 적용한다(보수적).
                 # ── The path EV is computed causally ──
                 # The tp/sl above are the whole-sample avg_win/avg_loss.
@@ -1012,7 +1012,7 @@ def evaluate_setups(client, budget_usd=100.0, universe=15,
                 # 표본이 적은 셋업은 EV가 틀리는 게 아니라 '흔들린다'. 그런데
                 # 우리는 상위만 골라 진입하므로, 운 좋게 높게 나온 쪽이 계통적으로
                 # 뽑힌다. 2026-08-05 실측(메이저 10종목, 상위3 선별):
-                #   추정창 60일  → 예측 +5.04% / 실현 +2.15%  (2.34배 부풀림)
+                #   추정창 60일  → 예측이 실현의 두 배 넘게 부풀려졌다
                 #   추정창 3년   → 예측이 실현을 웃돌았다
                 # 추정 자체는 부풀지 않았다(고르지 않고 재면 0.88~0.94배로 오히려
                 # 낮게 나온다). 부풀림은 '고르는 행위'에서만 생기고, 표본이 적을수록
@@ -1194,7 +1194,7 @@ def review(client):
     gap = all_wins / len(total_done) - avg_pred
     if gap < -0.10:
         out.append("→ 실제가 예측보다 10%p 이상 낮음: 국면 변화 가능성. "
-                   "신호 기준 재측정(research/ 스크립트) 권장")
+                   "신호 기준 재측정 권장")
     elif gap > 0.10:
         out.append("→ 실제가 예측을 상회: 현 기준 유지")
     else:

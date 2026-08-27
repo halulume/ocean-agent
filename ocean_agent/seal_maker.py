@@ -64,6 +64,28 @@ MIN_ROWS = 25            # refuse to seal on a thinner cross-section
 # over the whole period, and its split picks are too thin and too mixed to
 # move it either way.
 XSEC_DIR_CLASSES = {"기타·RWA"}
+# Which touch horizon calls the side. "touch2h" asks the same 2h +-1.0% rate
+# the trader asks at entry; "touch24" is the original 24h +-3% rate.
+#
+# The trader has overridden the seal with the 2h rule since 2026-08-26, so the
+# seal was publishing a side nothing traded, and the trader's fallback for a
+# missing cache returned to that unused rule. Replaying the seals themselves
+# on both horizons put the short one ahead in each half of the period.
+#
+# Only the side moves. Ranking and size still come from the 24h expected move,
+# because shortening the ranking horizon leaves most of the same symbols in
+# the seats and measured no better.
+#
+# Set SEAL_SIDE_SOURCE=touch24 in the environment to put it back.
+SIDE_SOURCE = os.environ.get("SEAL_SIDE_SOURCE", "touch2h")
+PER2, LEVEL2 = 2, 0.010          # the short horizon: 2 bars, +-1.0%
+# Whether the classes above still ride the cross-sectional side. Turned off
+# on 2026-08-27 by operator decision so every class asks the same question:
+# the trader already overrode all of them with the 2h rule at entry, so the
+# seal saying something different for one class only split the record.
+# xsec_dir keeps being written either way, so the arms stay comparable.
+# Set SEAL_XSEC_DIR=1 to bring it back.
+XSEC_DIR_ENABLED = os.environ.get("SEAL_XSEC_DIR", "0") == "1"
 # Individual symbols that ride it regardless of class. CHIP was here for
 # the same one-day reason as stocks and left with them; it is on the skip
 # list anyway (one tick is 0.392%, wider than any stop can hold).
@@ -294,6 +316,22 @@ def load_bars(sym: str, base_url: str) -> tuple[list[dict], str]:
 
 # ── per-symbol scoring ───────────────────────────────────────────────────
 
+def _touch_side(h2, u: float, d_: float) -> str:
+    """The touch side, on whichever horizon SIDE_SOURCE names.
+
+    h2 comes from one(), computed on the bars the seal just fetched, so this
+    asks the API's own data rather than a cache that may be hours old. The
+    trader has to read a cache because at entry it holds no bars; the seal
+    does not, and a rule fed fresher data cannot be the weaker of the two.
+
+    Falls back to the 24h rate only when the window was too short to score a
+    single 2h flag, which means the symbol could not be scored at all.
+    """
+    if SIDE_SOURCE == "touch2h" and h2 in ("long", "short"):
+        return h2
+    return "long" if u >= d_ else "short"
+
+
 def one(sym: str, base_url: str) -> dict | None:
     """Score one symbol from its own bars; None when it cannot be scored."""
     b, note = load_bars(sym, base_url)
@@ -341,8 +379,27 @@ def one(sym: str, base_url: str) -> dict | None:
         tou[lv] = (u / cnt, d_ / cnt) if cnt else (0.0, 0.0)
     # expected size: the window median scaled by how hot the ATR runs now
     pred = mv * (0.7 + 0.6 * pct)
+    # Short-horizon touch rate, from the bars already loaded above rather
+    # than from a cache file. The trader reads a cache because at entry it
+    # has no bars of its own; this function does, and they are fresher and
+    # cannot be stale, so there is nothing here to fall back from. Same
+    # construction as bracket_trader._touch2h_side: flags look FORWARD PER2
+    # bars and the window stops PER2 back, so nothing unclosed is counted.
+    up2 = dn2 = cnt2 = 0
+    for k in range(max(1, i - WIN), i - PER2 + 1):
+        base = c[k]
+        if base <= 0:
+            continue
+        cnt2 += 1
+        if max(h[k + 1:k + 1 + PER2]) / base - 1.0 >= LEVEL2:
+            up2 += 1
+        if 1.0 - min(lo[k + 1:k + 1 + PER2]) / base >= LEVEL2:
+            dn2 += 1
+    h2 = ("long" if up2 >= dn2 else "short") if cnt2 else None
     return {"mv": mv, "atrq": pct, "pred": pred, "hit3": hit3,
-            "px": c[i], "tou": tou}
+            "px": c[i], "tou": tou, "h2": h2,
+            "h2_up": (up2 / cnt2) if cnt2 else None,
+            "h2_dn": (dn2 / cnt2) if cnt2 else None}
 
 
 # ── seal assembly ────────────────────────────────────────────────────────
@@ -413,9 +470,10 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
         # every other class the calibrated touch side; both arms are sealed alongside
         # so the ledger keeps comparing them
         xsec_dir = "long" if r24 >= xsec_median else "short"
-        touch_dir = "long" if u >= d_ else "short"
-        direction = (xsec_dir if r["cls"] in XSEC_DIR_CLASSES
-                     or r["sym"] in XSEC_DIR_SYMS else touch_dir)
+        touch_dir = _touch_side(r.get("h2"), u, d_)
+        use_xsec = XSEC_DIR_ENABLED and (r["cls"] in XSEC_DIR_CLASSES
+                                         or r["sym"] in XSEC_DIR_SYMS)
+        direction = xsec_dir if use_xsec else touch_dir
         picks.append({
             "sym": r["sym"], "dir": direction, "xsec_dir": xsec_dir,
             "entry": px,
@@ -423,9 +481,22 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
             "rank_score": round(r["score"], 5),
             "touch_up_pct": round(u * 100, 1),
             "touch_dn_pct": round(d_ * 100, 1),
+            # The rates the side was actually read off, beside the 24h ones
+            # the row has always shown. Without these a reader sees "up 68 /
+            # down 54" next to a short and cannot tell why.
+            "h2_up_pct": (None if r.get("h2_up") is None
+                          else round(r["h2_up"] * 100, 1)),
+            "h2_dn_pct": (None if r.get("h2_dn") is None
+                          else round(r["h2_dn"] * 100, 1)),
+            "side_source": ("touch2h" if (SIDE_SOURCE == "touch2h"
+                                          and r.get("h2") and not use_xsec)
+                            else "xsec" if use_xsec else "touch24"),
             "slip_pct": round(slip * 100, 3),
             "basis": (f"{r['cls']} 점수 {r['score']*100:.2f} · "
-                      f"±3% 도달 위 {u*100:.0f}%/아래 {d_*100:.0f}%"),
+                      f"24h ±3% 도달 위 {u*100:.0f}%/아래 {d_*100:.0f}%"
+                      + ("" if r.get("h2_up") is None else
+                         f" · 방향근거 2h ±1% 위 {r['h2_up']*100:.0f}%"
+                         f"/아래 {r['h2_dn']*100:.0f}%")),
             "trade_rank": len(picks) + 1,
         })
 
@@ -490,11 +561,13 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
            # bracket_trader.latest_seal() matches on "자산군" only, so the
            # rest of the line is record, not behaviour.
            "rule": ("자산군별 점수(예상변동×신뢰도) → 호가 관문(슬리피지) → "
-                    + (f"{'·'.join(sorted(XSEC_DIR_CLASSES))} 는 횡단면 24h "
-                       "상대순위 방향(중앙값 위 롱·아래 숏), 나머지는 "
-                       "도달률 방향" if XSEC_DIR_CLASSES else "도달률 방향")
-                    + (f" (예외 종목: {'·'.join(sorted(XSEC_DIR_SYMS))})"
-                       if XSEC_DIR_SYMS else "")
+                    + ("2시간 ±1% 도달률 방향" if SIDE_SOURCE == "touch2h"
+                       else "24시간 ±3% 도달률 방향")
+                    + ((f", 단 {'·'.join(sorted(XSEC_DIR_CLASSES))} 는 "
+                        "횡단면 24h 상대순위 방향(중앙값 위 롱·아래 숏)"
+                        + (f" (예외 종목: {'·'.join(sorted(XSEC_DIR_SYMS))})"
+                           if XSEC_DIR_SYMS else ""))
+                       if XSEC_DIR_ENABLED and XSEC_DIR_CLASSES else "")
                     + " → 베이스 모드 변동성 브래킷"),
            "picks": picks, "scores": {}}
     out_dir = out_dir or OUTPUTS_DIR
@@ -513,9 +586,13 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
                 f"특별(펀딩 연 {p['funding_apr_pct']:+.0f}% · "
                 f"예상 {p['exp_move_pct']}%) · 슬리피지 {p['slip_pct']}%")
         else:
+            h2u, h2d = p.get("h2_up_pct"), p.get("h2_dn_pct")
+            side_txt = ("" if h2u is None else
+                        f" · 방향 2h {h2u}/{h2d}")
             log(f"  {p['trade_rank']}. {p['sym']:<9} {p['dir']:<5} "
-                f"예상 {p['exp_move_pct']}% · 도달 위{p['touch_up_pct']}%"
-                f"/아래{p['touch_dn_pct']}% · 슬리피지 {p['slip_pct']}%")
+                f"예상 {p['exp_move_pct']}% · 24h도달 위{p['touch_up_pct']}%"
+                f"/아래{p['touch_dn_pct']}%{side_txt} · "
+                f"슬리피지 {p['slip_pct']}%")
     nsp = sum(1 for p in picks if "funding_apr_pct" in p)
     log(f"  일반 {len(picks)-nsp} · 특별(펀딩) {nsp} · "
         f"빈 특별석 {SPECIAL-nsp}")

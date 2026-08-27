@@ -17,6 +17,8 @@ Pacifica Print: 목표가를 걸어두면 24시간 사이클마다 APY를 받고
 """
 
 import argparse
+import math
+import os
 import sys
 
 from .api_client import PacificaClient
@@ -44,9 +46,61 @@ def deep_prices(client: PacificaClient, symbol: str, log=lambda *a: None):
     _series(...) calls below have no OHLC to hand over. That is not an
     oversight to be fixed by threading bars in here. Fractal signals read from
     this path are the close approximation, and Print only uses them to decide
-    which side is safer to quote, never to size or direct a trade."""
-    from .rematrix import _fetch
-    return _fetch(client, symbol, "1h", use_extended=True, log=log)
+    which side is safer to quote, never to size or direct a trade.
+
+    Binance FUTURES, not spot (2026-08-27 user decision: "선물로 봐야지 왜
+    현물로 봐, 프린트 자체가 선물인데"). A filled Print order leaves you
+    holding a Pacifica perp, and the overshoot is eaten at the perp mark, so
+    scoring fills against spot bars measured a different instrument than the
+    one that actually fills. Until today nothing under ocean_agent/ ever set
+    BINANCE_FUTURES, so this path silently took the spot branch and wrote a
+    spot cache, against the 08-13 rule. The switch costs history: futures
+    start 2019-09 against spot's 2017-08, so the 2018 bear market this
+    docstring asks for is no longer in the series. That is a real loss and
+    it was accepted with the reason above. The env var is set only around
+    the fetch and restored, so nothing else in the process changes.
+    """
+    return [b["c"] for b in deep_bars(client, symbol, log=log)]
+
+
+# Binance USDT-M futures begin here; _fetch_ohlc's default start boundary
+# is 2021-01-01, which would silently drop 1.3 years, so it is passed
+# explicitly. With it the OHLC path returns the same span as the closes
+# path did (61,071 bars against 61,070).
+FUT_START_MS = 1567296000000        # 2019-09-01T00:00:00Z
+
+
+def deep_bars(client, symbol: str, log=lambda *a: None):
+    """Hourly OHLC, Binance futures joined to Pacifica. One source of truth.
+
+    deep_prices() is now the close column of this, so anything that reads
+    both a close series and its highs and lows is aligned by construction
+    rather than by two fetches happening to agree. They did not quite: the
+    closes path returned 61,070 bars and the OHLC path 61,071, and an
+    off-by-one between a price series and its own lows would misprice
+    liquidations without erroring.
+
+    Futures, not spot (2026-08-27 user decision: "선물로 봐야지 왜 현물로
+    봐, 프린트 자체가 선물인데"). A filled Print order leaves you holding a
+    Pacifica perp and the overshoot is eaten at the perp mark, so scoring
+    against spot bars measured a different instrument. Nothing under
+    ocean_agent/ had ever set BINANCE_FUTURES, so this path silently took
+    the spot branch, against the 08-13 rule. The switch costs history:
+    futures start 2019-09 against spot's 2017-08, so the 2018 bear market
+    is no longer in the series. That was accepted for the reason above.
+    The env var is set only around the fetch and restored after.
+    """
+    from .rematrix import _fetch_ohlc
+    prev = os.environ.get("BINANCE_FUTURES")
+    os.environ["BINANCE_FUTURES"] = "1"
+    try:
+        return _fetch_ohlc(client, symbol, "1h", use_extended=True, log=log,
+                           start_ms=FUT_START_MS) or []
+    finally:
+        if prev is None:
+            os.environ.pop("BINANCE_FUTURES", None)
+        else:
+            os.environ["BINANCE_FUTURES"] = prev
 
 
 def evaluate(prices: list[float], distance_pct: float, side: str,
@@ -94,18 +148,36 @@ def evaluate(prices: list[float], distance_pct: float, side: str,
 
 def breakeven_cliff(prices, distance_pct: float, side: str, lev: float,
                     liq_dist_pct: float, hours: int = CYCLE_HOURS,
-                    mask=None) -> float:
+                    mask=None, lows=None, highs=None) -> float:
     """Breakeven APY with the liquidation cliff priced in, in percent.
 
     Loss per window: the whole deposit when the hourly path crosses the
     liquidation distance beyond the strike (the deposit is gone even if
     price recovers), else lev x end overshoot capped at 100%, else zero.
-    Measured 2026-08-25 (research/print_lev_optimum.py, BTC 79k windows):
+    Measured against a long BTC history:
     identical to the old linear model up to 5x, honest above it. The
     exchange premium stays proportional to leverage until about 20x and
     decays after, so the grid in recommend_now now runs to 20x and the
     ranking finds the optimal leverage by itself (user order: "5배
-    상한정하지마 검토해보고 배수 최적인거면 기회 포착해")."""
+    상한정하지마 검토해보고 배수 최적인거면 기회 포착해").
+
+    The liquidation test reads LOWS and HIGHS when they are supplied, and
+    falls back to closes when they are not (2026-08-27). A liquidation is
+    an intrabar event: price that dips through the liquidation level and
+    recovers within the hour still takes the deposit, and a close-only
+    series cannot see it. This is the same hole the 08-05 stop-detection
+    fix closed on the trading side, where close-based judging read a 55%
+    stop rate against a real 68%. It does not matter at 1x, where the
+    liquidation distance is far outside anything a 24h window reaches, and
+    it matters more the higher the leverage, which is exactly the range
+    recommend_now now ranks over.
+
+    The FILL test deliberately stays on closes. Print only settles at the
+    24h checkpoint (Pacifica docs: "it's checked once at the end of each
+    24-hour block"), so a target the market touched intraday and left does
+    NOT fill. Using highs and lows there would invent fills that the
+    product does not make.
+    """
     d = distance_pct / 100.0
     liq = liq_dist_pct / 100.0
     total = 0
@@ -118,12 +190,15 @@ def breakeven_cliff(prices, distance_pct: float, side: str, lev: float,
         end = w[-1] / p0 - 1.0
         total += 1
         if side == "long":
-            if min(w) / p0 - 1.0 <= -(d + liq):
+            worst = min(lows[i:i + hours + 1]) if lows is not None else min(w)
+            if worst / p0 - 1.0 <= -(d + liq):
                 loss += 1.0
             elif end <= -d:
                 loss += min(1.0, lev * (-end - d))
         else:
-            if max(w) / p0 - 1.0 >= d + liq:
+            worst = (max(highs[i:i + hours + 1]) if highs is not None
+                     else max(w))
+            if worst / p0 - 1.0 >= d + liq:
                 loss += 1.0
             elif end >= d:
                 loss += min(1.0, lev * (end - d))
@@ -210,9 +285,31 @@ def realized_vol(prices: list[float]) -> float:
 #
 # BTC 는 뺐다. 같은 규칙으로 연 -30%다. 조용하다 한 방에 튀는 성질 때문에
 # 사고 1회가 프리미엄 196일치를 지운다(ETH 는 23일치).
+# asset: (lookback hours, annualised vol threshold, distance %, side,
+#         measured annual return or None)
+#
+# Refit 2026-08-27 (ledger 148 and 150) on Binance FUTURES with the
+# intrabar liquidation model, the basis this module actually runs on.
+# Method is the 08-05 one: choose on the first half of the series only,
+# verify on the second, criterion declared before the second half was
+# looked at. The gate marks the only condition under which Print turns
+# positive, a market quieter than its own normal.
+#
+# ETH was REMOVED. Its old (168, 0.242) never opened in the first half at
+# all (0 of 1,639 windows, the 0.00 percentile) so it could not have been
+# chosen by this method on today's longer series, and on futures it goes
+# outright negative on the second half. Refitting ETH honestly produced
+# (240, 0.434, 3.0, long), which clears drawdown and the year by year
+# check but fails the concentration cap: 53% of its quiet windows sit in
+# one block against a declared 50% limit. An asset with no measured
+# threshold says so in the ranking rather than pretending to pass.
+#
+# The fifth field is None on purpose. It would be the return actually
+# earned in open windows, and that needs historical PREMIUMS, which the
+# exchange only quotes live. History prices the cost side only.
 VOL_GATE = {
-    # asset: (되돌아보는 시간, 연율변동성 문턱, 거리%, 방향, 측정 연율)
-    "ETH": (168, 0.242, 2.0, "short", 0.17),
+    "BTC": (168, 0.295, 3.0, "long", None),
+    "SOL": (168, 0.660, 3.0, "short", None),
 }
 
 
@@ -221,7 +318,9 @@ def vol_gate(client: PacificaClient) -> list[dict]:
 
     Print 는 평상시 크게 불리하다(IV 26~38% vs 실현 40~53%). 유일하게
     흑자로 넘어오는 구간이 '최근 7일이 유난히 조용할 때'라서, 그 순간만
-    골라내는 것이 이 함수의 일이다. 6년 중 약 3%의 시간만 열린다.
+    골라내는 것이 이 함수의 일이다. 실측 개방률은 자산과 구간에 따라
+    5%에서 36% 사이다(08-27 재측정). 예전 주석의 '약 3%' 는 ETH 하나만
+    있던 시절, 그것도 앞 절반에서 한 번도 안 열리던 문턱 기준이었다.
 
     주문은 넣지 않는다. 판정만 돌려준다."""
     out = []
@@ -232,11 +331,15 @@ def vol_gate(client: PacificaClient) -> list[dict]:
             out.append({"asset": asset, "open": False, "error": str(e)})
             continue
         if len(p) < win + 2:
+            # was a silent `continue`: an asset short of bars simply left
+            # the list with no row and no error (2026-08-27)
+            out.append({"asset": asset, "open": False,
+                        "error": f"봉 부족 {len(p)} < {win + 2}"})
             continue
         cur = realized_vol(p[-(win + 1):])
         out.append({"asset": asset, "open": cur < thr, "vol": cur,
                     "threshold": thr, "distance": dist, "side": side,
-                    "expected_apy": apy,
+                    "expected_apy": apy, "lookback_h": win,
                     "margin": (thr - cur) / thr})
     return out
 
@@ -245,22 +348,26 @@ def format_gate(rows: list[dict]) -> str:
     """vol_gate() 결과를 사람이 읽는 형태로."""
     if not rows:
         return "Print 관문: 판정할 자산 없음"
-    out = ["Print 진입 관문, 조용한 구간에만 열린다 (전체 시간의 약 3%)"]
+    out = ["Print 진입 관문, 자기 평소보다 조용할 때만 열린다",
+           "  (실측 개방률: 앞 절반 5~10%, 뒤 절반 11~36%)"]
     for r in rows:
         if r.get("error"):
             out.append(f"  {r['asset']}: 조회 실패 {r['error']}")
             continue
         state = "✅ 열림" if r["open"] else "⛔ 대기"
+        # per asset window: it was hardcoded to "7일" while every asset
+        # carries its own lookback, so a 240h gate printed as 7 days.
+        _d = r.get("lookback_h", 168) / 24
         out.append(
-            f"  {r['asset']}  최근 7일 변동성 {r['vol']:.1%}"
+            f"  {r['asset']}  최근 {_d:g}일 변동성 {r['vol']:.1%}"
             f"  (문턱 {r['threshold']:.1%} 미만)   {state}")
         if r["open"]:
+            out.append(f"       → {r['side']} · 거리 {r['distance']:.1f}%")
             out.append(
-                f"       → {r['side']} · 거리 {r['distance']:.1f}%"
-                f" · 실측 기대 연 +{r['expected_apy']:.0%}")
-            out.append(
-                "       ⚠️ 사고율 6%. 한 번 체결되면 프리미엄 23일치를 잃는다."
-                " 매매 자금을 빼서 넣을 만한 크기가 아니다.")
+                "       ⚠️ 관문은 비용을 절반 안팎으로 깎아 줄 뿐이다. "
+                "그날 거래소 지급률이 그 낮아진 본전보다 높은지 반드시 "
+                "따로 확인할 것. 관문이 열렸다는 것 자체는 넣으라는 뜻이 "
+                "아니다.")
     if not any(r.get("open") for r in rows):
         out.append("  → 지금은 넣지 않는 게 맞다. 관문이 열릴 때만 다시 본다.")
     return "\n".join(out)
@@ -386,7 +493,7 @@ def forecast(client: PacificaClient, asset: str) -> dict:
 
 def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
                   usd: float = 100.0, distances=(1.0, 1.5, 2.0),
-                  levs=(1, 2, 3, 5, 10, 20), top: int = 12) -> str:
+                  levs=(1, 2, 3, 5, 10, 20), top: int = 5) -> str:
     """지금 켜진 1시간봉 신호를 반영해 롱/숏 · 거리 · 배율을 순위 매긴다.
 
     Print 사이클(24h)과 매매 신호의 평가 지평(1시간봉 × 24봉)이 같은 길이라,
@@ -405,17 +512,26 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
     except Exception as e:
         return f"Print 시세 조회 실패: {e}"
     out = []
+    gate_open: dict = {}
     for game, g in games.items():
         asset = g.get("target_asset")
         mark = prices.get(asset, 0)
         if not mark:
             continue
         try:
-            hist = deep_prices(client, asset)
+            bars = deep_bars(client, asset)
+            hist = [b["c"] for b in bars]
         except Exception as e:
             out.append(f"{game}: 가격 히스토리 실패 {e}")
             continue
-        recent = hist[-8760 * 2:] if len(hist) > 8760 * 2 else hist
+        cut = -8760 * 2 if len(hist) > 8760 * 2 else 0
+        recent = hist[cut:] if cut else hist
+        # Sliced from the same bars, so rlows[i] is the low of the hour whose
+        # close is recent[i]. breakeven_cliff needs that guarantee to price
+        # an intrabar liquidation. (2026-08-27)
+        _rb = bars[cut:] if cut else bars
+        rlows = [b["l"] for b in _rb]
+        rhighs = [b["h"] for b in _rb]
         n = len(recent)
         s = _series(recent)
         # 지금(마지막 확정봉) 켜져 있는 신호들
@@ -427,6 +543,26 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
             except (TypeError, IndexError):
                 continue
         out.append(f"=== {game} ({asset} {mark:,.2f}) ===")
+        # The volatility gate, in the ranking at last. It was measured and
+        # then stranded: nothing called it, so the one condition that ever
+        # turns Print positive (a market quieter than usual) never reached
+        # the table people read. Computed from `recent`, already in hand,
+        # so it costs no extra request. Assets with no measured threshold
+        # say so rather than pretending to pass. (2026-08-27 user order)
+        gate = VOL_GATE.get(asset)
+        if gate:
+            gwin, gthr = gate[0], gate[1]
+            if len(recent) > gwin + 1:
+                gvol = realized_vol(recent[-(gwin + 1):])
+                gate_open[asset] = gvol < gthr
+                gmark = "✅ 열림" if gvol < gthr else "⛔ 대기"
+                out.append(f"  변동성 관문: 최근 {gwin//24}일 {gvol:.1%} vs "
+                           f"문턱 {gthr:.1%} → {gmark}")
+            else:
+                out.append("  변동성 관문: 봉 부족으로 판정 불가")
+        else:
+            out.append(f"  변동성 관문: {asset} 는 문턱 미측정 "
+                       f"(측정된 시장은 {', '.join(VOL_GATE)})")
         # 예측 → 방향. 이게 Print 방향 결정의 근거다.
         try:
             fc = forecast(client, asset)
@@ -451,41 +587,68 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
             else:
                 out.append("  ▶ 쓸 만한 신호 없음, 방향 근거 없음(전 구간 통계로만 판단)")
         rows = []
+        # The breakeven column is conditioned on VOLATILITY, not on lit
+        # signals (2026-08-27 user decision, ledger 151: "판정 똑같이
+        # 변동률로 해").
+        #
+        # The signal mask this replaces did two things wrong. It had no
+        # edge: measured across three assets and ten cells, restricting to
+        # hours when the aligned signals were lit moved the test-half
+        # breakeven by -3.9 to -2.2 percent, i.e. slightly WORSE than no
+        # condition at all, while cutting the sample to a third. And it
+        # picked the best-scoring signal among those lit, live, every run,
+        # which is selection on the outcome and exactly why it looked good
+        # in sample. Volatility instead cuts the test-half breakeven by 26
+        # to 37 percent, and it does so by reducing BOTH terms the
+        # breakeven multiplies: fill rate down 13 to 20 percent and
+        # overshoot down 16 to 21 percent. Signals moved neither.
+        #
+        # Only a fitted threshold is used. An asset with no measured gate
+        # is scored unconditionally rather than against a made-up number;
+        # that is still an improvement, since the mask it lost was worse
+        # than nothing.
+        # The mask may only be used while the gate is OPEN RIGHT NOW.
+        # Conditioning on quiet hours answers "what does this cost when the
+        # market is calm"; quoting that number on a noisy day answers a
+        # question nobody asked and reads as a recommendation. First run
+        # after the switch printed ✅ on BTC 20x with the gate shut at 53.8%
+        # against a 29.5% threshold, which is exactly backwards: a cheap
+        # breakeven borrowed from calm history while today is anything but.
+        # When the gate is shut the honest comparison is unconditional.
+        gate = VOL_GATE.get(asset) if gate_open.get(asset) else None
+        vmask, vtag = None, "무조건" if VOL_GATE.get(asset) else "무조건"
+        if VOL_GATE.get(asset) and not gate_open.get(asset):
+            vtag = "무조건(관문닫힘)"
+        if gate and n > gate[0] + 40:
+            gwin, gthr = gate[0], gate[1]
+            # rolling window over log returns, so this stays one pass
+            # instead of recomputing a 168-bar std at every index
+            rets = [math.log(recent[i + 1] / recent[i]) if recent[i] > 0
+                    else 0.0 for i in range(n - 1)]
+            vmask = [False] * n
+            cnt = 0
+            run = sum(rets[:gwin])
+            run2 = sum(r * r for r in rets[:gwin])
+            for i in range(gwin, n - hours):
+                if i > gwin:
+                    out_r = rets[i - gwin - 1]
+                    in_r = rets[i - 1]
+                    run += in_r - out_r
+                    run2 += in_r * in_r - out_r * out_r
+                if i < 220:
+                    continue
+                m = run / gwin
+                var = max(0.0, (run2 - gwin * m * m) / (gwin - 1))
+                if math.sqrt(var * 8760) < gthr:
+                    vmask[i] = True
+                    cnt += 1
+            if cnt < 200:
+                vmask, vtag = None, "조용 표본부족"
+            else:
+                vtag = f"조용<{gthr:.0%}"
         for side in ("long", "short"):
-            # 켜진 신호 중 이 방향 Print에 가장 유리한(체결 손익분기를 가장 낮추는) 것
-            best_sig, best_st = None, None
-            for name, _sd in lit:
-                cond = _signals(s)[name][1]
-                mask = [False] * n
-                cnt = 0
-                for i in range(220, n - hours):
-                    try:
-                        if cond(i):
-                            mask[i] = True
-                            cnt += 1
-                    except (TypeError, IndexError):
-                        continue
-                if cnt < 200:
-                    continue
-                try:
-                    st = evaluate(recent, distances[0], side, hours, mask=mask)
-                except ValueError:
-                    continue
-                if best_st is None or st["breakeven_apy"] < best_st["breakeven_apy"]:
-                    best_sig, best_st = name, st
             for d in distances:
-                mask = None
-                tag = "신호무관"
-                if best_sig:
-                    cond = _signals(s)[best_sig][1]
-                    mask = [False] * n
-                    for i in range(220, n - hours):
-                        try:
-                            if cond(i):
-                                mask[i] = True
-                        except (TypeError, IndexError):
-                            continue
-                    tag = best_sig
+                mask, tag = vmask, vtag
                 try:
                     st = evaluate(recent, d, side, hours, mask=mask)
                 except ValueError:
@@ -510,7 +673,8 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
                         liq_d = abs(strike - liq_px) / strike * 100
                         try:
                             be = breakeven_cliff(recent, d, side, lev,
-                                                 liq_d, hours, mask=mask)
+                                                 liq_d, hours, mask=mask,
+                                                 lows=rlows, highs=rhighs)
                         except ValueError:
                             be = st["breakeven_apy"] * 100 * lev
                     else:
@@ -518,35 +682,72 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
                     rows.append((apy - be, side, d, lev, apy, be,
                                  st["p_fill"], tag))
         rows.sort(reverse=True)
-        out.append("  순위  방향  거리  레버  실제APY  손익분기  체결확률  기준신호")
-        for margin, side, d, lev, apy, be, pf, tag in rows[:top]:
+        # One Print cycle is 24 hours, so the numbers are shown per cycle
+        # rather than annualised: 1560% APY reads as 4.27% a day, which is
+        # the figure the deposit actually earns before the next checkpoint.
+        # The fill-probability column is gone; for Print a "fill" means you
+        # took the position at your target with the market already past it,
+        # so the word invited exactly the wrong reading, and the breakeven
+        # already prices that risk in. (2026-08-27 user order)
+        # Top five per market, not the whole grid (2026-08-27 user
+        # order: "5위까지만 순위정해서 올려, 다 올리지 말고"). Sixty
+        # near duplicate rows buried the one line that mattered.
+        out.append("  순위  방향  거리  레버  24h지급  24h본전     여유  기준신호"
+                   f"   (상위 {min(top, len(rows))}/{len(rows)}칸)")
+        for rank, (margin, side, d, lev, apy, be, pf, tag) in enumerate(
+                rows[:top], 1):
             mk = "✅" if margin > 0 else "✕"
-            out.append(f"  {mk}   {side:5} {d:4.1f}% {lev:2d}x "
-                       f"{apy:7.0f}% {be:8.0f}% {pf:8.1%}  {tag[:16]}")
+            out.append(f" {rank}{mk}  {side:5} {d:4.1f}% {lev:2d}x "
+                       f"{apy/365:7.2f}% {be/365:8.2f}% {margin/365:+8.2f}%p"
+                       f"  {tag[:16]}")
         out.append("")
-    out.append("✅ = 실제 APY가 손익분기보다 높음(그 조건이면 넣을 만함).")
-    out.append("체결확률은 '지금 켜진 신호가 켜졌던 과거 순간'만 골라 잰 값.")
+    out.append("✅ = 24시간 지급이 24시간 본전보다 높음(그 조건이면 넣을 만함).")
+    out.append("변동성 관문은 '최근이 평소보다 조용한가' 를 본다. 프린트가 "
+               "흑자로 넘어오는 구간이 거기뿐이므로, 관문이 닫혀 있으면 "
+               "표에 ✅ 가 떠도 한 번 더 의심할 것. 관문이 열렸다는 것도 "
+               "비용이 절반쯤으로 내려갔다는 뜻이지 넣으라는 뜻이 아니다.")
+    out.append("본전 = 그 조건에서 24시간 동안 기대되는 손실을 상쇄하는 지급률.")
+    out.append("연 환산이 필요하면 x365. 본전은 '지금 켜진 신호가 켜졌던 "
+               "과거 순간'만 골라 잰 값.")
     return "\n".join(out)
 
 
 def format_report(symbol: str, distance_pct: float, side: str, stats: dict,
-                  shown_apy: float | None = None) -> str:
+                  shown_apy: float | None = None, lev: float = 1.0) -> str:
     days = stats["windows"] / 24
     lines = [
         f"Print 평가, {symbol} {side} / 목표 거리 {distance_pct}% "
         f"(과거 {days:.0f}일 데이터)",
-        f"  24h 체결 확률      : {stats['p_fill']:.1%}",
-        f"  체결 시 평균 오버슛 : {stats['avg_overshoot']:.2%} (즉시 평가손 예상치)",
-        f"  손익분기 일일 수익  : {stats['breakeven_daily']:.3%}",
-        f"  손익분기 APY       : {stats['breakeven_apy']:.1%}",
+        f"  목표가에 걸릴 확률   : {stats['p_fill']:.1%} (24시간 안)",
+        f"  걸렸을 때 평균 오버슛 : {stats['avg_overshoot']:.2%} (즉시 평가손 예상치)",
+        f"  24시간 본전 지급률   : {stats['breakeven_daily']:.3%}",
     ]
     if shown_apy is not None:
-        edge = shown_apy / 100.0 - stats["breakeven_apy"]
-        verdict = ("✅ 표시 APY가 손익분기보다 높음, 통계적으로 유리한 조건"
+        # The exchange quotes premium over MARGIN, so shown_apy already
+        # carries the leverage: the same offer reads 67% at 1x and 1,347%
+        # at 20x. The expected loss carries it too, so the breakeven is
+        # scaled by the same factor. Comparing a 20x payout against a 1x
+        # breakeven is wrong by exactly 20, and wrong in the direction that
+        # calls a losing trade favorable. That is the defect this argument
+        # closes; it is the same mistake ledger 145 records me making by
+        # hand. Linear scaling matches recommend_now's fallback and is the
+        # conservative side of its cliff model at high leverage.
+        be_daily = stats["breakeven_daily"] * lev
+        be_apy = stats["breakeven_apy"] * lev
+        edge = shown_apy / 100.0 - be_apy
+        verdict = ("✅ 지급이 본전보다 높음, 통계적으로 유리한 조건"
                    if edge > 0 else
-                   "⚠️ 표시 APY가 손익분기 미만, 기대값이 마이너스인 조건")
-        lines.append(f"  표시 APY {shown_apy:.1f}% vs 손익분기 "
-                     f"{stats['breakeven_apy']:.1%} → {verdict}")
+                   "⚠️ 지급이 본전 미만, 기대값이 마이너스인 조건")
+        lines.append(f"  배수 {lev:g}배 기준")
+        lines.append(f"  24시간 지급 {shown_apy/365:.3f}% vs 본전 "
+                     f"{be_daily:.3%} → {verdict}")
+        lines.append(f"  (연 환산: 지급 {shown_apy:.0f}% vs 본전 {be_apy:.0%}"
+                     + (f" · 1배 본전 {stats['breakeven_apy']:.0%} x {lev:g}"
+                        if lev != 1 else "") + ")")
+        if lev == 1:
+            lines.append("  거래소 화면을 1배가 아닌 배수로 보고 있다면 그 "
+                         "배수를 알려주세요. 화면의 지급률에는 배수가 이미 "
+                         "곱해져 있어, 1배 본전과 비교하면 판정이 뒤집힙니다.")
     lines.append("  주의: 과거 분포 기반 추정치. 변동성 급변 구간에서는 빗나갈 수 있음.")
     return "\n".join(lines)
 

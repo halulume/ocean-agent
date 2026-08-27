@@ -691,7 +691,7 @@ def extended_ohlc(client, symbol: str, interval: str, log=print,
 #
 # 무엇인가. 파시피카의 주식·상품 토큰은 보관분이 13~125일뿐이라 상위 시간봉
 # 표본이 한 자릿수다. 그 토큰이 물고 있는 원본(야후)의 과거로 앞을 채운 시계열이
-# ub_ 캐시이고, 이 함수들이 그것을 읽는다. 만드는 쪽은 research/ 이다
+# ub_ 캐시이고, 이 함수들이 그것을 읽는다. 만드는 쪽은 운영자 도구다
 # (underlying_splice.py · kr_splice.py). ocean_agent 는 야후를 부르지 않는다.
 #
 # Why this holds: these tokens print the underlying's value at the same hour,

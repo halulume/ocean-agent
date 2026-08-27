@@ -886,30 +886,45 @@ def open_pacifica_leg(symbol: str, side: str, max_usd: float = 50,
 
 @mcp.tool(title="Print Expected-Value Evaluator", annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 def evaluate_print(symbol: str = "BTC", distance_pct: float = 1.0,
-                   side: str = "long", shown_apy: float = 0.0) -> str:
-    """Evaluate a Pacifica Print offer statistically. Print pays daily APY while
-    a target-price order waits, but fills you at your target when the 24h
-    checkpoint lands beyond it (often with the market already past your price).
-    This tool uses ~9 YEARS of hourly history (Binance history joined to
-    Pacifica) to compute: fill probability, average overshoot (instant
-    mark-to-market loss when filled), and the BREAKEVEN APY that would
-    compensate it. Pass shown_apy (the % displayed in the Pacifica UI) to get a
-    verdict: favorable or negative expected value.
-    distance_pct is the target's distance from mark (0.5–5).
+                   side: str = "long", shown_apy: float = 0.0,
+                   leverage: float = 1.0) -> str:
+    """Evaluate a Pacifica Print offer statistically. Print pays a premium
+    while a target-price order waits, but fills you at your target when the
+    24h checkpoint lands beyond it (often with the market already past your
+    price). This tool uses ~9 YEARS of hourly history (Binance history joined
+    to Pacifica) to compute: the chance of being caught at the target, average
+    overshoot (instant mark-to-market loss when filled), and the BREAKEVEN
+    payout that would compensate it.
+
+    ALWAYS pass `leverage` when the user is not on 1x, and pass the SAME
+    leverage their Pacifica screen is set to. The APY the exchange displays is
+    premium over MARGIN, so it already carries the leverage: the same offer
+    reads 67% at 1x and 1,347% at 20x. The expected loss carries it too, so
+    both sides must be scaled or the verdict is wrong by exactly the leverage
+    factor, in the direction that says "take it" about a losing trade.
+
+    Pass shown_apy (the % displayed in the Pacifica UI) to get a verdict.
+    distance_pct is the target's distance from mark (0.5-10 per Pacifica).
 
     Measured result: Print is unfavorable in normal conditions, because
     implied volatility sits below realised. A narrow calm-market exception
     exists and the window is open a small fraction of the time; print_eval's
-    vol_gate() reports whether it is open right now."""
+    vol_gate() reports whether it is open right now. For a ranking across
+    every market, side, distance and size at once, use top_setups' Print
+    ranking instead, which scales the breakeven per size already."""
     if side not in ("long", "short"):
         raise ToolError("side must be 'long' or 'short'")
+    lev = float(leverage)
+    if lev < 1 or lev > 40:
+        raise ToolError("leverage must be between 1 and 40 (Pacifica caps "
+                        "Print at 40x on BTC, 25x on ETH, 20x on HYPE)")
     from .print_eval import evaluate_symbol, format_report
     try:
         stats = evaluate_symbol(_client(), symbol, float(distance_pct), side)
     except Exception as e:
         raise ToolError(f"Evaluation failed: {e}") from e
     return format_report(symbol, float(distance_pct), side, stats,
-                         shown_apy if shown_apy > 0 else None)
+                         shown_apy if shown_apy > 0 else None, lev)
 
 
 @mcp.tool(title="Print Live Quote", annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
@@ -1193,8 +1208,9 @@ def daily_picks(refresh: bool = False) -> str:
             f"아래 {p.get('touch_dn_pct')}% · 진입 {p.get('entry')}"
             f"{drift} · 슬리피지 {p.get('slip_pct')}%")
     lines.append("[외부 데이터 끝]")
-    lines.append("도달률은 24시간 안에 그 선에 닿을 확률이며 방향 판단이 "
-                 "아닙니다. 방향은 자산군별 규칙이 정합니다.")
+    lines.append("±3% 도달률은 24시간 안에 그 선에 닿을 확률입니다. 방향은 "
+                 "이 숫자가 아니라 2시간 ±1% 도달률이 정하므로, 위쪽 확률이 "
+                 "높은데 숏인 픽이 나올 수 있습니다.")
     return "\n".join(lines)
 
 

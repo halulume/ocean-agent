@@ -190,6 +190,26 @@ bracket_entry_wait_sec: 120
 # certain; a gap through the whole buffer leaves the position running to
 # liquidation protection. Set 0 to keep a pure market trigger (always fills).
 bracket_sl_limit_buffer: 0.5
+# Overrides the buffer above: trigger and limit at the SAME price, so the
+# stop sells where it was set or not at all. A take profit rests in the book
+# from the moment the position opens and is lifted at its price. A stop
+# cannot: an order to sell below the market would fill at once, so the venue
+# holds it back and creates it only when price arrives, behind everyone
+# already queued there. That difference, not the fee, is what a stop costs,
+# and this refuses to pay it. The trade-off is real: an order the market
+# runs away from is left unfilled, which is what the chase below is for.
+bracket_sl_maker: true
+# Both the grace the resting stop is given and the interval the chase moves
+# on. Price through the line is not proof of a miss: the limit may be
+# filling this second, and acting on sight would throw away the very fills
+# this is for. After these seconds a reduce-only limit is placed at the mark
+# and moved here every interval, so the exit keeps asking for a price we
+# chose. It never sweeps the book. The exchange stop is left standing the
+# whole time: both orders are reduce-only so they cannot flip the position
+# between them, and a price that comes back finds the stop still there.
+# Between cycles the bot watches on this clock rather than its own, so a
+# chase is never waiting out a 30 minute loop. (08-27 decision)
+bracket_sl_chase_sec: 10
 # Who calls long/short at entry. "touch": the seal's own touch-rate direction
 # (shipped behaviour). "signal": the 22-signal net vote on the last closed 1h
 # bar, escalating to the 4h/8h/12h votes and finally an RSI verdict, so the
@@ -229,7 +249,7 @@ chat_local: true
 #   CHIP·BP  봉인 슬리피지가 0.375~0.421% 로 왕복 비용이 익절폭의 1/4
 #   PUMP     예상 변동보다 크게 벌어진 손절이 반복됐다
 #   PIPPIN   손절 평균이 익절 평균보다 커서 누적이 마이너스였다
-# KAITO 는 해제(08-25): -6.33% 이탈은 손절이 시장가이던 시절 사고이고
+# KAITO 는 해제(08-25): 큰 손절 이탈은 손절이 시장가이던 시절 사고이고
 # 지금은 트리거-지정가+버퍼가 막는다. 슬리피지도 0.07~0.10% 로 정상.
 # 긴 재생은 균일 변동 상한을 기각했다. 아래 둘은
 # 그 측정이 아니라 실거래 관찰에 근거한 운영 판단이며, 사용자는 자기

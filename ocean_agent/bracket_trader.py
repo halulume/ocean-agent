@@ -655,7 +655,7 @@ def _close_row(sym: str, pos: dict, est, cause: str) -> dict:
     """One shape for every booked close, carrying its own geometry.
 
     The book used to keep eight fields, none of them the bracket the trade
-    actually wore, so a row could not be re-read later: -3.155% might be a
+    actually wore, so a row could not be re-read later: one loss figure might be a
     stop hit cleanly or a stop slipped through, and nothing on the row said
     which. A book that spans a geometry change has to carry its own ruler,
     and the analysis side was corrected while the writing side was not.
@@ -1216,7 +1216,17 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             # worse, so the fill is near-certain while slippage is capped.
             # Buffer 0 keeps the stop a pure market trigger.
             sl_lim = ""
-            if _sl_buf > 0:
+            if _sl_maker:
+                # Trigger and limit at the same price: the stop sells where
+                # we said or it waits. A take profit rests in the book from
+                # the start and is lifted at its price; a stop is created
+                # only once price arrives and takes whatever is left, and
+                # that difference, not the fee, is what a stop costs. This
+                # refuses to pay it. The cost is that the order can be left
+                # behind, and what the chase below does not catch runs to
+                # the expiry exit. (08-27 decision)
+                sl_lim = _round_to_tick(float(sl_s), tick)
+            elif _sl_buf > 0:
                 _slb = float(sl_s) * (1 - _sl_buf * mv) if long_                     else float(sl_s) * (1 + _sl_buf * mv)
                 sl_lim = _round_to_tick(_slb, tick)
             if _entry_limit:
@@ -1250,22 +1260,47 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                     except PacificaError:
                         pass
                 if not _filled:
-                    try:
-                        client.cancel_order(sym, order_id=_oid)
-                    except PacificaError as _ce:
-                        # the order may have filled in the race; positions
-                        # are re-read below either way
-                        log(f"{sym}: 진입 취소 실패({_ce}), 포지션 재확인")
+                    # A failed cancel does NOT mean the order is gone. On
+                    # 2026-08-27 a rate limit ate one cancel, the bot logged
+                    # "cancelled, skipping" and cleared the pending record,
+                    # and the order it had not cancelled filled six seconds
+                    # later. That position was on the exchange for three
+                    # hours with no take profit, no stop and no owner: the
+                    # ledger did not hold it, so the watcher never expired it
+                    # and every later cycle skipped the symbol as "someone
+                    # else's". It ended down 4%.
+                    #
+                    # So: try the cancel more than once, and only forget the
+                    # intent when the venue actually confirmed the cancel.
+                    # An unconfirmed cancel keeps the pending record, which
+                    # is what reconcile_pending reads at the top of the next
+                    # cycle to adopt whatever appeared. Keeping a record for
+                    # an order that truly never filled costs nothing, since
+                    # reconcile drops it after its grace window.
+                    _cancelled = False
+                    for _try in range(3):
                         try:
-                            _filled = any(pp.get("symbol") == sym
-                                          for pp in client.get_positions())
-                        except PacificaError:
-                            pass
+                            client.cancel_order(sym, order_id=_oid)
+                            _cancelled = True
+                            break
+                        except PacificaError as _ce:
+                            log(f"{sym}: 진입 취소 실패 {_try + 1}/3 ({_ce})")
+                            time.sleep(2)
+                    try:
+                        _filled = any(pp.get("symbol") == sym
+                                      for pp in client.get_positions())
+                    except PacificaError:
+                        pass
                     if not _filled:
-                        _clear_pending(st, sym)
+                        if _cancelled:
+                            _clear_pending(st, sym)
+                        else:
+                            log(f"{sym}: 취소를 확인하지 못했다. 주문이 살아 "
+                                f"있을 수 있어 미결 기록을 남기고, 다음 "
+                                f"회차가 체결분을 입양한다")
                         save_state(st)
                         log(f"{sym}: 지정가 진입 미체결 {_entry_wait}s, "
-                            f"취소하고 이번 자리 건너뜀")
+                            f"이번 자리 건너뜀")
                         attempt_failed += 1
                         continue
             else:
@@ -1552,7 +1587,90 @@ def close_limit(client, policy, sym: str, pos: dict, live: dict,
     return (res or {}).get("order_id")
 
 
-def close_market(client, policy, sym: str, pos: dict, live: dict) -> None:
+def _chase_stop_maker(client, policy, st, sym: str, pos: dict, live: dict,
+                      mark: float) -> None:
+    """Follow the price with a resting order instead of paying to catch it.
+
+    The stop-limit sits at the line and fills there or not at all. When the
+    market leaves it behind, this puts a reduce-only limit one tick to our
+    side of the mark and moves it every pass, so the exit keeps asking for
+    a price we chose rather than taking whatever the book has.
+
+    The exchange stop is deliberately NOT cancelled. Both orders are
+    reduce-only, so they cannot between them flip the position, and leaving
+    it alone means a price that comes back finds the stop still standing.
+    Cancelling would trade a fill we might get for a position with no stop
+    at all. (08-27 user decision: maker, always, and keep re-posting)
+    """
+    ch = pos.get("stop_chase") or {}
+    oid = ch.get("oid")
+    if oid is not None:
+        try:
+            client.cancel_order(sym, order_id=oid)
+        except PacificaError:
+            # Filled in the race, or never there. Only the book can tell the
+            # two apart, and a live order must not be doubled.
+            if _order_alive(client, oid):
+                return
+    tries = int(ch.get("tries", 0)) + 1
+    new_oid = close_limit(client, policy, sym, pos, live, mark,
+                          _tick_of(client, sym))
+    pos["stop_chase"] = {"oid": new_oid, "at": _now().isoformat(),
+                         "px": mark, "tries": tries}
+    save_state(st)
+    if tries == 1:
+        log(f"{sym}: 손절 지정가가 안 채워졌다. 마크({mark})에 지정가를 붙여 "
+            f"따라간다. 거래소 손절은 그대로 살아 있다")
+    elif tries % 30 == 0:
+        log(f"{sym}: 손절 추격 지정가 {tries}회째 미체결, 계속 따라간다")
+
+
+def _drop_stop_chase(client, st, sym: str, pos: dict) -> None:
+    """Price came back over the line. Take the chaser off and forget it."""
+    ch = pos.pop("stop_chase", None)
+    pos.pop("sl_missed_at", None)
+    if ch and ch.get("oid") is not None:
+        try:
+            client.cancel_order(sym, order_id=ch["oid"])
+        except PacificaError:
+            pass
+    log(f"{sym}: 값이 손절선 위로 돌아왔다. 추격 지정가를 거둔다")
+    save_state(st)
+
+
+def _cancel_resting(client, sym: str, pos: dict) -> None:
+    """Take our own resting orders off the book before a market close.
+
+    Two of them can be alive at once: an expiry limit this bot posted, and
+    the stop-limit the exchange created when the trigger fired. Both are
+    reduce-only, so the venue usually drops them with the position, but the
+    ledger has not trusted "usually" since 08-26 and neither does this.
+    Errors are swallowed on purpose: an order that cannot be cancelled is
+    almost always one that is already gone. (08-27)
+    """
+    for _key, _tag in (("exit_limit", "만기"), ("stop_chase", "손절 추격")):
+        _o = (pos.get(_key) or {}).get("oid")
+        if _o is None:
+            continue
+        try:
+            client.cancel_order(sym, order_id=_o)
+            log(f"{sym}: 남아 있던 {_tag} 지정가를 취소했다")
+        except PacificaError:
+            pass
+    try:
+        for o in client.get_open_orders():
+            if o.get("symbol") != sym:
+                continue
+            if not str(o.get("order_type", "")).startswith("stop"):
+                continue
+            client.cancel_order(sym, order_id=o.get("order_id"))
+            log(f"{sym}: 남아 있던 손절 지정가를 취소했다")
+    except PacificaError:
+        pass
+
+
+def close_market(client, policy, sym: str, pos: dict, live: dict,
+                 slippage: str = "0.5") -> None:
     # close what the exchange actually holds, not what the ledger remembers
     # (BR6: partial fills or partial closes make the two diverge)
     amt = pos["amount"]
@@ -1563,7 +1681,7 @@ def close_market(client, policy, sym: str, pos: dict, live: dict) -> None:
         except (TypeError, ValueError):
             pass
     side = "ask" if pos["dir"] == "long" else "bid"
-    client.create_market_order(sym, side, str(amt), "0.5", reduce_only=True,
+    client.create_market_order(sym, side, str(amt), slippage, reduce_only=True,
                               builder_code=policy.get("builder_code", ""))
 
 
@@ -1678,13 +1796,9 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
             # nothing to reduce is usually dropped by the venue, but leaving
             # one on the book means the next entry in this symbol could meet
             # its own stale exit. (2026-08-26)
-            _el = pos.get("exit_limit")
-            if _el and _el.get("oid") is not None:
-                try:
-                    client.cancel_order(sym, order_id=_el["oid"])
-                    log(f"{sym}: 남아 있던 만기 지정가를 취소했다")
-                except PacificaError:
-                    pass                 # already gone, which is the point
+            # A stop chase leaves the same kind of leftover as an expiry
+            # limit, so both come off here. (08-27)
+            _cancel_resting(client, sym, pos)
             del st["positions"][sym]
             save_state(st)
             notify.send(f"브래킷 청산: {sym} {est:+.2f}% ({cause})")
@@ -1740,6 +1854,12 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                                or (not long_ and mark <= pos["tp"]))
         hit_sl = mark > 0 and ((long_ and mark <= pos["sl"])
                                or (not long_ and mark >= pos["sl"]))
+        if mark > 0 and not hit_sl and (pos.get("sl_missed_at")
+                                        or pos.get("stop_chase")):
+            # Price came back above the line on its own. The clock and the
+            # chaser both go with it, or a later dip inherits a countdown
+            # that already expired and a resting order at a stale price.
+            _drop_stop_chase(client, st, sym, pos)
         if held_h >= cfg["horizon_h"] or hit_tp or hit_sl:
             # A crossed line outranks the expiry. Before the limit exit
             # existed both causes ended in the same market close so the
@@ -1748,6 +1868,40 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
             # dead must not be left resting. (2026-08-26)
             why = ("손절 트리거 잔류" if hit_sl
                    else "익절 트리거 잔류" if hit_tp else "만기")
+            # With a maker stop the order rests AT the line, so price being
+            # through it is not yet evidence of anything: the limit may be
+            # filling this second. Give it the grace it was put there for,
+            # and then chase it with another resting order rather than
+            # sweeping the book. Nothing here ever takes liquidity. The
+            # clock starts on the record so a restart cannot reset it.
+            # (08-27 user decision)
+            if hit_sl and bool(policy.get("bracket_sl_maker", False)):
+                _grace = max(5, int(policy.get("bracket_sl_chase_sec", 10)
+                                    or 10))
+                _seen = pos.get("sl_missed_at")
+                if not _seen:
+                    pos["sl_missed_at"] = _now().isoformat()
+                    save_state(st)
+                    log(f"{sym}: 값이 손절선을 지났다. 걸어둔 손절 지정가가 "
+                        f"제 가격에 채워지는지 {_grace}초 기다린다")
+                    continue
+                try:
+                    _waited = (_now() - dt.datetime.fromisoformat(
+                        _seen)).total_seconds()
+                except (TypeError, ValueError):
+                    # A stamp this cannot read would raise here every pass
+                    # while the watcher between cycles keeps
+                    # coming back to it, which is a loop that never closes
+                    # the position. An unreadable clock is restarted rather
+                    # than trusted.
+                    pos["sl_missed_at"] = _now().isoformat()
+                    save_state(st)
+                    log(f"{sym}: 추격 시계를 읽을 수 없어 다시 시작한다")
+                    continue
+                if _waited < _grace:
+                    continue
+                _chase_stop_maker(client, policy, st, sym, pos, live, mark)
+                continue
             if why != "만기":
                 # Price crossed a bracket line and the position is still open,
                 # so the exchange-side order did not fire. That order is the
@@ -1770,6 +1924,14 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                 continue
             try:
                 since_ms = _since_open(pos)
+                # Anything of ours still resting has to come off the book
+                # first. A reduce-only order the venue keeps after the
+                # position is gone meets the next entry in this symbol as
+                # its own stale exit, which is what the expiry path was
+                # taught to avoid on 08-26. Under a maker stop this stopped
+                # being a rare dead-bracket case and became the ordinary
+                # one, so the same care belongs here. (08-27)
+                _cancel_resting(client, sym, pos)
                 close_market(client, policy, sym, pos, live)
                 move, tag = _booked_pct(client, sym, pos, mark, since_ms)
                 st["closed"].append(
@@ -2045,6 +2207,7 @@ _tp_limit: bool = False      # TP leg executes as limit when triggered (08-24)
 _entry_limit: bool = False   # entry as resting limit at the anchor price
 _entry_wait: int = 120       # seconds before an unfilled entry is cancelled
 _sl_buf: float = 0.0         # SL limit buffer, in units of expected move
+_sl_maker: bool = False      # SL trigger and limit at the same price (08-27)
 _side_source: str = "touch"  # who calls long/short: "touch" or "signal" (08-24)
 _advisory_alerts: bool = True   # advisory warnings also go to Telegram; the
                                 # log line always stays (08-24 operator ask)
@@ -2249,7 +2412,84 @@ def fresh_seal_waiting(st: dict, dry: bool) -> bool:
     return (_now() - made).total_seconds() / 3600 <= 6
 
 
-def sleep_alive(seconds: int, dry: bool, st: dict | None = None) -> None:
+def stop_watch_pass(client, policy, st: dict) -> bool:
+    """Between cycles, keep the stop chase moving. True = wake the loop.
+
+    Runs on its own instead of waking the full cycle, because the cycle can
+    spend minutes building a seal and this is the one job that cannot wait
+    that long. It only ever rests orders; nothing here takes liquidity.
+
+    Three states per held position: above the line (drop any chaser), just
+    under it (start the grace the resting stop was given), and past the
+    grace (move a reduce-only limit to the mark, every pass). The loop is
+    woken only when a chased position has actually left the venue, so the
+    cycle can book it the way it books every other close.
+
+    One prices call per pass, and only while something is held under a
+    maker stop. The positions call happens only when a chase is live.
+    """
+    held = st.get("positions") or {}
+    if not held or not policy.get("bracket_sl_maker", False):
+        return False
+    grace = max(5, int(policy.get("bracket_sl_chase_sec", 10) or 10))
+    try:
+        prices = {p["symbol"]: p for p in client.get_prices()}
+    except PacificaError:
+        return False                     # the cycle will look properly
+    under = {}
+    for sym, pos in list(held.items()):
+        mk = float(prices.get(sym, {}).get("mark")
+                   or prices.get(sym, {}).get("mid") or 0)
+        if mk <= 0 or not pos.get("sl"):
+            continue                     # a missing price proves nothing
+        past = (mk <= pos["sl"] if pos.get("dir") == "long"
+                else mk >= pos["sl"])
+        if not past:
+            if pos.get("sl_missed_at") or pos.get("stop_chase"):
+                try:
+                    _drop_stop_chase(client, st, sym, pos)
+                except PacificaError:
+                    pass
+            continue
+        seen = pos.get("sl_missed_at")
+        if not seen:
+            pos["sl_missed_at"] = _now().isoformat()
+            save_state(st)
+            log(f"{sym}: 값이 손절선을 지났다. 걸어둔 손절 지정가가 제 "
+                f"가격에 채워지는지 {grace}초 기다린다")
+            continue
+        try:
+            waited = (_now()
+                      - dt.datetime.fromisoformat(seen)).total_seconds()
+        except (TypeError, ValueError):
+            pos["sl_missed_at"] = _now().isoformat()   # never trust it twice
+            save_state(st)
+            continue
+        if waited >= grace:
+            under[sym] = pos
+    if not under:
+        return False
+    try:
+        live = {p.get("symbol"): p for p in client.get_positions()}
+    except PacificaError:
+        return False
+    wake = False
+    for sym, pos in under.items():
+        if sym not in live:
+            wake = True                  # gone: the cycle books it
+            continue
+        try:
+            _chase_stop_maker(client, policy, st, sym, pos, live, 
+                              float(prices[sym].get("mark")
+                                    or prices[sym].get("mid") or 0))
+        except PacificaError as e:
+            log(f"{sym}: 손절 추격 지정가 실패({str(e)[:80]}), 다음 회에 "
+                f"다시 건다. 거래소 손절은 그대로 살아 있다")
+    return wake
+
+
+def sleep_alive(seconds: int, dry: bool, st: dict | None = None,
+                client=None, policy: dict | None = None) -> None:
     """Sleep between cycles, but wake early the moment a new seal appears.
 
     Two jobs. The lock window (10 min) is deliberately shorter than the loop
@@ -2262,16 +2502,35 @@ def sleep_alive(seconds: int, dry: bool, st: dict | None = None) -> None:
     Polling the seal file costs one local read, so the bot notices within
     half a minute instead of up to half an hour. Dry writes nothing.
     """
-    left = seconds
-    hb = 0
-    while left > 0:
-        nap = min(SEAL_POLL_SEC, left)
+    # Elapsed, not nominal. This wait used to be pure sleep, so counting naps
+    # was counting seconds. It now makes a network call per tick, and one 429
+    # costs it over a minute of backoff, so a "300 second" heartbeat could
+    # drift past the 10 minute freshness window and let the keeper start a
+    # SECOND live bot on the same account. Nothing here may assume the clock
+    # and the naps agree. (08-27)
+    _end = time.monotonic() + seconds
+    _next_hb = time.monotonic() + 300
+    while True:
+        left = _end - time.monotonic()
+        if left <= 0:
+            return
+        # A held position under a maker stop is watched on the chase clock,
+        # not the seal clock: an exit that is supposed to follow the price
+        # cannot be moved once every half minute. With nothing held this is
+        # the old cadence and costs nothing.
+        _watch = (not dry and client is not None and st is not None
+                  and (st.get("positions") or {})
+                  and (policy or {}).get("bracket_sl_maker", False))
+        _tick = (max(5, int((policy or {}).get("bracket_sl_chase_sec", 10)
+                            or 10)) if _watch else SEAL_POLL_SEC)
+        nap = min(_tick, left)
         time.sleep(nap)
-        left -= nap
-        hb += nap
-        if not dry and hb >= 300:
+        if not dry and time.monotonic() >= _next_hb:
             write_heartbeat()
-            hb = 0
+            _next_hb = time.monotonic() + 300
+        if _watch and stop_watch_pass(client, policy or {}, st):
+            log("추격하던 포지션이 정리됐다. 대기를 끊고 장부에 적으러 간다")
+            return
         if st is not None and fresh_seal_waiting(st, dry):
             log("새 봉인 감지, 대기를 끊고 바로 진입 판단으로 갑니다")
             return
@@ -2320,7 +2579,7 @@ def main():
             return
     cfg = apply_budget(bracket_cfg(policy))
     global _selfgen_enabled, _tp_limit, _entry_limit, _entry_wait, _sl_buf
-    global _side_source, _advisory_alerts
+    global _side_source, _advisory_alerts, _sl_maker
     _selfgen_enabled = bool(policy.get("bracket_selfgen_seal", True))
     _advisory_alerts = bool(policy.get("bracket_advisory_alerts", True))
     global _strong_bonus
@@ -2333,10 +2592,15 @@ def main():
     _entry_limit = bool(policy.get("bracket_entry_limit", False))
     _entry_wait = int(policy.get("bracket_entry_wait_sec", 120) or 120)
     _sl_buf = float(policy.get("bracket_sl_limit_buffer", 0) or 0)
+    _sl_maker = bool(policy.get("bracket_sl_maker", False))
     modes = []
     if _entry_limit: modes.append(f"진입 지정가(미체결 {_entry_wait}s 후 취소)")
     if _tp_limit: modes.append("익절 지정가")
-    if _sl_buf > 0: modes.append(f"손절 트리거-지정가(버퍼 {_sl_buf}×변동)")
+    if _sl_maker:
+        _chase = max(5, int(policy.get("bracket_sl_chase_sec", 10) or 10))
+        modes.append(f"손절 지정가(트리거=지정가, 밀림 없음. 안 채워지면 "
+                     f"{_chase}초마다 마크에 지정가를 옮겨 따라감, 시장가 없음)")
+    elif _sl_buf > 0: modes.append(f"손절 트리거-지정가(버퍼 {_sl_buf}×변동)")
     if _cfg_banner.get("expiry_exit") == "limit":
         modes.append(f"만기 청산 지정가(미체결 {_cfg_banner['expiry_wait_s']}s"
                      f"마다 갱신)")
@@ -2508,7 +2772,7 @@ def main():
             if args.once:
                 break
             print(status(st))
-            sleep_alive(LOOP_MIN * 60, args.dry, st)
+            sleep_alive(LOOP_MIN * 60, args.dry, st, client, policy)
     finally:
         if not args.dry:
             clear_heartbeat()

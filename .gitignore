@@ -99,3 +99,6 @@ nul
 # review notes and simulation output stay local
 전수검토_*.md
 outputs/sim_report.txt
+오픈베타작업*.md
+# wheel/sdist extracted by release/preflight.py for its leak scan
+audit/

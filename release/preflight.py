@@ -99,6 +99,36 @@ def check_contents(whl: str) -> None:
         return
     found = [p for p in figs if p in text]
     ok("측정 수치가 남지 않았다", not found, ", ".join(found[:4]))
+    _shape_check(text)
+
+
+# Shapes, not values. leak_figures.txt only catches what somebody remembered
+# to write down, and on 2026-08-27 that list passed a wheel carrying 25 lines
+# of measured figures and operator script paths: it had been built by hand
+# from one grep whose pattern only knew about "%p" and section marks. A list
+# cannot be trusted to be complete, so these patterns look for the FORM the
+# leaks take and need no maintenance to catch the next one.
+LEAK_SHAPES = [
+    ("운영자 스크립트 경로", r"research/[A-Za-z0-9_]+\.(?:py|log|md)"),
+    ("내부 문서 이름", r"측정기록|작업규칙|의도적결정|개선루프|데이터목록|홀드아웃"),
+    ("장부 절 번호", r"§\s*[0-9]+|ledger\s*§?\s*[0-9]{2,}"),
+    # Signed first, then unsigned. The signed form was the whole rule until
+    # 08-27, when a policy comment shipped "0.291%" and sailed through: the
+    # figures we quote are not always deltas. Two decimals or more keeps the
+    # ordinary settings a person is meant to read ("0.5", "3%") out of it.
+    ("측정 수치", r"[+-][0-9]+\.[0-9]{2,}\s*%p?"),
+    ("측정 수치(부호 없음)", r"(?<![0-9.])[0-9]+\.[0-9]{2,}\s*%p"),
+    ("측정 날짜", r"Measured\s+20[0-9]{2}-[0-9]{2}-[0-9]{2}"),
+]
+
+
+def _shape_check(text: str) -> None:
+    """Catch leak-shaped strings the hand-written list never knew about."""
+    import re
+    for label, pat in LEAK_SHAPES:
+        hits = sorted(set(re.findall(pat, text)))
+        ok(f"{label} 없음", not hits, ", ".join(h[:40] for h in hits[:4])
+           + (f" 외 {len(hits)-4}건" if len(hits) > 4 else ""))
 
 
 # ── live checks: install it and make it answer ──────────────────────────
