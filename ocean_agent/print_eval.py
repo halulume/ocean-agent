@@ -288,7 +288,7 @@ def realized_vol(prices: list[float]) -> float:
 # asset: (lookback hours, annualised vol threshold, distance %, side,
 #         measured annual return or None)
 #
-# Refit 2026-08-27 (ledger 148 and 150) on Binance FUTURES with the
+# Refit 2026-08-27 on Binance FUTURES with the
 # intrabar liquidation model, the basis this module actually runs on.
 # Method is the 08-05 one: choose on the first half of the series only,
 # verify on the second, criterion declared before the second half was
@@ -588,7 +588,7 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
                 out.append("  ▶ 쓸 만한 신호 없음, 방향 근거 없음(전 구간 통계로만 판단)")
         rows = []
         # The breakeven column is conditioned on VOLATILITY, not on lit
-        # signals (2026-08-27 user decision, ledger 151: "판정 똑같이
+        # signals (2026-08-27 user decision: "판정 똑같이
         # 변동률로 해").
         #
         # The signal mask this replaces did two things wrong. It had no
@@ -729,7 +729,7 @@ def format_report(symbol: str, distance_pct: float, side: str, stats: dict,
         # scaled by the same factor. Comparing a 20x payout against a 1x
         # breakeven is wrong by exactly 20, and wrong in the direction that
         # calls a losing trade favorable. That is the defect this argument
-        # closes; it is the same mistake ledger 145 records me making by
+        # closes; it is the same mistake the ledger records me making by
         # hand. Linear scaling matches recommend_now's fallback and is the
         # conservative side of its cliff model at high leverage.
         be_daily = stats["breakeven_daily"] * lev
