@@ -1,15 +1,26 @@
 # -*- coding: utf-8 -*-
 """The bracket trader: the measured operating plan, and nothing else.
 
-Born 2026-08-11 from 430 measured variants, of which three survived and are
-wired here verbatim:
-  · trade the top three picks (by trade_rank) of the daily seal
-  · exit at TP 0.3x / SL 1.0x of the pick's expected move, or the 24h expiry
-  · leverage capped by policy (week one runs reduced), isolated margin
+Born 2026-08-11 from 430 measured variants. What it trades is NOT frozen
+here: every number below lives in policy and has moved since, so read the
+policy file, not this paragraph. As of 2026-08-28 it is
 
-Everything else that was measured and rejected is deliberately absent: no
-intraday refills (ranks 7-12 net negative), no swaps, no reserve slots, no
-12h re-look (dilutes per-trade), no trailing, no partial TP.
+  · the top picks of the hourly seal by trade_rank, five seats in the
+    operator's policy and eight in the shipped default
+  · exit at TP 1.0x / SL 1.3x of the pick's expected move (08-26; it was
+    0.3/1.0 at birth and 1.5/1.0 in between), or the 24h expiry
+  · leverage capped by policy, isolated margin
+
+Everything on the way out rests as a limit and none of it takes the market
+(08-27): the stop triggers into a limit at its own price and a reduce-only
+limit follows the mark if that is left behind, and the expiry exit rests
+and re-posts. Market orders survive only where the position is already
+unprotected or the user asked to flatten.
+
+Deliberately absent, having been measured and rejected: swaps, a 12h
+re-look (dilutes per-trade), trailing, partial TP. Intraday refills were
+in that list until 08-14, when hourly seals replaced the daily one; empty
+seats are now refilled, never exceeding the seat count.
 
 Safety posture:
   · TP/SL ride on the exchange with the entry order, so a dead bot or PC
@@ -71,12 +82,15 @@ LOOP_MIN = 30
 # ── pre-registered circuit breakers (round-3 review, 2026-08-11) ──
 HALT_ON_LIQUIDATION = True          # exchange-confirmed liquidation = warn
 HALT_AVG_AFTER = 30                 # trades before the average is judged
-# Floor for the 1.5x TP geometry (same derivation as before, re-evaluated
-# 2026-08-19 when the target widened): wins near +4.4% and stops near
-# -3.0% put the per-trade std around 3.7%, so a 30-trade average two
-# sigmas below a roughly breakeven expectation is 0 - 2 * 3.7 / sqrt(30)
-# ~= -1.4. Re-derive from the live sample once 30 real trades are booked.
-HALT_AVG_FLOOR = -1.4               # % per trade; -2 sigma of the expectation
+# Re-derived 2026-08-28 from the live book, which is what the previous note
+# asked for once 30 real trades existed. There are 150. Wins average +3.28%
+# and stops -3.55%, not the +4.4% the old derivation assumed for the 1.5x
+# target, and the per-trade std is 3.62%, so a 30-trade average two sigmas
+# below a roughly breakeven expectation is 0 - 2 * 3.62 / sqrt(30) ~= -1.3.
+# The 13 closes under the current 1.0/1.3 geometry alone give -1.2; that
+# sample is too thin to use, and this should tighten toward it as the
+# geometry accumulates its own 30.
+HALT_AVG_FLOOR = -1.3               # % per trade; -2 sigma of the expectation
 DEMOTE_SLIP_EVENTS = 2              # stop fills worse than line by ...
 DEMOTE_SLIP_PCT = 0.5               # ... this many %p, twice -> warn.
 # Not "lower the leverage" any more: with a fixed notional per pick that
@@ -458,17 +472,27 @@ def bracket_cfg(policy: dict) -> dict:
         "tp_pct": max(0.0, float(policy.get("bracket_tp_pct", 0))),
         "sl_mult": float(policy.get("bracket_sl_mult", 1.0)),
         "vol_floor_pct": float(policy.get("bracket_vol_floor_pct", 0.8)),
-        # Upper bound on the pick's expected move, i.e. on the stop
-        # distance (SL = 1.0x expected). 0 here is only the fallback when
-        # the key is missing; policy_default.yaml ships 5.0, so a fresh
-        # install runs with the ceiling ON (2026-08-25 user decision after
-        # one PUMP stop, -5.5% on a 5.8% expected move, ate 3.5 take
-        # profits). Users with their own policy.yaml are unaffected until
-        # they add the key. A long replay does not support a uniform
-        # ceiling, so treat this as a live-trading judgment rather than a
-        # measured rule. Emptying it is one line.
+        # How far the STOP may sit, in percent. The instruction it comes
+        # from was about the stop and not the expected move: "anything whose
+        # stop line goes past 5%, take it out" (2026-08-25, after one PUMP
+        # stop of -5.5% on a 5.8% expected move ate three and a half take
+        # profits). It was written down as a cap on the expected move, which
+        # is the same thing only while SL is 1.0x. The multiple went to 1.3x
+        # on 08-26 and the cap did not, so stops out to 6.5% were passing
+        # for two days. Stated as the stop distance it cannot drift again.
+        # A long replay does not support a uniform ceiling, so this is a
+        # live-trading judgment rather than a measured rule. 0 turns it off.
+        # bracket_vol_ceiling_pct is the older key and still works, read as
+        # a cap on the expected move; when both are set the tighter wins.
+        # (08-28)
+        "sl_ceiling_pct": max(0.0,
+                              float(policy.get("bracket_sl_ceiling_pct", 0))),
         "vol_ceiling_pct": max(0.0,
                                float(policy.get("bracket_vol_ceiling_pct", 0))),
+        # Adverse distance at which a position is left early, at our own
+        # price, without waiting for the stop. 0 turns it off. (08-28)
+        "early_cut_pct": max(0.0,
+                             float(policy.get("bracket_early_cut_pct", 0))),
         # What the operator said they wanted working, in dollars. Slots and
         # per-pick size come out of it: $300 at $50 a pick is six positions.
         # Percent-of-account is what a spreadsheet understands; a person
@@ -500,8 +524,9 @@ def bracket_cfg(policy: dict) -> dict:
 def tp_distance_pct(cfg: dict, exp_move_pct: float) -> float:
     """Target distance in %, the one place both modes agree on.
 
-    Base multiplies the pick's expected move (0.3x); hard fixes the target
-    near 3% regardless of the pick. Grading's fallback estimate must use the
+    Base multiplies the pick's expected move by bracket_tp_mult (1.0x
+    since 08-26, 0.3x when this was written); hard fixes the target near
+    3% regardless of the pick. Grading's fallback estimate must use the
     same number as the order, so both call this.
     """
     if cfg["tp_pct"] > 0:
@@ -551,10 +576,20 @@ def select_picks(rec: dict, cfg: dict) -> list[dict]:
             log(f"변동폭 하한 미달로 건너뜀: {p['sym']} "
                 f"({p.get('exp_move_pct')}% < {cfg['vol_floor_pct']}%)")
             continue
-        ceil = cfg.get("vol_ceiling_pct", 0)
-        if ceil and p.get("exp_move_pct", 0) > ceil:
+        # Both caps end up as a limit on the expected move, because that is
+        # what a pick carries. The stop cap is converted through the live
+        # multiple so it keeps meaning "the stop may not sit past this"
+        # whatever the geometry does next. Tighter of the two wins.
+        _mv = p.get("exp_move_pct", 0)
+        _slm = cfg.get("sl_mult", 1.0) or 1.0
+        _caps = [c for c in (cfg.get("vol_ceiling_pct", 0),
+                             (cfg.get("sl_ceiling_pct", 0) / _slm
+                              if cfg.get("sl_ceiling_pct", 0) else 0)) if c]
+        ceil = min(_caps) if _caps else 0
+        if ceil and _mv > ceil:
             log(f"변동폭 상한 초과로 건너뜀: {p['sym']} "
-                f"({p.get('exp_move_pct')}% > {ceil}%, 손절선이 그만큼 멀다)")
+                f"(예상변동 {_mv}% × 손절 {_slm}배 = 손절선 "
+                f"{_mv * _slm:.2f}%, 상한 {ceil * _slm:.2f}%)")
             continue
         out.append(p)
         if len(out) == cfg["slots"]:
@@ -566,8 +601,10 @@ def bracket_prices(px: float, direction: str, mv: float, cfg: dict,
                    tick: float) -> tuple[str, str] | None:
     """Tick-rounded TP/SL, validated to sit on the correct sides of entry.
 
-    With a tight target (0.3x of a small expected move) and a coarse tick,
-    rounding can collapse the TP onto the entry price or past it (BR8). A
+    With a tight target and a coarse tick, rounding can collapse the TP
+    onto the entry price or past it (BR8). The multiple has widened since
+    that was first hit, so it bites less often now, but a wide multiple on
+    a quiet pick still lands in the same place. A
     bracket that fails validation is a reason to skip the pick, not to enter
     it naked.
 
@@ -1675,6 +1712,53 @@ def _chase_stop_maker(client, policy, st, sym: str, pos: dict, live: dict,
                    f"정리하려면 봇에게 말하세요.")
 
 
+def _early_cut(client, policy, st, sym: str, pos: dict, live: dict,
+               mark: float, adv: float, cut: float) -> None:
+    """Rest a reduce-only limit at the mark and follow it until it fills.
+
+    Deliberately the same machinery as the stop chase, and for the same
+    reason: nothing on the way out takes the market. The difference is
+    where it starts. The chase begins after the stop has been crossed and
+    is trying to leave a position already lost; this begins before, on a
+    position measured to be lost, and leaves while the tape is calm enough
+    that a resting order should still be a resting order.
+
+    The exchange stop is untouched throughout, so a gap that outruns this
+    still lands on the line it always had.
+    """
+    ch = pos.get("early_cut") or {}
+    tick = _tick_of(client, sym)
+    oid = ch.get("oid")
+    if oid is not None:
+        try:
+            if _round_to_tick(mark, tick) == _round_to_tick(
+                    float(ch.get("px") or 0), tick) and _order_alive(
+                        client, oid):
+                return                   # already resting in the right place
+        except (TypeError, ValueError):
+            pass
+        try:
+            client.cancel_order(sym, order_id=oid)
+        except PacificaError:
+            if _order_alive(client, oid):
+                return
+    tries = int(ch.get("tries", 0)) + 1
+    new_oid = close_limit(client, policy, sym, pos, live, mark, tick)
+    pos["early_cut"] = {"oid": new_oid, "at": _now().isoformat(),
+                        "px": mark, "tries": tries}
+    save_state(st)
+    if tries == 1:
+        log(f"{sym}: 진입가 대비 {adv:.2f}% 밀렸다(문턱 {cut}%). 손절선까지 "
+            f"기다리지 않고 마크({mark})에 지정가를 걸어 정리한다. "
+            f"거래소 손절은 그대로 살아 있다")
+    elif tries % 30 == 0:
+        log(f"{sym}: 조기 정리 지정가 {tries}회째 미체결, 계속 따라간다")
+    if tries >= 30:
+        _warn_once(st, f"early_long:{sym}",
+                   f"{sym}: 조기 정리 지정가가 {tries}회 연속 미체결입니다. "
+                   f"아직 못 팔았고 거래소 손절만 남아 있습니다.")
+
+
 def _drop_stop_chase(client, st, sym: str, pos: dict) -> None:
     """Price came back over the line. Take the chaser off and forget it."""
     ch = pos.pop("stop_chase", None)
@@ -1688,6 +1772,25 @@ def _drop_stop_chase(client, st, sym: str, pos: dict) -> None:
     save_state(st)
 
 
+def _drop_early_cut(client, st, sym: str, pos: dict) -> None:
+    """Price recovered past the cut. Take the resting order off.
+
+    Without this a position that dipped, was marked for an early exit, and
+    then came back would keep a reduce-only order sitting at the price it
+    dipped to, and sell there on the next wobble. (08-28)
+    """
+    ch = pos.pop("early_cut", None)
+    if not ch:
+        return
+    if ch.get("oid") is not None:
+        try:
+            client.cancel_order(sym, order_id=ch["oid"])
+        except PacificaError:
+            pass
+    log(f"{sym}: 값이 조기 정리 문턱 위로 돌아왔다. 걸어둔 지정가를 거둔다")
+    save_state(st)
+
+
 def _cancel_resting(client, sym: str, pos: dict) -> None:
     """Take our own resting orders off the book before a market close.
 
@@ -1698,7 +1801,8 @@ def _cancel_resting(client, sym: str, pos: dict) -> None:
     Errors are swallowed on purpose: an order that cannot be cancelled is
     almost always one that is already gone. (08-27)
     """
-    for _key, _tag in (("exit_limit", "만기"), ("stop_chase", "손절 추격")):
+    for _key, _tag in (("exit_limit", "만기"), ("stop_chase", "손절 추격"),
+                       ("early_cut", "조기 정리")):
         _o = (pos.get(_key) or {}).get("oid")
         if _o is None:
             continue
@@ -1910,6 +2014,38 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
             # chaser both go with it, or a later dip inherits a countdown
             # that already expired and a resting order at a stale price.
             _drop_stop_chase(client, st, sym, pos)
+        # Leave before the stop, at our own price, once the trade has gone
+        # far enough against us that it is almost certainly lost anyway.
+        #
+        # Measured 08-28 over 4,890 replayed trades that fell this far: ten
+        # of them end as 1.2 take profits averaging +5.22%, 6.6 stops
+        # averaging -6.05% and 2.2 expiries averaging -1.74%. Cutting all
+        # ten at 3.5% throws the 1.2 wins away and still comes out 2.00%
+        # ahead per ten, because the 6.6 stops leave at 3.53% instead of
+        # 6.05%. It wins at every expiry cost from a take profit's 0.030%
+        # up to 0.350%, and in both windows.
+        #
+        # The exchange stop stays exactly where it was. This is a second,
+        # nearer exit, not a narrower stop: measured as a narrower stop
+        # (geometry 0.85) the same distance LOSES, because a triggered stop
+        # concedes the spread and this does not. What is not yet known is
+        # whether it truly fills as a maker; nothing has run live.
+        # (08-28 user decision)
+        _cut = float(cfg.get("early_cut_pct", 0) or 0)
+        if (_cut > 0 and mark > 0 and not hit_tp and not hit_sl
+                and entry > 0):
+            _adv = ((entry - mark) / entry * 100 if long_
+                    else (mark - entry) / entry * 100)
+            if _adv < _cut and pos.get("early_cut"):
+                _drop_early_cut(client, st, sym, pos)
+            if _adv >= _cut:
+                try:
+                    _early_cut(client, policy, st, sym, pos, live, mark,
+                               _adv, _cut)
+                except PacificaError as e:
+                    log(f"{sym}: 조기 정리 지정가 실패({str(e)[:80]}), "
+                        f"다음 회에 다시 건다. 거래소 손절은 살아 있다")
+                continue
         if held_h >= cfg["horizon_h"] or hit_tp or hit_sl:
             # A crossed line outranks the expiry. Before the limit exit
             # existed both causes ended in the same market close so the
@@ -2269,11 +2405,17 @@ _strong_bonus: bool = False     # empty special seats double a pick whose
 def _touch2h_side(sym, per_hours=2, level=0.010, max_stale_h=6.0):
     """Direction from the SHORT-horizon touch rate.
 
-    The seal calls direction from a 24h touch rate, but live trades resolve
-    in a few hours and rarely reach the 24h expiry, so the side was being
-    read off a horizon the trade never lived through. A long replay favours
-    the short horizon on the same seats and geometry. 2026-08-26 user
-    decision to trade it.
+    Live trades resolve in a few hours and rarely reach the 24h expiry, so
+    a side read off a 24h touch rate was answering about a horizon the
+    trade never lived through. A long replay favours the short horizon on
+    the same seats and geometry. 2026-08-26 user decision to trade it.
+
+    The seal ALSO calls the side this way now (seal_maker.SIDE_SOURCE moved
+    to touch2h on 08-27), so this is no longer an override of a different
+    rule but the same rule asked again at entry, minutes to hours later.
+    They agree on about 92% of rows in the shadow ledger and the rest is
+    that gap in time, not a disagreement about method. Kept because the
+    price at entry is the price the trade actually gets. (08-28)
 
     Bars come from the hourly Pacifica cache the collector refreshes, so
     stock and RWA tokens are covered as well as coins. Returns "long" /
@@ -2699,6 +2841,10 @@ def main():
         modes.append(f"손절 지정가(트리거=지정가, 밀림 없음. 안 채워지면 "
                      f"{_chase}초마다 마크에 지정가를 옮겨 따라감, 시장가 없음)")
     elif _sl_buf > 0: modes.append(f"손절 트리거-지정가(버퍼 {_sl_buf}×변동)")
+    _ec = float(_cfg_banner.get("early_cut_pct", 0) or 0)
+    if _ec > 0:
+        modes.append(f"조기 정리(진입가 대비 {_ec}% 밀리면 손절선까지 안 가고 "
+                     f"제 가격에 정리, 거래소 손절은 유지)")
     if _cfg_banner.get("expiry_exit") == "limit":
         modes.append(f"만기 청산 지정가(미체결 {_cfg_banner['expiry_wait_s']}s"
                      f"마다 갱신)")
