@@ -83,12 +83,12 @@ LOOP_MIN = 30
 HALT_ON_LIQUIDATION = True          # exchange-confirmed liquidation = warn
 HALT_AVG_AFTER = 30                 # trades before the average is judged
 # Re-derived 2026-08-28 from the live book, which is what the previous note
-# asked for once 30 real trades existed. There are 150 of them, and the
-# average win runs a few percent
-# and stops -3.55%, not the +4.4% the old derivation assumed for the 1.5x
-# target, and the per-trade std is 3.62%, so a 30-trade average two sigmas
-# below a roughly breakeven expectation is 0 - 2 * 3.62 / sqrt(30) ~= -1.3.
-# The 13 closes under the current 1.0/1.3 geometry alone give -1.2; that
+# asked for once 30 real trades existed. There are 150 of them. Wins and
+# stops are both a few percent and close to symmetric, not the lopsided
+# pair the old derivation assumed for a 1.5x target, so the expectation it
+# was built on was wrong. Two standard deviations below a roughly
+# breakeven expectation, over a 30 trade window, lands near this floor.
+# Closes under the current geometry alone point slightly tighter; that
 # sample is too thin to use, and this should tighten toward it as the
 # geometry accumulates its own 30.
 HALT_AVG_FLOOR = -1.3               # % per trade; -2 sigma of the expectation
@@ -2018,13 +2018,14 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
         # Leave before the stop, at our own price, once the trade has gone
         # far enough against us that it is almost certainly lost anyway.
         #
-        # Measured 08-28 over 4,890 replayed trades that fell this far: ten
-        # of them end as about 1.2 take profits, 6.6 stops
-        # averaging -6.05% and 2.2 expiries averaging -1.74%. Cutting all
-        # ten at 3.5% throws the 1.2 wins away and still comes out 2.00%
-        # ahead per ten, because the 6.6 stops leave at 3.53% instead of
-        # 6.05%. It wins at every expiry cost from a take profit's 0.030%
-        # up to 0.350%, and in both windows.
+        # Measured 08-28 over several thousand replayed trades that fell
+        # this far: about one in eight still reaches its take profit, more
+        # than half go on to the stop, and the rest expire. Cutting them
+        # all at this line throws that one win away and still comes out
+        # ahead per ten, because the stops leave here instead of at the
+        # stop line, which sits far wider. It wins at every expiry cost
+        # tested, from a take profit's fee up to ten times it, and in both
+        # windows.
         #
         # The exchange stop stays exactly where it was. This is a second,
         # nearer exit, not a narrower stop: measured as a narrower stop
