@@ -30,6 +30,18 @@ from .backtest import fetch_funding_history
 #    Print 수정이 매매에 번지지 않게 하는 것이 이 파일의 규칙.
 
 CYCLE_HOURS = 24         # Print 사이클(예치 후 잠기는 시간)
+# Closing cost, charged on NOTIONAL, paid only when the target is hit.
+# Pacifica: "Once filled, a Print position follows standard perp rules ...
+# fees apply to the position from that point on." A fill leaves you holding
+# a perp you have to close, so one leg of fees is unavoidable. It was
+# missing entirely (breakeven was fill rate x overshoot and nothing else).
+# Taker is the default because too high a bar is the safe direction for a
+# tool that tells people whether to take a trade; a limit close would pay
+# the maker 0.00015 instead. Measured effect is small, +1.1% to +1.9% on
+# the breakeven, and on the only recorded favorable set (08-25, twelve
+# rows) it removes exactly one, the thinnest at 1.1% margin. Small is not
+# the same as zero. (2026-08-28)
+CLOSE_FEE = 0.00040
 
 
 def deep_prices(client: PacificaClient, symbol: str, log=lambda *a: None):
@@ -104,7 +116,8 @@ def deep_bars(client, symbol: str, log=lambda *a: None):
 
 
 def evaluate(prices: list[float], distance_pct: float, side: str,
-             hours: int = CYCLE_HOURS, mask=None) -> dict:
+             hours: int = CYCLE_HOURS, mask=None,
+             fee: float = CLOSE_FEE) -> dict:
     """시간당 가격 시계열에서 `hours` 뒤 이동 기준으로 Print 통계 계산.
 
     mask: None이면 전 구간. 리스트를 주면 mask[i]가 참인 시점만 센다
@@ -130,8 +143,10 @@ def evaluate(prices: list[float], distance_pct: float, side: str,
         raise ValueError("데이터 부족")
     p_fill = fills / total
     avg_overshoot = sum(overshoots) / len(overshoots) if overshoots else 0.0
-    # 사이클당 기대 손실 = 체결확률 × 평균 오버슛
-    breakeven_cycle = p_fill * avg_overshoot
+    # 사이클당 기대 손실 = 체결확률 × (평균 오버슛 + 청산 수수료).
+    # 수수료는 체결됐을 때만, 명목가에 붙는다. 1배 기준이므로 배수는 호출부가
+    # 곱한다(오버슛과 같은 자리에 붙으므로 배수 비례가 자동으로 맞는다).
+    breakeven_cycle = p_fill * (avg_overshoot + fee)
     # 연율화는 사이클 길이로 나눈다. 25시간 사이클을 24로 나누면 손익분기를
     # 4% 과대평가한다, 유·불리가 갈리는 경계에서 판단이 뒤집힐 수 있다.
     cycles_per_year = 8760.0 / hours
@@ -148,7 +163,8 @@ def evaluate(prices: list[float], distance_pct: float, side: str,
 
 def breakeven_cliff(prices, distance_pct: float, side: str, lev: float,
                     liq_dist_pct: float, hours: int = CYCLE_HOURS,
-                    mask=None, lows=None, highs=None) -> float:
+                    mask=None, lows=None, highs=None,
+                    fee: float = CLOSE_FEE) -> float:
     """Breakeven APY with the liquidation cliff priced in, in percent.
 
     Loss per window: the whole deposit when the hourly path crosses the
@@ -194,14 +210,16 @@ def breakeven_cliff(prices, distance_pct: float, side: str, lev: float,
             if worst / p0 - 1.0 <= -(d + liq):
                 loss += 1.0
             elif end <= -d:
-                loss += min(1.0, lev * (-end - d))
+                # the closing fee rides on the same notional as the
+                # overshoot, so it scales with leverage the same way
+                loss += min(1.0, lev * (-end - d + fee))
         else:
             worst = (max(highs[i:i + hours + 1]) if highs is not None
                      else max(w))
             if worst / p0 - 1.0 >= d + liq:
                 loss += 1.0
             elif end >= d:
-                loss += min(1.0, lev * (end - d))
+                loss += min(1.0, lev * (end - d + fee))
     if total == 0:
         raise ValueError("데이터 부족")
     return loss / total * (8760.0 / hours) * 100
@@ -556,10 +574,13 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
                 gvol = realized_vol(recent[-(gwin + 1):])
                 gate_open[asset] = gvol < gthr
                 gmark = "✅ 열림" if gvol < gthr else "⛔ 대기"
-                out.append(f"  변동성 관문: 최근 {gwin//24}일 {gvol:.1%} vs "
-                           f"문턱 {gthr:.1%} → {gmark}")
+                # asset name was missing here while the "no threshold"
+                # branch carried it, so the hourly log printed four gate
+                # lines and only two said what they were about (2026-08-28)
+                out.append(f"  변동성 관문: {asset} 최근 {gwin//24}일 "
+                           f"{gvol:.1%} vs 문턱 {gthr:.1%} → {gmark}")
             else:
-                out.append("  변동성 관문: 봉 부족으로 판정 불가")
+                out.append(f"  변동성 관문: {asset} 봉 부족으로 판정 불가")
         else:
             out.append(f"  변동성 관문: {asset} 는 문턱 미측정 "
                        f"(측정된 시장은 {', '.join(VOL_GATE)})")
