@@ -1895,8 +1895,8 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
             # clock starts on the record so a restart cannot reset it.
             # (08-27 user decision)
             if hit_sl and bool(policy.get("bracket_sl_maker", False)):
-                _grace = max(5, int(policy.get("bracket_sl_chase_sec", 10)
-                                    or 10))
+                _grace = max(1, int(policy.get("bracket_sl_chase_sec", 2)
+                                    or 2))
                 _seen = pos.get("sl_missed_at")
                 if not _seen:
                     pos["sl_missed_at"] = _now().isoformat()
@@ -2432,8 +2432,23 @@ def fresh_seal_waiting(st: dict, dry: bool) -> bool:
     return (_now() - made).total_seconds() / 3600 <= 6
 
 
-def stop_watch_pass(client, policy, st: dict) -> bool:
-    """Between cycles, keep the stop chase moving. True = wake the loop.
+def stop_watch_pass(client, policy, st: dict):
+    """Between cycles, keep the stop chase moving.
+
+    Returns (wake, next_sec): whether the cycle should run now, and how long
+    to wait before looking again.
+
+    The interval is set by how close the nearest position is to its stop,
+    because the cost this exists to avoid is made of seconds. Measured on
+    the live book, our order size never eats past the top level of the book
+    (ten symbols checked 08-28: eight fill in one level, the worst two cost
+    0.03%), so the concession a stop pays is not depth. It is the distance
+    price travels between crossing the line and our order arriving. On the
+    first live chase that was 0.122% in ten seconds.
+
+    So: far from the line this costs one prices call every half minute, and
+    only inside the last stretch does it look every couple of seconds, which
+    is where the seconds are worth paying for. (08-28)
 
     Runs on its own instead of waking the full cycle, because the cycle can
     spend minutes building a seal and this is the one job that cannot wait
@@ -2448,22 +2463,32 @@ def stop_watch_pass(client, policy, st: dict) -> bool:
     One prices call per pass, and only while something is held under a
     maker stop. The positions call happens only when a chase is live.
     """
+    slow = SEAL_POLL_SEC
+    fast = max(1, int(policy.get("bracket_sl_chase_sec", 2) or 2))
     held = st.get("positions") or {}
     if not held or not policy.get("bracket_sl_maker", False):
-        return False
-    grace = max(5, int(policy.get("bracket_sl_chase_sec", 10) or 10))
+        return False, slow
+    grace = fast
     try:
         prices = {p["symbol"]: p for p in client.get_prices()}
     except PacificaError:
-        return False                     # the cycle will look properly
-    under = {}
+        return False, slow               # the cycle will look properly
+    under, nxt = {}, slow
     for sym, pos in list(held.items()):
         mk = float(prices.get(sym, {}).get("mark")
                    or prices.get(sym, {}).get("mid") or 0)
         if mk <= 0 or not pos.get("sl"):
             continue                     # a missing price proves nothing
-        past = (mk <= pos["sl"] if pos.get("dir") == "long"
-                else mk >= pos["sl"])
+        up = pos.get("dir") == "long"
+        past = (mk <= pos["sl"] if up else mk >= pos["sl"])
+        # How far the price still has to travel to reach the stop, as a
+        # share of the whole distance the bracket allowed. Inside the last
+        # sixth of it, look every couple of seconds.
+        span = abs(float(pos.get("entry_fill") or 0) - pos["sl"])
+        if span > 0:
+            left = (mk - pos["sl"]) if up else (pos["sl"] - mk)
+            if left / span <= 0.17:
+                nxt = fast
         if not past:
             if pos.get("sl_missed_at") or pos.get("stop_chase"):
                 try:
@@ -2488,11 +2513,12 @@ def stop_watch_pass(client, policy, st: dict) -> bool:
         if waited >= grace:
             under[sym] = pos
     if not under:
-        return False
+        return False, nxt
+    nxt = fast                           # a chase is live: stay on it
     try:
         live = {p.get("symbol"): p for p in client.get_positions()}
     except PacificaError:
-        return False
+        return False, nxt
     wake = False
     for sym, pos in under.items():
         if sym not in live:
@@ -2505,7 +2531,7 @@ def stop_watch_pass(client, policy, st: dict) -> bool:
         except PacificaError as e:
             log(f"{sym}: 손절 추격 지정가 실패({str(e)[:80]}), 다음 회에 "
                 f"다시 건다. 거래소 손절은 그대로 살아 있다")
-    return wake
+    return wake, nxt
 
 
 def sleep_alive(seconds: int, dry: bool, st: dict | None = None,
@@ -2530,27 +2556,30 @@ def sleep_alive(seconds: int, dry: bool, st: dict | None = None,
     # and the naps agree. (08-27)
     _end = time.monotonic() + seconds
     _next_hb = time.monotonic() + 300
+    _tick = SEAL_POLL_SEC
     while True:
         left = _end - time.monotonic()
         if left <= 0:
             return
         # A held position under a maker stop is watched on the chase clock,
         # not the seal clock: an exit that is supposed to follow the price
-        # cannot be moved once every half minute. With nothing held this is
-        # the old cadence and costs nothing.
+        # cannot be moved once every half minute. The pass itself says how
+        # soon to look again, so the fast cadence is spent only on a
+        # position that is nearly at its line. With nothing held this is the
+        # old cadence and costs nothing.
         _watch = (not dry and client is not None and st is not None
                   and (st.get("positions") or {})
                   and (policy or {}).get("bracket_sl_maker", False))
-        _tick = (max(5, int((policy or {}).get("bracket_sl_chase_sec", 10)
-                            or 10)) if _watch else SEAL_POLL_SEC)
-        nap = min(_tick, left)
+        nap = min(_tick if _watch else SEAL_POLL_SEC, left)
         time.sleep(nap)
         if not dry and time.monotonic() >= _next_hb:
             write_heartbeat()
             _next_hb = time.monotonic() + 300
-        if _watch and stop_watch_pass(client, policy or {}, st):
-            log("추격하던 포지션이 정리됐다. 대기를 끊고 장부에 적으러 간다")
-            return
+        if _watch:
+            _woke, _tick = stop_watch_pass(client, policy or {}, st)
+            if _woke:
+                log("추격하던 포지션이 정리됐다. 대기를 끊고 장부에 적으러 간다")
+                return
         if st is not None and fresh_seal_waiting(st, dry):
             log("새 봉인 감지, 대기를 끊고 바로 진입 판단으로 갑니다")
             return
@@ -2620,7 +2649,7 @@ def main():
                                   f"{_entry_max_tries}회 놓치면 그 봉인에서 포기)")
     if _tp_limit: modes.append("익절 지정가")
     if _sl_maker:
-        _chase = max(5, int(policy.get("bracket_sl_chase_sec", 10) or 10))
+        _chase = max(1, int(policy.get("bracket_sl_chase_sec", 2) or 2))
         modes.append(f"손절 지정가(트리거=지정가, 밀림 없음. 안 채워지면 "
                      f"{_chase}초마다 마크에 지정가를 옮겨 따라감, 시장가 없음)")
     elif _sl_buf > 0: modes.append(f"손절 트리거-지정가(버퍼 {_sl_buf}×변동)")

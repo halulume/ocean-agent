@@ -216,7 +216,7 @@ bracket_sl_maker: true
 # between them, and a price that comes back finds the stop still there.
 # Between cycles the bot watches on this clock rather than its own, so a
 # chase is never waiting out a 30 minute loop. (08-27 decision)
-bracket_sl_chase_sec: 10
+bracket_sl_chase_sec: 2
 # Who calls long/short at entry. "touch": the seal's own touch-rate direction
 # (shipped behaviour). "signal": the 22-signal net vote on the last closed 1h
 # bar, escalating to the 4h/8h/12h votes and finally an RSI verdict, so the
