@@ -404,6 +404,40 @@ def one(sym: str, base_url: str) -> dict | None:
 
 # ── seal assembly ────────────────────────────────────────────────────────
 
+def btc_line(base_url: str = "") -> str:
+    """One line on where BTC stands, printed with every seal.
+
+    Asked for on 08-28, after the live book was split by BTC regime: of 191
+    real closes, the flat band alone accounts for more loss than the whole
+    book has lost, at a 34% hit rate against 48-54% everywhere else. The
+    reading is not proven (59 trades, and the long replay says the opposite
+    about that band) but it is the one place the money has actually gone,
+    so the number goes next to the picks it was chosen under. Nothing acts
+    on it: it is here to be watched, and to be checkable later against the
+    trades taken that hour.
+
+    Falls back to a plain note rather than raising: a seal must never fail
+    to be written because a price series was unavailable.
+    """
+    try:
+        bars, note = load_bars("BTC", base_url or os.environ.get(
+            "PACIFICA_BASE_URL", "https://api.pacifica.fi"))
+        if note or len(bars) < 25:
+            return f"BTC: 봉이 모자라 판정 못 함 ({note or len(bars)})"
+        c = [float(b["c"]) for b in bars]
+        now = c[-1]
+        r1 = (c[-1] / c[-2] - 1) * 100
+        r24 = (c[-1] / c[-25] - 1) * 100
+        win = c[-25:]
+        rng = (max(win) / min(win) - 1) * 100
+        band = ("큰 하락" if r24 < -3 else "하락" if r24 < -1
+                else "횡보" if r24 < 1 else "상승" if r24 < 3 else "큰 상승")
+        return (f"BTC {now:,.0f} · 1h {r1:+.2f}% · 24h {r24:+.2f}% "
+                f"({band}) · 24h 고저폭 {rng:.2f}%")
+    except Exception as e:                      # noqa: BLE001
+        return f"BTC: 확인 실패 ({type(e).__name__})"
+
+
 def make_seal(out_dir: str | None = None, log=print) -> str | None:
     """Generate one seal file; returns its path, or None when refused.
 
@@ -580,6 +614,7 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
         json.dump(rec, f, ensure_ascii=False, indent=1)
     os.replace(tmp, path)
     log(f"봉인 작성: {path}")
+    log("  " + btc_line(base))
     for p in picks:
         if "funding_apr_pct" in p:
             log(f"  {p['trade_rank']}. {p['sym']:<9} {p['dir']:<5} "
