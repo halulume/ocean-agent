@@ -1574,14 +1574,21 @@ def _handle_member(text, chat_id, env, root, admin):
             _save_users(root, users)
         return ("KB", tr("pick_lang", "any"))
     lang0 = u.get("lang") or "en"
+    # Ahead of the install pitch on purpose. The pitch is the only thing a
+    # member ever receives, and it is sent in the language they picked once,
+    # so someone who picked the wrong flag reads the install instructions in
+    # a language they cannot follow and has no way back. Changing a language
+    # shows no account and no picks, so this does not reopen what the 08-25
+    # order closed; it makes the one message they do get readable.
+    # (08-28 review M5, user decision)
+    if text == "/lang":
+        return ("KB", tr("pick_lang", "any"))
     if chat_id != admin and env.get("TELEBOT_MEMBER_OPEN", "") != "1":
         # 2026-08-25 user order: even window shopping requires installing.
         # The central bot answers members with the install pitch, in their
         # language, and nothing else. TELEBOT_MEMBER_OPEN=1 restores the
         # old open behavior if it is ever wanted again.
         return tr("install_pitch", lang0)
-    if text == "/lang":
-        return ("KB", tr("pick_lang", "any"))
     if text == "/mode":
         return ("KB_TIER", tr("tier_pick", lang0))
     if text == "/menu":
