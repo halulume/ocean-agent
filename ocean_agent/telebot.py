@@ -438,7 +438,14 @@ def _print_watch_once(token, cid, env, root):
         s = ln.strip()
         if s.startswith("=== "):
             game = s.split()[1]
-        elif (s.startswith("✅") and not s.startswith("✅ =")
+        # The ranking prefixes each row with its rank ("1✅ long ..."), so a
+        # startswith test stopped matching on 2026-08-28 and this watch went
+        # permanently silent with no error, looking exactly like a quiet day.
+        # Match the mark inside the FIRST token: survives the rank prefix and
+        # still rejects the legend line "✅ = ...". The same break existed in
+        # research/reserve_watch.py and was fixed there first; two copies of
+        # one parser is why it was missed here.
+        elif ("✅" in (s.split() or [""])[0] and not s.startswith("✅ =")
                 and "%" in s):
             t = s.split()
             try:
@@ -478,7 +485,7 @@ def _print_watch_once(token, cid, env, root):
         for (g, side, dist), v in ranked[:3]:
             lines.append(tr("print_combo", lang).format(
                 g, side, f"{dist}%", "·".join(v["levs"]) + "x",
-                f"{v['apy']:.0f}%", f"{v['be']:.0f}%"))
+                f"{v['apy']:.3f}%", f"{v['be']:.3f}%"))
         if len(ranked) > 3:
             lines.append(f"(+{len(ranked) - 3})")
         lines += ["", tr("print_alert_hint", lang)]
@@ -1399,9 +1406,12 @@ def _print_flow(text, low, cid, env, root, lang):
                     return tr("print_no", lang)
                 b = opp["best"]
                 _PPRINT[cid] = ("confirm", b, time.time() + 300)
+                # 24h basis since 2026-08-27, not APY. ".0f" printed a real
+                # 0.520 point edge as "1%" or "0%", which is the difference
+                # between a usable alert and a meaningless one.
                 return (f"프린트 기회: {b['game']} {b['side']} · 거리 "
-                        f"{b['dist']}% · {b['lev']:g}배 · 실제 APY "
-                        f"{b['apy']:.0f}% vs 손익분기 {b['breakeven']:.0f}%\n"
+                        f"{b['dist']}% · {b['lev']:g}배 · 24시간 지급 "
+                        f"{b['apy']:.3f}% vs 본전 {b['breakeven']:.3f}%\n"
                         f"프린트를 실행할까요? (예/아니)")
             return None
         if stage == "confirm":
@@ -1437,8 +1447,8 @@ def _print_flow(text, low, cid, env, root, lang):
         b = opp["best"]
         _PPRINT[cid] = ("confirm", b, time.time() + 300)
         return (f"프린트 기회: {b['game']} {b['side']} · 거리 {b['dist']}% · "
-                f"{b['lev']:g}배 · 실제 APY {b['apy']:.0f}% vs 손익분기 "
-                f"{b['breakeven']:.0f}%\n프린트를 실행할까요? (예/아니)")
+                f"{b['lev']:g}배 · 24시간 지급 {b['apy']:.3f}% vs 본전 "
+                f"{b['breakeven']:.3f}%\n프린트를 실행할까요? (예/아니)")
     return None
 
 
