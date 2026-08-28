@@ -1274,6 +1274,12 @@ OKX_API_PASSPHRASE=...</code></pre>
       regimes, not forecasts.</p>
 
     <div class="upd-list">
+        <a class="upd-row" href="#u-rank-window" data-date="2026-08-29">
+          <span class="d">AUG 29</span>
+          <span class="t">0.4.61: Ninety days of history decide the order</span>
+          <span class="tg new">new</span>
+          <span class="chev">&#8250;</span>
+        </a>
         <a class="upd-row" href="#u-maker-exit" data-date="2026-08-28">
           <span class="d">AUG 28</span>
           <span class="t">0.4.60: The stop sells at its own price too</span>
@@ -1388,6 +1394,35 @@ OKX_API_PASSPHRASE=...</code></pre>
             full: the hourly picks, the Print judgments, the bot in eleven
             languages, and the free local model that answers without an API
             key.</p>
+    </div>
+  </section>
+
+  <section class="page" id="u-rank-window">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 29</div>
+    <h2>0.4.61: Ninety days of history decide the order</h2>
+    <div class="upd-meta"><span class="tg new">new</span><span class="st">2026-08-29</span></div>
+    <div class="upd-article">
+          <p class="lede">Seats are filled in order of how much a symbol
+            usually moves. That reading was taken over the last thirty days,
+            which is long enough that the same handful of names held the top
+            places for weeks at a time. Eight window lengths were replayed
+            with position sizing held fixed, and ninety days came out ahead
+            of thirty in both test windows.</p>
+
+          <p>The margin is small and sits inside its own error bar, and it
+            always will: the day to day spread of this book is wide enough
+            that separating the two with confidence would take decades of
+            trading rather than years of history. What decided it was that
+            four independent readings all leaned the same way. Only the
+            ordering changed. Position size, direction, the number of seats
+            and the early exit are all untouched, and each pick now records
+            which window ranked it, because a symbol listed eighty six days
+            ago is ranked on eighty five. Loading changed with it: history
+            is read from the local cache and only new bars are fetched, so a
+            longer window costs no extra requests. Backtest figures assume
+            perfect fills and exclude funding. They describe past regimes,
+            not forecasts.</p>
     </div>
   </section>
 
@@ -1656,13 +1691,13 @@ OKX_API_PASSPHRASE=...</code></pre>
             it with Claude, and keeps it updated.</p>
 
           <p>Until now the only way to run it was to clone the repository. It now ships on PyPI
-            as <b>ocean-agent</b>, currently at version 0.4.60. Install with the one line
+            as <b>ocean-agent</b>, currently at version 0.4.61. Install with the one line
             installer on this site, which sets up uv, Python, your keys and Claude&#39;s MCP
             config in a single paste, or with <b>pip install ocean-agent</b> if you already have
             a Python environment.</p>
 
           <div class="upd-stats">
-            <div><b>0.4.60</b><span>current version</span></div>
+            <div><b>0.4.61</b><span>current version</span></div>
             <div><b>7,400+</b><span>measured combinations bundled</span></div>
             <div><b>9 years</b><span>of walk forward data shipped</span></div>
             <div><b>100</b><span>markets scanned</span></div>
