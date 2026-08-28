@@ -82,13 +82,14 @@ SIDE_SOURCE = os.environ.get("SEAL_SIDE_SOURCE", "touch2h")
 PER2, LEVEL2 = 2, 0.010          # the short horizon: 2 bars, +-1.0%
 # Ranking window, in bars. Size still comes from the 30 day median (WIN):
 # a take profit line set off one hot day would never be reached. Ranking
-# does not have that problem, and 08-28 measured eight window lengths with
-# size held fixed. 90일 was ahead of 30일 in both windows (5.5년
-# +0.119±0.213p, 8월 +1.197±1.699p, ledger 156). Both are inside their own
-# error bars and no measurement can close that gap (ledger 157 puts the
-# daily spread at 10.3p, so two sigma would take 82 years); the operator
-# decided on the four-out-of-four positive sign. The ATR term is left OFF
-# here: with it, 90일 lost to the current rule (-0.640p against -0.592p).
+# does not have that problem, and eight window lengths were replayed with
+# size held fixed. Ninety days came out ahead of thirty in both test
+# windows. The margin is inside its own error bar and always will be: the
+# daily spread of this book is wide enough that separating the two with
+# confidence would take decades of trading rather than years of history.
+# Four independent readings leaning the same way is what decided it. The
+# ATR term is deliberately left out here; with it, the longer window lost
+# to the shorter one.
 RANK_WIN = 2160                  # 90일
 RANK_MIN = 1440                  # 이만큼도 없으면 순위는 30일 값으로
 # Whether the classes above still ride the cross-sectional side. Turned off
@@ -258,11 +259,11 @@ def slip_cost(book, usd: float, side: str) -> float | None:
 # about a day; after that it is one or two bars an hour. A machine with no
 # cache (a new install) falls through to the plain fetch and builds one.
 #
-# Source discipline (데이터목록 1조) is unchanged and is the reason this
-# does not simply read the Pacifica cache for everything even though that
-# file is fresher and covers all 75 symbols: a coin's size and side come
-# from Binance bars, so its ranking must too. Mixing the two inside one
-# symbol measured 4.2% disagreement on 08-13.
+# One source per symbol, unchanged, and the reason this does not simply
+# read the Pacifica cache for everything even though that file is fresher
+# and covers every listed symbol: a coin's size and side come from Binance
+# bars, so its ranking must too. Mixing two venues inside one symbol was
+# measured once and disagreed by several percent.
 
 def _cache_path(sym: str, bsym: str) -> str:
     """이 종목의 봉이 사는 곳. 바이낸스면 선물 파일, 아니면 파시피카 파일."""

@@ -83,7 +83,8 @@ LOOP_MIN = 30
 HALT_ON_LIQUIDATION = True          # exchange-confirmed liquidation = warn
 HALT_AVG_AFTER = 30                 # trades before the average is judged
 # Re-derived 2026-08-28 from the live book, which is what the previous note
-# asked for once 30 real trades existed. There are 150. Wins average +3.28%
+# asked for once 30 real trades existed. There are 150 of them, and the
+# average win runs a few percent
 # and stops -3.55%, not the +4.4% the old derivation assumed for the 1.5x
 # target, and the per-trade std is 3.62%, so a 30-trade average two sigmas
 # below a roughly breakeven expectation is 0 - 2 * 3.62 / sqrt(30) ~= -1.3.
@@ -2018,7 +2019,7 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
         # far enough against us that it is almost certainly lost anyway.
         #
         # Measured 08-28 over 4,890 replayed trades that fell this far: ten
-        # of them end as 1.2 take profits averaging +5.22%, 6.6 stops
+        # of them end as about 1.2 take profits, 6.6 stops
         # averaging -6.05% and 2.2 expiries averaging -1.74%. Cutting all
         # ten at 3.5% throws the 1.2 wins away and still comes out 2.00%
         # ahead per ten, because the 6.6 stops leave at 3.53% instead of

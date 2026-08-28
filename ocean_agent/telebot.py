@@ -443,7 +443,7 @@ def _print_watch_once(token, cid, env, root):
         # permanently silent with no error, looking exactly like a quiet day.
         # Match the mark inside the FIRST token: survives the rank prefix and
         # still rejects the legend line "✅ = ...". The same break existed in
-        # research/reserve_watch.py and was fixed there first; two copies of
+        # the reserve watcher and was fixed there first; two copies of
         # one parser is why it was missed here.
         elif ("✅" in (s.split() or [""])[0] and not s.startswith("✅ =")
                 and "%" in s):

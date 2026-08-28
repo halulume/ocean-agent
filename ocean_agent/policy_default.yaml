@@ -234,14 +234,14 @@ bracket_vol_floor_pct: 0.8  # 예상변동 0.8% 미만 픽 제외
 # 5% 넘어가는 건 다 빼라") 을 그 말 그대로 적은 것이다. 예전에는 예상변동
 # 상한으로 적어놨는데, 손절이 예상변동 1.0배일 때만 같은 뜻이라 08-26 에
 # 배수가 1.3배로 바뀌자 손절선 6.5% 가 통과했다. 이제 배수가 뭐로 바뀌든
-# 뜻이 유지된다. 균일 상한은 긴 재생에서 기각됐으므로(§136·§137·§138)
+# 뜻이 유지된다. 균일 상한은 긴 재생에서 기각됐으므로
 # 측정이 아니라 실거래 판단이다. 0 이면 끈다. (08-28)
 bracket_sl_ceiling_pct: 5.0
 # Leave a losing position at our own price once it has gone this far
 # against us, instead of riding to the stop. Every threshold from 1.0 to
 # 5.0 beat riding to the stop, at every expiry cost from 0.030% to 0.350%
 # and in both windows, so the direction is not in doubt. WHERE to put it
-# is: whole-book per trade came out +0.0137% at 2.0 and +0.0295% at 4.0,
+# is: whole-book per trade came out slightly positive at both 2.0 and 4.0,
 # and that 0.016 gap is smaller than the 0.04 this book has been unable to
 # resolve on 24,868 trades. So the number is an operator choice, not a
 # measured optimum. At 2.0 the cut catches 62% of trades and gives up 1,575
