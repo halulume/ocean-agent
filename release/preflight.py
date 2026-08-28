@@ -293,8 +293,12 @@ def check_pins(whl: str) -> None:
            m.group(1) if m else "버전 표기 없음")
 
 
-def check_freshness(whl: str) -> None:
+def check_freshness(whl: str) -> bool:
     """Does this wheel contain the code that is committed right now?
+
+    Returns True only when the wheel matches HEAD. The caller must stop on
+    False: every other check reads this same file, so an OK from them would
+    be about a different artifact.
 
     0.4.36 shipped 25 minutes before the commit that fixed its direction
     rule, so everyone installing from the site traded a rule the ledger had
@@ -352,15 +356,18 @@ def check_freshness(whl: str) -> None:
                 continue
             if _nl(z.read(n)) != _nl(blob.stdout):
                 diff.append(n)
-        ok(f"휠 내용이 HEAD({head}) 와 동일", not diff and not missing,
-           f"{len(members)}개 파일 일치" if not diff and not missing else
+        same = not diff and not missing
+        ok(f"휠 내용이 HEAD({head}) 와 동일", same,
+           f"{len(members)}개 파일 일치" if same else
            (f"다름 {len(diff)}: {', '.join(diff[:3])} " if diff else "")
            + (f"HEAD 에 없음 {len(missing)}: {', '.join(missing[:3])}"
               if missing else "")
            + " → 다시 빌드하라")
+        return same
     except Exception as e:
         # Never downgrade to warn(): a check that cannot run has not passed.
         ok("휠 내용이 HEAD 와 동일", False, f"검사 실패: {type(e).__name__}: {e}")
+        return False
 
 
 def check_undefined() -> None:
@@ -414,7 +421,22 @@ def main() -> int:
     whl = sys.argv[1] if len(sys.argv) > 1 else newest_wheel()
     print(f"검사 대상: {os.path.basename(whl)}\n")
     check_undefined()
-    check_freshness(whl)
+    fresh = check_freshness(whl)
+    # Everything below reads the wheel. If the wheel is not the code that is
+    # about to ship, those checks answer about a different artifact, and an
+    # OK from them is worse than no check at all: on 08-28 seven internal
+    # references rode into the package while the leak scan printed OK,
+    # because the wheel on disk was still the previous release. Same rule
+    # this file already applies elsewhere, now applied to itself.
+    if not fresh:
+        print()
+        print("휠이 지금 코드가 아니다. 아래 검사들은 다른 파일을 읽게 되므로")
+        print("돌리지 않는다. python -m build 로 다시 만든 뒤 이 검사를 다시 돌려라.")
+        print()
+        print(f"실패 {len(FAILS)}건. 업로드하지 말 것.")
+        for f in FAILS:
+            print("  -", f)
+        return 1
     check_contents(whl)
     check_pins(whl)
     print()
