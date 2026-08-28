@@ -1633,11 +1633,19 @@ def _chase_stop_maker(client, policy, st, sym: str, pos: dict, live: dict,
     # (08-28 review A4)
     if oid is not None:
         try:
-            if _round_to_tick(mark, tick) == _round_to_tick(
-                    float(ch.get("px") or 0), tick):
-                return
+            _same = (_round_to_tick(mark, tick)
+                     == _round_to_tick(float(ch.get("px") or 0), tick))
         except (TypeError, ValueError):
-            pass
+            _same = False
+        # Standing still is only a reason to leave the order alone if the
+        # order is still there. It can go while the mark does not move: the
+        # exchange stop taking part of the position leaves this one over the
+        # reduce-only size, and a venue that cancels it takes the chase with
+        # it. Returning on price alone would end the chase silently, with
+        # tries frozen so the thirty-miss warning never fires either, which
+        # is the exact case that warning exists for. (08-28 review A6)
+        if _same and _order_alive(client, oid):
+            return
         try:
             client.cancel_order(sym, order_id=oid)
         except PacificaError:
