@@ -1622,8 +1622,22 @@ def _chase_stop_maker(client, policy, st, sym: str, pos: dict, live: dict,
     at all. (08-27 user decision: maker, always, and keep re-posting)
     """
     ch = pos.get("stop_chase") or {}
+    tick = _tick_of(client, sym)
     oid = ch.get("oid")
+    # Only move an order that is in the wrong place. Cancelling and
+    # re-posting at the price it already sits at is two signed writes that
+    # change nothing, and at a two second cadence that is a write a second
+    # for as long as the chase lasts. Rate limits are real here: two 429s
+    # today, and one of them cost a position its protection on 08-27. Price
+    # standing still is exactly when the order needs no help.
+    # (08-28 review A4)
     if oid is not None:
+        try:
+            if _round_to_tick(mark, tick) == _round_to_tick(
+                    float(ch.get("px") or 0), tick):
+                return
+        except (TypeError, ValueError):
+            pass
         try:
             client.cancel_order(sym, order_id=oid)
         except PacificaError:
@@ -1632,8 +1646,7 @@ def _chase_stop_maker(client, policy, st, sym: str, pos: dict, live: dict,
             if _order_alive(client, oid):
                 return
     tries = int(ch.get("tries", 0)) + 1
-    new_oid = close_limit(client, policy, sym, pos, live, mark,
-                          _tick_of(client, sym))
+    new_oid = close_limit(client, policy, sym, pos, live, mark, tick)
     pos["stop_chase"] = {"oid": new_oid, "at": _now().isoformat(),
                          "px": mark, "tries": tries}
     save_state(st)
@@ -1642,6 +1655,16 @@ def _chase_stop_maker(client, policy, st, sym: str, pos: dict, live: dict,
             f"따라간다. 거래소 손절은 그대로 살아 있다")
     elif tries % 30 == 0:
         log(f"{sym}: 손절 추격 지정가 {tries}회째 미체결, 계속 따라간다")
+    # The chase has no retry limit on purpose: nothing on the way out is
+    # allowed to take the market. The cost of that decision is a position
+    # that keeps not selling while only the log says so, and a log nobody
+    # reads is not a warning. Once, per position, when it has clearly
+    # stopped being a moment's delay. (08-28 review A5)
+    if tries >= 30:
+        _warn_once(st, f"chase_long:{sym}",
+                   f"{sym}: 손절 추격 지정가가 {tries}회 연속 미체결입니다. "
+                   f"값이 계속 달아나고 있어 아직 못 팔았습니다. 시장가로 "
+                   f"정리하려면 봇에게 말하세요.")
 
 
 def _drop_stop_chase(client, st, sym: str, pos: dict) -> None:
@@ -2484,11 +2507,18 @@ def stop_watch_pass(client, policy, st: dict):
         # How far the price still has to travel to reach the stop, as a
         # share of the whole distance the bracket allowed. Inside the last
         # sixth of it, look every couple of seconds.
-        span = abs(float(pos.get("entry_fill") or 0) - pos["sl"])
-        if span > 0:
-            left = (mk - pos["sl"]) if up else (pos["sl"] - mk)
-            if left / span <= 0.17:
-                nxt = fast
+        # Without an entry price there is no bracket width to take a share
+        # of, and falling back to zero would silently make the test "within
+        # 17% OF THE STOP PRICE", a different and much wider question that
+        # the price-is-positive guard cannot catch. A record that lost its
+        # entry gets the fast cadence outright: it is rare, and erring
+        # toward looking more often is the safe direction here.
+        # (08-28 review A3)
+        _e = float(pos.get("entry_fill") or 0)
+        span = abs(_e - pos["sl"]) if _e > 0 else 0.0
+        left = (mk - pos["sl"]) if up else (pos["sl"] - mk)
+        if span <= 0 or left / span <= 0.17:
+            nxt = fast
         if not past:
             if pos.get("sl_missed_at") or pos.get("stop_chase"):
                 try:
@@ -2567,22 +2597,30 @@ def sleep_alive(seconds: int, dry: bool, st: dict | None = None,
         # soon to look again, so the fast cadence is spent only on a
         # position that is nearly at its line. With nothing held this is the
         # old cadence and costs nothing.
+        #
+        # The pass runs BEFORE the nap, not after. Written the other way it
+        # slept the previous interval first, and since the interval starts
+        # at the seal cadence, the first look after every cycle was half a
+        # minute late no matter how close a position sat to its line. On
+        # the measured 0.122% per ten seconds that is the whole point of
+        # this code, spent. (08-28 review A2)
         _watch = (not dry and client is not None and st is not None
                   and (st.get("positions") or {})
                   and (policy or {}).get("bracket_sl_maker", False))
-        nap = min(_tick if _watch else SEAL_POLL_SEC, left)
-        time.sleep(nap)
-        if not dry and time.monotonic() >= _next_hb:
-            write_heartbeat()
-            _next_hb = time.monotonic() + 300
         if _watch:
             _woke, _tick = stop_watch_pass(client, policy or {}, st)
             if _woke:
                 log("추격하던 포지션이 정리됐다. 대기를 끊고 장부에 적으러 간다")
                 return
+        else:
+            _tick = SEAL_POLL_SEC
         if st is not None and fresh_seal_waiting(st, dry):
             log("새 봉인 감지, 대기를 끊고 바로 진입 판단으로 갑니다")
             return
+        if not dry and time.monotonic() >= _next_hb:
+            write_heartbeat()
+            _next_hb = time.monotonic() + 300
+        time.sleep(min(_tick, max(0.0, _end - time.monotonic())))
 
 
 def main():
