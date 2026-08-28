@@ -382,7 +382,12 @@ def check_undefined() -> None:
         from pyflakes.api import checkPath
         from pyflakes.reporter import Reporter
     except ImportError:
-        warn("이름 검사 건너뜀", "pyflakes 없음 (pip install pyflakes)")
+        # The rule this file already states six lines above check_undefined:
+        # a check that cannot run has not passed. Written as a warning, a
+        # clean machine would print "전부 통과" with this gate silently off,
+        # which is worse than not having it. (08-28 review S3)
+        ok("이름 검사 실행 가능", False,
+           "pyflakes 없음. pip install pyflakes 후 다시 돌려라")
         return
     import io as _io
     out, err = _io.StringIO(), _io.StringIO()
