@@ -7,7 +7,7 @@ Pacifica Print: 목표가를 걸어두면 24시간 사이클마다 APY를 받고
 체결되는 순간 시장가는 목표가보다 더 나가 있을 수 있으므로(오버슛),
 받는 APY가 그 기대 손실보다 커야 남는 장사다.
 
-이 모듈은 과거 시간당 가격(펀딩 히스토리의 오라클 가격, 약 167일)으로
+이 모듈은 과거 시간당 봉(바이낸스 선물 2019-09~ + 파시피카 최근, 약 7년)으로
 - 체결 확률: 24시간 뒤 가격이 목표 거리 이상 움직였던 비율
 - 평균 오버슛: 체결됐을 때 시장가가 목표를 얼마나 지나쳤는지
 - 손익분기 APY: 그 기대 손실을 상쇄하는 데 필요한 최소 APY
@@ -45,7 +45,7 @@ CLOSE_FEE = 0.00040
 
 
 def deep_prices(client: PacificaClient, symbol: str, log=lambda *a: None):
-    """시간당 종가, 바이낸스 2017~ + 파시피카 최근을 이어붙인 것.
+    """시간당 종가, 바이낸스 선물 2019-09~ + 파시피카 최근을 이어붙인 것.
 
     기존 경로(펀딩 히스토리)는 약 167일뿐이라 2018 하락장·2021 상승장·2022 붕괴
     같은 구간이 통째로 빠진다. Print는 '꼬리에서 체결되는' 상품이라 그 구간이
@@ -206,7 +206,14 @@ def breakeven_cliff(prices, distance_pct: float, side: str, lev: float,
         end = w[-1] / p0 - 1.0
         total += 1
         if side == "long":
-            worst = min(lows[i:i + hours + 1]) if lows is not None else min(w)
+            # p0 is bar i's CLOSE, so bar i's own low happened BEFORE the
+            # deposit existed and cannot liquidate it. The window starts at
+            # i+1. Identical at 1x and 5x, worth 4 to 7 points of breakeven
+            # at 20x, and in the safe direction (it was overstating the
+            # cost). Same class of off-by-one as the 61,070 against 61,071
+            # bar mismatch. (2026-08-28 review P3)
+            worst = (min(lows[i + 1:i + hours + 1])
+                     if lows is not None else min(w))
             if worst / p0 - 1.0 <= -(d + liq):
                 loss += 1.0
             elif end <= -d:
@@ -214,8 +221,8 @@ def breakeven_cliff(prices, distance_pct: float, side: str, lev: float,
                 # overshoot, so it scales with leverage the same way
                 loss += min(1.0, lev * (-end - d + fee))
         else:
-            worst = (max(highs[i:i + hours + 1]) if highs is not None
-                     else max(w))
+            worst = (max(highs[i + 1:i + hours + 1])
+                     if highs is not None else max(w))
             if worst / p0 - 1.0 >= d + liq:
                 loss += 1.0
             elif end >= d:
@@ -519,8 +526,10 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
     롱 Print는 목표가가 아래라 가격이 내려가면 체결되므로, 상승 쪽 신호가
     켜져 있으면 롱이 안전하다(숏은 반대).
 
-    각 후보의 손익분기는 '지금 켜진 신호가 켜졌던 과거 순간들'만 골라 다시
-    잰 값이고, 거기에 레버리지를 곱해 실제 호가와 비교한다.
+    각 후보의 손익분기는 '지금처럼 조용했던 과거 순간들'만 골라 다시 잰
+    값이다(변동성 관문이 열려 있을 때만, 08-27 사용자 결정). 관문이 닫혀
+    있으면 전 구간으로 잰다. 신호 마스크는 08-27 에 걷어냈다, 시험 구간
+    에서 엣지가 음수였다.
     주문은 넣지 않는다, 시뮬레이터 조회만."""
     from .signal_scanner import _series, _signals
     try:
@@ -602,9 +611,16 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
                 out.append(f"  신호 {x['signal']}"
                            f"({'↑' if x['side'] == 'long' else '↓'}) · {note}")
             if fc["weight"]:
-                out.append(f"  ▶ 24시간 뒤 상승확률 {fc['p_up']:.1%} "
-                           f"(표본 {fc['weight']:,}) → "
-                           f"체결 피하려면 {fc['safer_side'].upper()} Print")
+                # Display only. The table below scores BOTH sides and
+                # ranks on margin alone, so this line is not an input to
+                # anything and must not read like one. Ledger 151 measured
+                # the signal aggregate behind it and found no edge, which
+                # is why the breakeven stopped using it; the sentence
+                # outlived the mask. (2026-08-28 review P5)
+                out.append(f"  ▶ (참고, 순위에 반영 안 함) 24시간 뒤 "
+                           f"상승확률 {fc['p_up']:.1%} "
+                           f"(표본 {fc['weight']:,}), 신호만 보면 "
+                           f"{fc['safer_side'].upper()} 쪽이 덜 걸린다")
             else:
                 out.append("  ▶ 쓸 만한 신호 없음, 방향 근거 없음(전 구간 통계로만 판단)")
         rows = []
@@ -637,7 +653,7 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
         # breakeven borrowed from calm history while today is anything but.
         # When the gate is shut the honest comparison is unconditional.
         gate = VOL_GATE.get(asset) if gate_open.get(asset) else None
-        vmask, vtag = None, "무조건" if VOL_GATE.get(asset) else "무조건"
+        vmask, vtag = None, "무조건"
         if VOL_GATE.get(asset) and not gate_open.get(asset):
             vtag = "무조건(관문닫힘)"
         if gate and n > gate[0] + 40:
@@ -713,7 +729,7 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
         # Top five per market, not the whole grid (2026-08-27 user
         # order: "5위까지만 순위정해서 올려, 다 올리지 말고"). Sixty
         # near duplicate rows buried the one line that mattered.
-        out.append("  순위  방향  거리  레버  24h지급  24h본전     여유  기준신호"
+        out.append("  순위  방향  거리  레버  24h지급  24h본전     여유  조건"
                    f"   (상위 {min(top, len(rows))}/{len(rows)}칸)")
         for rank, (margin, side, d, lev, apy, be, pf, tag) in enumerate(
                 rows[:top], 1):
@@ -728,13 +744,16 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
                "표에 ✅ 가 떠도 한 번 더 의심할 것. 관문이 열렸다는 것도 "
                "비용이 절반쯤으로 내려갔다는 뜻이지 넣으라는 뜻이 아니다.")
     out.append("본전 = 그 조건에서 24시간 동안 기대되는 손실을 상쇄하는 지급률.")
-    out.append("연 환산이 필요하면 x365. 본전은 '지금 켜진 신호가 켜졌던 "
-               "과거 순간'만 골라 잰 값.")
+    out.append("조건 열: 조용<X% 는 그만큼 조용했던 과거로만 잰 것, "
+               "무조건 은 전 구간. 신호 마스크는 08-27 에 걷어냈다 "
+               "(시험 구간에서 엣지가 음수였다).")
+    out.append("연 환산이 필요하면 x365.")
     return "\n".join(out)
 
 
 def format_report(symbol: str, distance_pct: float, side: str, stats: dict,
-                  shown_apy: float | None = None, lev: float = 1.0) -> str:
+                  shown_apy: float | None = None, lev: float = 1.0,
+                  cliff_apy: float | None = None) -> str:
     days = stats["windows"] / 24
     lines = [
         f"Print 평가, {symbol} {side} / 목표 거리 {distance_pct}% "
@@ -751,10 +770,26 @@ def format_report(symbol: str, distance_pct: float, side: str, stats: dict,
         # breakeven is wrong by exactly 20, and wrong in the direction that
         # calls a losing trade favorable. That is the defect this argument
         # closes; it is the same mistake the ledger records me making by
-        # hand. Linear scaling matches recommend_now's fallback and is the
-        # conservative side of its cliff model at high leverage.
-        be_daily = stats["breakeven_daily"] * lev
-        be_apy = stats["breakeven_apy"] * lev
+        # hand.
+        #
+        # cliff_apy, when the caller can supply it, replaces the linear
+        # scaling below. The comment that used to sit here claimed linear
+        # was "the conservative side of its cliff model at high leverage"
+        # and that was BACKWARDS, which is the worst kind of wrong comment
+        # because it is the sentence that kept the weaker model in place.
+        # Measured on BTC futures: the cliff sits ABOVE linear once
+        # leverage bites (1x identical, 5x 1.03, 10x 1.07, 20x 1.09 to
+        # 1.11). A higher breakeven is a higher bar, so the CLIFF is the
+        # conservative one and linear is the optimistic one. This tool
+        # accepts leverage to 40 and is where the tweet sends people, so
+        # it was handing out easier verdicts than the ranking at exactly
+        # the sizes people use. (2026-08-28 review P1 and P2)
+        if cliff_apy is not None:
+            be_apy = cliff_apy
+            be_daily = cliff_apy / 365.0
+        else:
+            be_daily = stats["breakeven_daily"] * lev
+            be_apy = stats["breakeven_apy"] * lev
         edge = shown_apy / 100.0 - be_apy
         verdict = ("✅ 지급이 본전보다 높음, 통계적으로 유리한 조건"
                    if edge > 0 else
@@ -762,9 +797,14 @@ def format_report(symbol: str, distance_pct: float, side: str, stats: dict,
         lines.append(f"  배수 {lev:g}배 기준")
         lines.append(f"  24시간 지급 {shown_apy/365:.3f}% vs 본전 "
                      f"{be_daily:.3%} → {verdict}")
+        how = ("청산 절벽 반영" if cliff_apy is not None
+               else ("선형 x 배수" if lev != 1 else ""))
         lines.append(f"  (연 환산: 지급 {shown_apy:.0f}% vs 본전 {be_apy:.0%}"
-                     + (f" · 1배 본전 {stats['breakeven_apy']:.0%} x {lev:g}"
-                        if lev != 1 else "") + ")")
+                     + (f" · {how}" if how else "") + ")")
+        if cliff_apy is None and lev > 1:
+            lines.append("  ⚠️ 거래소 청산가를 못 받아 선형으로 계산했습니다. "
+                         "선형은 고배수에서 본전을 7~11% 낮게 봅니다(낙관 쪽). "
+                         "프린트 순위(recommend_now)로 한 번 더 확인하세요.")
         if lev == 1:
             lines.append("  거래소 화면을 1배가 아닌 배수로 보고 있다면 그 "
                          "배수를 알려주세요. 화면의 지급률에는 배수가 이미 "

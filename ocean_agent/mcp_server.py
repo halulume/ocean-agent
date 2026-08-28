@@ -891,7 +891,7 @@ def evaluate_print(symbol: str = "BTC", distance_pct: float = 1.0,
     """Evaluate a Pacifica Print offer statistically. Print pays a premium
     while a target-price order waits, but fills you at your target when the
     24h checkpoint lands beyond it (often with the market already past your
-    price). This tool uses ~9 YEARS of hourly history (Binance history joined
+    price). This tool uses ~7 YEARS of hourly history (Binance FUTURES joined
     to Pacifica) to compute: the chance of being caught at the target, average
     overshoot (instant mark-to-market loss when filled), and the BREAKEVEN
     payout that would compensate it.
@@ -918,13 +918,47 @@ def evaluate_print(symbol: str = "BTC", distance_pct: float = 1.0,
     if lev < 1 or lev > 40:
         raise ToolError("leverage must be between 1 and 40 (Pacifica caps "
                         "Print at 40x on BTC, 25x on ETH, 20x on HYPE)")
-    from .print_eval import evaluate_symbol, format_report
+    from .print_eval import (evaluate_symbol, format_report, deep_bars,
+                             breakeven_cliff, CYCLE_HOURS)
+    client = _client()
+    d = float(distance_pct)
     try:
-        stats = evaluate_symbol(_client(), symbol, float(distance_pct), side)
+        stats = evaluate_symbol(client, symbol, d, side)
     except Exception as e:
         raise ToolError(f"Evaluation failed: {e}") from e
-    return format_report(symbol, float(distance_pct), side, stats,
-                         shown_apy if shown_apy > 0 else None, lev)
+
+    # The liquidation cliff, the same model the Print ranking uses. Without
+    # it this tool scaled the 1x breakeven linearly, which sits BELOW the
+    # cliff once leverage bites (1x identical, 10x 1.07, 20x 1.09 to 1.11
+    # on BTC futures) and therefore handed out easier verdicts than the
+    # ranking at exactly the sizes people use. This is where the tweet
+    # sends people and it accepts leverage to 40. The liquidation distance
+    # has to come from the exchange, so this costs one simulator call, the
+    # same one print_quote makes; if it fails the linear number stands and
+    # says so rather than pretending to be the cliff.
+    # (2026-08-28 review P1 and P2)
+    cliff_apy = None
+    if lev > 1:
+        try:
+            game = f"{symbol}_24H"
+            mark = next(float(p.get("mark") or p.get("mid") or 0)
+                        for p in client.get_prices() if p["symbol"] == symbol)
+            strike = round(mark * (1 - d / 100 if side == "long"
+                                   else 1 + d / 100), 6)
+            sim = client.print_sim(game, "100", 0 if side == "long" else 1,
+                                   str(strike), str(lev))
+            liq = float(sim.get("liquidation_price") or 0)
+            if mark > 0 and liq > 0:
+                bars = deep_bars(client, symbol)
+                cliff_apy = breakeven_cliff(
+                    [b["c"] for b in bars], d, side, lev,
+                    abs(strike - liq) / strike * 100, CYCLE_HOURS,
+                    lows=[b["l"] for b in bars],
+                    highs=[b["h"] for b in bars]) / 100.0
+        except Exception:                                  # noqa: BLE001
+            cliff_apy = None
+    return format_report(symbol, d, side, stats,
+                         shown_apy if shown_apy > 0 else None, lev, cliff_apy)
 
 
 @mcp.tool(title="Print Live Quote", annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
