@@ -1274,6 +1274,12 @@ OKX_API_PASSPHRASE=...</code></pre>
       regimes, not forecasts.</p>
 
     <div class="upd-list">
+        <a class="upd-row" href="#u-release-check" data-date="2026-08-29">
+          <span class="d">AUG 29</span>
+          <span class="t">0.4.62: A release check that cannot read the wrong file</span>
+          <span class="tg new">new</span>
+          <span class="chev">&#8250;</span>
+        </a>
         <a class="upd-row" href="#u-rank-window" data-date="2026-08-29">
           <span class="d">AUG 29</span>
           <span class="t">0.4.61: Ninety days of history decide the order</span>
@@ -1394,6 +1400,32 @@ OKX_API_PASSPHRASE=...</code></pre>
             full: the hourly picks, the Print judgments, the bot in eleven
             languages, and the free local model that answers without an API
             key.</p>
+    </div>
+  </section>
+
+  <section class="page" id="u-release-check">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 29</div>
+    <h2>0.4.62: A release check that cannot read the wrong file</h2>
+    <div class="upd-meta"><span class="tg new">new</span><span class="st">2026-08-29</span></div>
+    <div class="upd-article">
+          <p class="lede">Nothing in the trading code changed here. Every
+            package on PyPI is scanned before it is published, and one of
+            those scans reads the built archive rather than the source tree.
+            If the archive on disk was left over from the previous release,
+            the scan answered about that older code and printed a pass. The
+            build mismatch was reported on its own line, but the passes kept
+            printing underneath it.</p>
+
+          <p>The mismatch now stops the run. Nothing below it is attempted,
+            because a pass against the wrong file is worse than no check at
+            all: it reads as assurance. This was found the honest way, by
+            rebuilding and watching seven internal notes appear in a scan
+            that had been reporting clean. Those notes were comments, not
+            behaviour, and they have been rewritten to keep what they
+            explained. The rule the file already applied to its other gates,
+            that a check which cannot run has not passed, now applies to
+            itself.</p>
     </div>
   </section>
 
@@ -1691,13 +1723,13 @@ OKX_API_PASSPHRASE=...</code></pre>
             it with Claude, and keeps it updated.</p>
 
           <p>Until now the only way to run it was to clone the repository. It now ships on PyPI
-            as <b>ocean-agent</b>, currently at version 0.4.61. Install with the one line
+            as <b>ocean-agent</b>, currently at version 0.4.62. Install with the one line
             installer on this site, which sets up uv, Python, your keys and Claude&#39;s MCP
             config in a single paste, or with <b>pip install ocean-agent</b> if you already have
             a Python environment.</p>
 
           <div class="upd-stats">
-            <div><b>0.4.61</b><span>current version</span></div>
+            <div><b>0.4.62</b><span>current version</span></div>
             <div><b>7,400+</b><span>measured combinations bundled</span></div>
             <div><b>9 years</b><span>of walk forward data shipped</span></div>
             <div><b>100</b><span>markets scanned</span></div>
