@@ -1858,21 +1858,37 @@ T["pick_row"] = {
  "pt": "{0}. {1} {2} · movim. {3}% · alta {4}% / baixa {5}% · entrada {6}",
  "tr": "{0}. {1} {2} · hareket {3}% · yukarı {4}% / aşağı {5}% · giriş {6}",
  "es": "{0}. {1} {2} · mov. {3}% · sube {4}% / baja {5}% · entrada {6}"}
-# one-line note under the list: the two percentages are reach odds, not
-# the direction call
+# one-line note under the list. The pair shown is the 2h one the side is
+# read off, so this says what it is and that the larger side wins. Both
+# can be high at once: a bar can touch +1.0% and -1.0% in the same two
+# hours, so the two do not add to 100.
 T["pick_note"] = {
- "en": "Move = expected 24h range. Up/down = chance of reaching ±3% within "
-       "24h, not the side we take.",
- "zh": "波动＝预计24小时幅度。上涨/下跌＝24小时内触及±3%的概率，不是方向判断。",
- "ja": "変動＝24時間の予想幅。上/下＝24時間以内に±3%へ到達する確率で、方向の判断ではありません。",
- "ko": "예상변동은 24시간 예상 폭입니다. 롱·숏 %는 24시간 안에 ±3%에 닿을 확률이고 방향 판단이 아닙니다.",
- "vi": "Biến động = biên độ dự kiến 24h. Lên/xuống = xác suất chạm ±3% trong 24h, không phải hướng vào lệnh.",
- "hi": "मूव = 24 घंटे की अपेक्षित रेंज। ऊपर/नीचे = 24 घंटे में ±3% छूने की संभावना, दिशा नहीं।",
- "id": "Gerak = rentang perkiraan 24 jam. Naik/turun = peluang menyentuh ±3% dalam 24 jam, bukan arah posisi.",
- "ru": "Ход = ожидаемый диапазон за 24ч. Вверх/вниз = шанс достичь ±3% за 24ч, а не выбор стороны.",
- "pt": "Movim. = faixa esperada em 24h. Alta/baixa = chance de atingir ±3% em 24h, não o lado escolhido.",
- "tr": "Hareket = 24 saatlik beklenen aralık. Yukarı/aşağı = 24 saatte ±3% dokunma olasılığı, yön kararı değil.",
- "es": "Mov. = rango esperado en 24h. Sube/baja = probabilidad de tocar ±3% en 24h, no el lado elegido."}
+ "en": "Move = expected 24h range. Up/down = chance of reaching ±1.0% "
+       "within 2h; the larger side is the side we take.",
+ "zh": "波动＝预计24小时幅度。上涨/下跌＝2小时内触及±1.0%的概率，较大的一侧就是我们的方向。",
+ "ja": "変動＝24時間の予想幅。上/下＝2時間以内に±1.0%へ到達する確率で、大きい方が建てる方向です。",
+ "ko": "예상변동은 24시간 예상 폭입니다. 롱·숏 %는 2시간 안에 ±1.0%에 닿을 확률이고, 큰 쪽이 방향이 됩니다.",
+ "vi": "Biến động = biên độ dự kiến 24h. Lên/xuống = xác suất chạm ±1.0% trong 2h; bên lớn hơn là hướng vào lệnh.",
+ "hi": "मूव = 24 घंटे की अपेक्षित रेंज। ऊपर/नीचे = 2 घंटे में ±1.0% छूने की संभावना; जो बड़ा हो वही दिशा है।",
+ "id": "Gerak = rentang perkiraan 24 jam. Naik/turun = peluang menyentuh ±1.0% dalam 2 jam; sisi yang lebih besar adalah arah posisi.",
+ "ru": "Ход = ожидаемый диапазон за 24ч. Вверх/вниз = шанс достичь ±1.0% за 2ч; большая сторона и есть направление.",
+ "pt": "Movim. = faixa esperada em 24h. Alta/baixa = chance de atingir ±1.0% em 2h; o lado maior é o lado que assumimos.",
+ "tr": "Hareket = 24 saatlik beklenen aralık. Yukarı/aşağı = 2 saatte ±1.0% dokunma olasılığı; büyük olan taraf yönümüzdür.",
+ "es": "Mov. = rango esperado en 24h. Sube/baja = probabilidad de tocar ±1.0% en 2h; el lado mayor es el lado que tomamos."}
+# Shown only when a row had no 2h pair and fell back to the old 24h one.
+T["pick_note_alt"] = {
+ "en": "* this row shows the 24h ±3% rates because the 2h ones were "
+       "unavailable.",
+ "zh": "* 该行显示24小时±3%的概率，因为无法取得2小时数值。",
+ "ja": "* この行は2時間の値が取れず、24時間±3%の確率を表示しています。",
+ "ko": "* 표시된 줄은 2시간 값이 없어 24시간 ±3% 확률을 보여줍니다.",
+ "vi": "* dòng này hiển thị tỷ lệ ±3% trong 24h vì không có giá trị 2h.",
+ "hi": "* इस पंक्ति में 2 घंटे का मान न होने से 24 घंटे ±3% की दर दिखाई गई है।",
+ "id": "* baris ini menampilkan angka ±3% 24 jam karena nilai 2 jam tidak tersedia.",
+ "ru": "* в этой строке показаны ставки ±3% за 24ч, так как значения за 2ч недоступны.",
+ "pt": "* esta linha mostra as taxas de ±3% em 24h porque as de 2h não estavam disponíveis.",
+ "tr": "* bu satırda 2 saatlik değerler bulunmadığı için 24 saatlik ±3% oranları gösteriliyor.",
+ "es": "* esta fila muestra las tasas de ±3% en 24h porque las de 2h no estaban disponibles."}
 T["pick_none"] = {
  "en": "No seal yet. The bot writes one every hour once it is running.",
  "zh": "尚无推荐。机器人运行后每小时生成一次。",

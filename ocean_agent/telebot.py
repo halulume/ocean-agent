@@ -578,15 +578,29 @@ def _pick_table(root, lang="ko", cls=None):
             else (lambda k: k != "주식")
         picks = [p for p in picks if want(klass(p.get("sym", "")))]
     out = [tr("pick_header", lang).format(str(rec.get("made_at", ""))[:16])]
+    fell_back = False
     for p in picks:
         side = tr("side_long" if p.get("dir") == "long" else "side_short",
                   lang)
+        # Show the rates the side was actually read off. The row used to
+        # carry the 24h +-3% pair, which stopped choosing the side on
+        # 08-26, so a reader saw "up 45.5 / down 46.1" beside a long and
+        # had no way to tell why. Fall back to the old pair only when the
+        # 2h one is missing, and say so rather than showing it unmarked.
+        up, dn = p.get("h2_up_pct"), p.get("h2_dn_pct")
+        mark = ""
+        if not (p.get("side_source") == "touch2h"
+                and up is not None and dn is not None):
+            up = p.get("touch_up_pct", "-")
+            dn = p.get("touch_dn_pct", "-")
+            mark, fell_back = "*", True
         out.append(tr("pick_row", lang).format(
             p.get("trade_rank", "-"), p.get("sym", "?"), side,
-            p.get("exp_move_pct", 0), p.get("touch_up_pct", "-"),
-            p.get("touch_dn_pct", "-"), p.get("entry", 0)))
+            p.get("exp_move_pct", 0), up, dn, p.get("entry", 0)) + mark)
     out.append("")
     out.append(tr("pick_note", lang))
+    if fell_back:
+        out.append(tr("pick_note_alt", lang))
     return "\n".join(out)
 
 
