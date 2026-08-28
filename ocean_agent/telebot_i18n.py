@@ -1755,6 +1755,24 @@ T["menu_extra"] = {
  "es": "/menu - lista\n/mode - Gratis / AI\nO escribe con naturalidad."}
 
 
+# Shown when someone picks a flag they had already picked once. The first
+# pick starts onboarding; this one only changes the language, so it says so
+# and stops there rather than re-asking for a wallet nobody offered to
+# change. (08-28)
+T["lang_changed"] = {
+ "en": "✅ Language changed to English.",
+ "zh": "✅ 语言已切换为中文。",
+ "ja": "✅ 言語を日本語に変更しました。",
+ "ko": "✅ 언어를 한국어로 바꿨습니다.",
+ "vi": "✅ Đã đổi ngôn ngữ sang Tiếng Việt.",
+ "hi": "✅ भाषा हिंदी में बदल दी गई।",
+ "id": "✅ Bahasa diubah ke Bahasa Indonesia.",
+ "ru": "✅ Язык изменён на русский.",
+ "pt": "✅ Idioma alterado para Português.",
+ "tr": "✅ Dil Türkçe olarak değiştirildi.",
+ "es": "✅ Idioma cambiado a Español."}
+
+
 def tier_kb(lang: str) -> str:
     return json.dumps({"inline_keyboard": [[
         {"text": tr("btn_free", lang), "callback_data": "tier:free"},

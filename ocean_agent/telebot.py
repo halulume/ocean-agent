@@ -1570,6 +1570,8 @@ def _handle_member(text, chat_id, env, root, admin):
         # language, and nothing else. TELEBOT_MEMBER_OPEN=1 restores the
         # old open behavior if it is ever wanted again.
         return tr("install_pitch", lang0)
+    if text == "/lang":
+        return ("KB", tr("pick_lang", "any"))
     if text == "/mode":
         return ("KB_TIER", tr("tier_pick", lang0))
     if text == "/menu":
@@ -1628,9 +1630,17 @@ def _handle_member(text, chat_id, env, root, admin):
     return _free_llm(env, root, text, base, lang) or base
 
 
-def _register_commands(token):
-    """setMyCommands: typing / in the chat pops the command list. English
-    is the default scope; Korean gets its own localized set."""
+def _register_commands(token, cid="", lang=""):
+    """setMyCommands: typing / in the chat pops the command list.
+
+    Without a chat, this registers the default sets, one per language code.
+    Telegram picks between them by the READER'S app language, not by any
+    preference our bot holds, so a person whose phone is Korean sees the
+    Korean list no matter which flag they pick here. Passing a chat and a
+    language registers that one list for that one chat, which does override
+    the app language, and that is how the flag pick reaches the menu.
+    (08-28)
+    """
     cmds = {
         "en": [("pick", "latest pick ranking"),
                ("funding", "funding ranking"),
@@ -1640,6 +1650,7 @@ def _register_commands(token):
                ("balance", "account balance"),
                ("trades", "recent fills"),
                ("menu", "everything I can do"),
+               ("lang", "change language"),
                ("mode", "free / paid tier")],
         "ko": [("pick", "추천픽 순위 (최근 계산본)"),
                ("funding", "펀딩 순위"),
@@ -1649,17 +1660,20 @@ def _register_commands(token):
                ("balance", "계좌 잔고"),
                ("trades", "최근 체결 이력"),
                ("menu", "전체 기능 보기"),
+               ("lang", "언어 다시 고르기"),
                ("mode", "무료/유료 모드 전환")],
         "zh": [("pick", "最新推荐排行"), ("funding", "资金费排行"),
                ("print", "现在有值得参与的 Print 吗"),
                ("carry", "资金费套利机会"), ("bot", "机器人状态·最近成交"),
                ("balance", "账户余额"), ("trades", "最近成交记录"),
-               ("menu", "查看全部功能"), ("mode", "免费/付费模式")],
+               ("menu", "查看全部功能"), ("lang", "重新选择语言"),
+               ("mode", "免费/付费模式")],
         "ja": [("pick", "最新ピックランキング"), ("funding", "ファンディング順位"),
                ("print", "今取る価値のある Print はあるか"),
                ("carry", "ファンディングキャリー候補"),
                ("bot", "ボット状態・最近の約定"), ("balance", "口座残高"),
                ("trades", "最近の約定履歴"), ("menu", "全機能を見る"),
+               ("lang", "言語を選び直す"),
                ("mode", "無料/有料モード")],
         "vi": [("pick", "xếp hạng pick mới nhất"),
                ("funding", "xếp hạng funding"),
@@ -1669,40 +1683,46 @@ def _register_commands(token):
                ("balance", "số dư tài khoản"),
                ("trades", "lịch sử khớp lệnh"),
                ("menu", "xem tất cả chức năng"),
+               ("lang", "đổi ngôn ngữ"),
                ("mode", "chế độ miễn phí/trả phí")],
         "hi": [("pick", "नवीनतम पिक रैंकिंग"), ("funding", "फंडिंग रैंकिंग"),
                ("print", "क्या अभी कोई Print लेने लायक है?"),
                ("carry", "फंडिंग कैरी अवसर"), ("bot", "बॉट स्थिति·हाल के फिल"),
                ("balance", "खाता बैलेंस"), ("trades", "हाल की ट्रेड"),
-               ("menu", "सभी सुविधाएँ"), ("mode", "मुफ्त/सशुल्क मोड")],
+               ("menu", "सभी सुविधाएँ"), ("lang", "भाषा बदलें"),
+               ("mode", "मुफ्त/सशुल्क मोड")],
         "id": [("pick", "peringkat pick terbaru"),
                ("funding", "peringkat funding"),
                ("print", "adakah Print yang layak sekarang?"),
                ("carry", "peluang funding carry"),
                ("bot", "status bot, eksekusi terbaru"),
                ("balance", "saldo akun"), ("trades", "riwayat eksekusi"),
-               ("menu", "semua fitur"), ("mode", "mode gratis/berbayar")],
+               ("menu", "semua fitur"), ("lang", "ganti bahasa"),
+               ("mode", "mode gratis/berbayar")],
         "ru": [("pick", "свежий рейтинг пиков"),
                ("funding", "рейтинг фандинга"),
                ("print", "стоит ли сейчас брать Print?"),
                ("carry", "возможности кэрри"),
                ("bot", "статус бота, последние сделки"),
                ("balance", "баланс счёта"), ("trades", "история сделок"),
-               ("menu", "все функции"), ("mode", "бесплатный/платный режим")],
+               ("menu", "все функции"), ("lang", "сменить язык"),
+               ("mode", "бесплатный/платный режим")],
         "pt": [("pick", "ranking de picks mais recente"),
                ("funding", "ranking de funding"),
                ("print", "algum Print vale a pena agora?"),
                ("carry", "oportunidades de carry"),
                ("bot", "status do bot, execuções recentes"),
                ("balance", "saldo da conta"), ("trades", "execuções recentes"),
-               ("menu", "todas as funções"), ("mode", "modo grátis/pago")],
+               ("menu", "todas as funções"), ("lang", "mudar idioma"),
+               ("mode", "modo grátis/pago")],
         "tr": [("pick", "en yeni pick sıralaması"),
                ("funding", "funding sıralaması"),
                ("print", "şu an değer bir Print var mı?"),
                ("carry", "funding carry fırsatları"),
                ("bot", "bot durumu, son işlemler"),
                ("balance", "hesap bakiyesi"), ("trades", "son işlem geçmişi"),
-               ("menu", "tüm özellikler"), ("mode", "ücretsiz/ücretli mod")],
+               ("menu", "tüm özellikler"), ("lang", "dili değiştir"),
+               ("mode", "ücretsiz/ücretli mod")],
         "es": [("pick", "ranking de picks más reciente"),
                ("funding", "ranking de funding"),
                ("print", "¿algún Print vale la pena ahora?"),
@@ -1710,8 +1730,19 @@ def _register_commands(token):
                ("bot", "estado del bot, ejecuciones recientes"),
                ("balance", "saldo de la cuenta"),
                ("trades", "ejecuciones recientes"),
-               ("menu", "todas las funciones"), ("mode", "modo gratis/pago")],
+               ("menu", "todas las funciones"), ("lang", "cambiar idioma"),
+               ("mode", "modo gratis/pago")],
     }
+    if cid:
+        rows = cmds.get(lang) or cmds["en"]
+        try:
+            _call(token, "setMyCommands",
+                  commands=json.dumps([{"command": c, "description": d}
+                                       for c, d in rows]),
+                  scope=json.dumps({"type": "chat", "chat_id": int(cid)}))
+        except Exception:
+            pass                 # cosmetic; the bot works without it
+        return
     for code, rows in cmds.items():
         body = json.dumps([{"command": c, "description": d}
                            for c, d in rows])
@@ -1850,7 +1881,19 @@ def _process_update(u, env, root, gate, central, token):
             # free -> the conversation-mode warm-up notice, in that language
             from .telebot_i18n import tier_kb
             if data.startswith("lang:"):
+                # Same rule as central mode: a second pick is a change of
+                # mind. Onboarding asks for the wallet, the key and the
+                # budget, and none of that should be re-asked because
+                # someone switched language. (08-28)
+                _again = bool(_pers_lang(root))
                 lang = _pers_lang(root, set_to=data.split(":", 1)[1])
+                # The slash menu is keyed to the reader's app language, so
+                # it has to be re registered for this chat or the pick shows
+                # everywhere except the one list people actually read.
+                _register_commands(token, cid, lang)
+                if _again:
+                    _send(token, cid, tr("lang_changed", lang))
+                    return
                 # onboarding order (08-25 user decision): language, then
                 # wallet address, then API key, then the free/paid pick.
                 # Stages are skipped when .env already has the value.
@@ -1893,9 +1936,18 @@ def _process_update(u, env, root, gate, central, token):
         if data.startswith("lang:") and cid:
             users = _load_users(root)
             rec = users.get(cid) or {"address": "", "paid": False}
+            # A pick made by someone who already had a language is a change
+            # of mind, not onboarding: answer in the new language and stop.
+            # Running the tier and address questions again would undo
+            # settings the person never asked to touch. (08-28)
+            _again = bool(rec.get("lang"))
             rec["lang"] = data.split(":", 1)[1]
             users[cid] = rec
             _save_users(root, users)
+            _register_commands(token, cid, rec["lang"])
+            if _again and not pitch_only:
+                _send(token, cid, tr("lang_changed", rec["lang"]))
+                return
             if pitch_only:
                 # install desk mode: the language pick localizes the pitch,
                 # then everything funnels to installing their own bot
@@ -1980,7 +2032,10 @@ def _process_update(u, env, root, gate, central, token):
             if gate and cid != gate:
                 return        # 개인 모드: 등록된 챗만
             lang = _pers_lang(root)
-            if not lang:
+            if not lang or text == "/lang":
+                # The flag keyboard is the only place a language is set, so
+                # asking for it again is the only way to change one. It was
+                # reachable at onboarding and nowhere else. (08-28)
                 from .telebot_i18n import tr
                 out = ("KB", tr("pick_lang", "any"))
             else:

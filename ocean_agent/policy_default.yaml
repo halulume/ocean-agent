@@ -185,6 +185,13 @@ bracket_tp_limit: true
 # missing a runner is accepted, the pick was priced at the anchor.
 bracket_entry_limit: true
 bracket_entry_wait_sec: 120
+# The anchor above is held for the whole seal on purpose: chasing the book
+# lost the entry comparison, and waiting at one price won it. The cost is
+# that a price which walks away is missed at every retry until the next
+# seal, leaving a seat empty rather than a pick being patient. After this
+# many misses the name is dropped for this seal and the seat goes to the
+# next pick. A fresh seal starts the count over. (08-28 decision)
+bracket_entry_max_tries: 3
 # Stop-loss as trigger-limit: trigger at the stop, limit this many expected-
 # moves worse. The 0.5 buffer caps slippage while keeping the fill near-
 # certain; a gap through the whole buffer leaves the position running to

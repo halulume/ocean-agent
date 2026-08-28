@@ -1074,6 +1074,18 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
         if _stop_streak(p["sym"], p["dir"]) >= 2:
             log(f"{p['sym']} {p['dir']} 연속 손절 2회, 같은 방향 추격 중단")
             continue
+        # Give up on a name the market has left behind. The anchor below is
+        # held for the whole seal on purpose, so a price that has walked away
+        # is missed at every retry, five minutes apart, for as long as the
+        # seal lasts. That is a seat sitting empty rather than a pick being
+        # patient. After this many misses the name is dropped for this seal
+        # and the seat goes to the next pick. A fresh seal starts over.
+        # (08-28 user decision: two or three misses and let it go)
+        _misses = st.setdefault("entry_misses", {})
+        if _misses.get(f"{key}|{p['sym']}", 0) >= _entry_max_tries:
+            log(f"{p['sym']}: 진입 {_entry_max_tries}회 연속 미체결, 이 "
+                f"봉인에서는 포기하고 자리를 다음 픽에 넘긴다")
+            continue
         # total-slot cap. Before 2026-08-14 the bot entered one seal per day,
         # so the pick list itself was the cap; with hourly refills a fresh
         # seal of six names must not stack on top of held ones (user: refill
@@ -1298,8 +1310,15 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                             log(f"{sym}: 취소를 확인하지 못했다. 주문이 살아 "
                                 f"있을 수 있어 미결 기록을 남기고, 다음 "
                                 f"회차가 체결분을 입양한다")
+                        _mk = f"{key}|{sym}"
+                        _misses[_mk] = _misses.get(_mk, 0) + 1
+                        # prune misses from older seals so state stays small
+                        for _old in [k for k in _misses
+                                     if not k.startswith(f"{key}|")]:
+                            _misses.pop(_old, None)
                         save_state(st)
-                        log(f"{sym}: 지정가 진입 미체결 {_entry_wait}s, "
+                        log(f"{sym}: 지정가 진입 미체결 {_entry_wait}s "
+                            f"({_misses[_mk]}/{_entry_max_tries}회), "
                             f"이번 자리 건너뜀")
                         attempt_failed += 1
                         continue
@@ -2206,6 +2225,7 @@ _selfgen_enabled: bool = True
 _tp_limit: bool = False      # TP leg executes as limit when triggered (08-24)
 _entry_limit: bool = False   # entry as resting limit at the anchor price
 _entry_wait: int = 120       # seconds before an unfilled entry is cancelled
+_entry_max_tries: int = 3    # misses before a name is dropped for this seal
 _sl_buf: float = 0.0         # SL limit buffer, in units of expected move
 _sl_maker: bool = False      # SL trigger and limit at the same price (08-27)
 _side_source: str = "touch"  # who calls long/short: "touch" or "signal" (08-24)
@@ -2579,7 +2599,7 @@ def main():
             return
     cfg = apply_budget(bracket_cfg(policy))
     global _selfgen_enabled, _tp_limit, _entry_limit, _entry_wait, _sl_buf
-    global _side_source, _advisory_alerts, _sl_maker
+    global _side_source, _advisory_alerts, _sl_maker, _entry_max_tries
     _selfgen_enabled = bool(policy.get("bracket_selfgen_seal", True))
     _advisory_alerts = bool(policy.get("bracket_advisory_alerts", True))
     global _strong_bonus
@@ -2591,10 +2611,13 @@ def main():
     _tp_limit = bool(policy.get("bracket_tp_limit", False))
     _entry_limit = bool(policy.get("bracket_entry_limit", False))
     _entry_wait = int(policy.get("bracket_entry_wait_sec", 120) or 120)
+    _entry_max_tries = max(1, int(policy.get("bracket_entry_max_tries", 3)
+                                  or 3))
     _sl_buf = float(policy.get("bracket_sl_limit_buffer", 0) or 0)
     _sl_maker = bool(policy.get("bracket_sl_maker", False))
     modes = []
-    if _entry_limit: modes.append(f"진입 지정가(미체결 {_entry_wait}s 후 취소)")
+    if _entry_limit: modes.append(f"진입 지정가(미체결 {_entry_wait}s 후 취소, "
+                                  f"{_entry_max_tries}회 놓치면 그 봉인에서 포기)")
     if _tp_limit: modes.append("익절 지정가")
     if _sl_maker:
         _chase = max(5, int(policy.get("bracket_sl_chase_sec", 10) or 10))

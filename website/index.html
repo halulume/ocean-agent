@@ -1274,6 +1274,12 @@ OKX_API_PASSPHRASE=...</code></pre>
       regimes, not forecasts.</p>
 
     <div class="upd-list">
+        <a class="upd-row" href="#u-maker-exit" data-date="2026-08-28">
+          <span class="d">AUG 28</span>
+          <span class="t">0.4.60: The stop sells at its own price too</span>
+          <span class="tg new">new</span>
+          <span class="chev">&#8250;</span>
+        </a>
         <a class="upd-row" href="#u-open-beta-2026-08-26" data-date="2026-08-26">
           <span class="d">AUG 26</span>
           <span class="t">Open beta begins</span>
@@ -1282,7 +1288,7 @@ OKX_API_PASSPHRASE=...</code></pre>
         </a>
         <a class="upd-row" href="#u-short-horizon-side" data-date="2026-08-26">
           <span class="d">AUG 26</span>
-          <span class="t">0.4.59: A shorter horizon for direction, and a wider bracket</span>
+          <span class="t">0.4.58: A shorter horizon for direction, and a wider bracket</span>
           <span class="tg new">new</span>
           <span class="chev">&#8250;</span>
         </a>
@@ -1385,10 +1391,50 @@ OKX_API_PASSPHRASE=...</code></pre>
     </div>
   </section>
 
+  <section class="page" id="u-maker-exit">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 28</div>
+    <h2>0.4.60: The stop sells at its own price too</h2>
+    <div class="upd-meta"><span class="tg new">new</span><span class="st">2026-08-28</span></div>
+    <div class="upd-article">
+          <p class="lede">A take profit rests in the order book from the
+            moment a position opens, and it is lifted at the price you set. A
+            stop cannot rest there: an order to sell below the market would
+            fill immediately, so the exchange holds it back and creates it
+            only once price arrives, behind everyone already queued. That
+            difference, not the fee, is what a stop costs.</p>
+
+          <p>The stop now triggers into a limit at its own price. When the
+            market moves through it and leaves the order behind, a reduce
+            only limit follows the mark and is moved every ten seconds until
+            it fills. Nothing on the way out takes liquidity any more. The
+            exchange stop is deliberately left standing while that runs, so a
+            price that comes back finds it still there, and neither order can
+            flip the position because both only reduce. This is a change we
+            have not yet seen enough live stops to score, and the honest
+            reason it shipped is that the alternatives were measured and
+            rejected: insisting on one price with no follow up, stacking
+            several stops underneath, cutting losses at a fixed small
+            distance, and leaving when the direction turns all lost to what
+            is here, or won in one window and lost in the other.</p>
+
+          <p>Entries gave up a seat too easily in the other direction. The
+            entry price is held for the whole hour on purpose, because
+            chasing the book lost that comparison, but a name whose price had
+            walked away was retried and missed every five minutes for the
+            rest of the hour with the seat sitting empty. After three misses
+            the name is now dropped and the seat goes to the next pick.
+            Telegram gained a language command, so the flag keyboard is
+            reachable again rather than only at first run, and picking a flag
+            a second time changes the language without asking for a wallet or
+            a budget again.</p>
+    </div>
+  </section>
+
   <section class="page" id="u-short-horizon-side">
     <a class="upd-back" href="#updates">&#8249; All updates</a>
     <div class="eyebrow">Updates &middot; AUG 26</div>
-    <h2>0.4.59: A shorter horizon for direction, and a wider bracket</h2>
+    <h2>0.4.58: A shorter horizon for direction, and a wider bracket</h2>
     <div class="upd-meta"><span class="tg new">new</span><span class="st">2026-08-26</span></div>
     <div class="upd-article">
           <p class="lede">Direction was being read off a 24 hour statistic
@@ -1610,13 +1656,13 @@ OKX_API_PASSPHRASE=...</code></pre>
             it with Claude, and keeps it updated.</p>
 
           <p>Until now the only way to run it was to clone the repository. It now ships on PyPI
-            as <b>ocean-agent</b>, currently at version 0.4.59. Install with the one line
+            as <b>ocean-agent</b>, currently at version 0.4.60. Install with the one line
             installer on this site, which sets up uv, Python, your keys and Claude&#39;s MCP
             config in a single paste, or with <b>pip install ocean-agent</b> if you already have
             a Python environment.</p>
 
           <div class="upd-stats">
-            <div><b>0.4.59</b><span>current version</span></div>
+            <div><b>0.4.60</b><span>current version</span></div>
             <div><b>7,400+</b><span>measured combinations bundled</span></div>
             <div><b>9 years</b><span>of walk forward data shipped</span></div>
             <div><b>100</b><span>markets scanned</span></div>
