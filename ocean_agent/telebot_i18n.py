@@ -1773,6 +1773,41 @@ T["lang_changed"] = {
  "es": "✅ Idioma cambiado a Español."}
 
 
+# The install pitch, after the first time. A member gets nothing else from
+# the central bot, so on every message the full pitch arrived again, which
+# reads as spam to anyone who already installed, and the central bot has no
+# way of knowing that they did: their own bot is a different bot they made
+# themselves. So the long version goes once and the short one after.
+# (08-28 user decision)
+T["install_again"] = {
+ "en": "Ocean Agent runs on your own machine with your own keys, so this "
+       "shared bot has nothing of yours to show. → https://oceanagent.fi",
+ "zh": "Ocean Agent 在你自己的电脑上用你自己的密钥运行，这个公共机器人没有"
+       "你的数据可显示。 → https://oceanagent.fi",
+ "ja": "Ocean Agent はあなたのPCであなたの鍵で動くため、この共用ボットに"
+       "お見せできるものはありません。 → https://oceanagent.fi",
+ "ko": "Ocean Agent 는 당신의 컴퓨터에서 당신의 키로 도는 제품이라 이 공용 "
+       "봇에는 보여드릴 게 없습니다. → https://oceanagent.fi",
+ "vi": "Ocean Agent chạy trên máy của bạn với khóa của bạn, nên bot chung "
+       "này không có gì để hiển thị. → https://oceanagent.fi",
+ "hi": "Ocean Agent आपके अपने कंप्यूटर पर आपकी अपनी कुंजी से चलता है, इसलिए इस "
+       "साझा बॉट के पास दिखाने को कुछ नहीं है। → https://oceanagent.fi",
+ "id": "Ocean Agent berjalan di komputer Anda dengan kunci Anda sendiri, "
+       "jadi bot bersama ini tidak punya apa pun untuk ditampilkan. "
+       "→ https://oceanagent.fi",
+ "ru": "Ocean Agent работает на вашем компьютере с вашими ключами, поэтому "
+       "этому общему боту нечего показать. → https://oceanagent.fi",
+ "pt": "O Ocean Agent roda no seu computador com suas próprias chaves, "
+       "então este bot compartilhado não tem nada para mostrar. "
+       "→ https://oceanagent.fi",
+ "tr": "Ocean Agent kendi bilgisayarınızda kendi anahtarlarınızla çalışır, "
+       "bu yüzden bu ortak botun gösterecek bir şeyi yok. "
+       "→ https://oceanagent.fi",
+ "es": "Ocean Agent se ejecuta en tu propio equipo con tus propias claves, "
+       "así que este bot compartido no tiene nada que mostrar. "
+       "→ https://oceanagent.fi"}
+
+
 def tier_kb(lang: str) -> str:
     return json.dumps({"inline_keyboard": [[
         {"text": tr("btn_free", lang), "callback_data": "tier:free"},

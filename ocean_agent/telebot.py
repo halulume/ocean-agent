@@ -1588,6 +1588,18 @@ def _handle_member(text, chat_id, env, root, admin):
         # The central bot answers members with the install pitch, in their
         # language, and nothing else. TELEBOT_MEMBER_OPEN=1 restores the
         # old open behavior if it is ever wanted again.
+        #
+        # The long version once, the short one after. Since the pitch is the
+        # only reply a member ever gets, sending it in full on every message
+        # reads as spam to whoever already installed, and this bot cannot
+        # tell that they did: their own bot is one they made themselves at
+        # BotFather and it reports to nobody. Answering shorter is the part
+        # that does not need to know. (08-28 user decision)
+        if u.get("pitched"):
+            return tr("install_again", lang0)
+        u["pitched"] = True
+        users[chat_id] = u
+        _save_users(root, users)
         return tr("install_pitch", lang0)
     if text == "/mode":
         return ("KB_TIER", tr("tier_pick", lang0))
@@ -1967,7 +1979,14 @@ def _process_update(u, env, root, gate, central, token):
                 return
             if pitch_only:
                 # install desk mode: the language pick localizes the pitch,
-                # then everything funnels to installing their own bot
+                # then everything funnels to installing their own bot.
+                # The full text every time a flag is picked, including a
+                # re-pick, because picking a flag is a request to read this
+                # in that language and the short version has no
+                # instructions in it. (08-28)
+                rec["pitched"] = True
+                users[cid] = rec
+                _save_users(root, users)
                 _send(token, cid, tr("install_pitch", rec["lang"]))
                 return
             # language chosen -> tier choice next, in that language
