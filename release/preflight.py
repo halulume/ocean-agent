@@ -363,10 +363,52 @@ def check_freshness(whl: str) -> None:
         ok("휠 내용이 HEAD 와 동일", False, f"검사 실패: {type(e).__name__}: {e}")
 
 
+def check_undefined() -> None:
+    """Names read but never defined. The one class of bug a dry run misses.
+
+    On 08-27 a flag was assigned inside main() and read from another
+    function as a module global. Every check we had passed: the file
+    compiled, the wheel matched HEAD, the banner printed the new text, and
+    a dry run never reached the line because dry skips entry. Live, the
+    first real entry of every cycle would have raised NameError and no
+    position would ever have opened.
+
+    pyflakes finds it by name resolution rather than by running anything,
+    which is exactly what dry could not do. Only undefined names fail here;
+    unused imports and the like are counted and left alone, because a
+    release must not be blocked by tidiness.
+    """
+    try:
+        from pyflakes.api import checkPath
+        from pyflakes.reporter import Reporter
+    except ImportError:
+        warn("이름 검사 건너뜀", "pyflakes 없음 (pip install pyflakes)")
+        return
+    import io as _io
+    out, err = _io.StringIO(), _io.StringIO()
+    rep = Reporter(out, err)
+    pkg = os.path.join(ROOT, "ocean_agent")
+    for base, _dirs, files in os.walk(pkg):
+        if "__pycache__" in base:
+            continue
+        for f in sorted(files):
+            if f.endswith(".py"):
+                checkPath(os.path.join(base, f), rep)
+    lines = [ln for ln in out.getvalue().splitlines() if ln.strip()]
+    bad = [ln for ln in lines if "undefined name" in ln]
+    ok("정의 안 된 이름 없음", not bad,
+       "; ".join(x.split(os.sep)[-1] for x in bad[:3])
+       or f"검사한 지적 {len(lines)}건 중 치명 0")
+    syntax = [ln for ln in err.getvalue().splitlines() if ln.strip()]
+    if syntax:
+        ok("문법 오류 없음", False, syntax[0][:90])
+
+
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     whl = sys.argv[1] if len(sys.argv) > 1 else newest_wheel()
     print(f"검사 대상: {os.path.basename(whl)}\n")
+    check_undefined()
     check_freshness(whl)
     check_contents(whl)
     check_pins(whl)
