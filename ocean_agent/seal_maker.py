@@ -25,6 +25,7 @@ order books, then writes one JSON file.
 
 Run standalone:  python -m ocean_agent.seal_maker [--out DIR]
 """
+import gzip
 import json
 import os
 import threading
@@ -79,6 +80,17 @@ XSEC_DIR_CLASSES = {"기타·RWA"}
 # Set SEAL_SIDE_SOURCE=touch24 in the environment to put it back.
 SIDE_SOURCE = os.environ.get("SEAL_SIDE_SOURCE", "touch2h")
 PER2, LEVEL2 = 2, 0.010          # the short horizon: 2 bars, +-1.0%
+# Ranking window, in bars. Size still comes from the 30 day median (WIN):
+# a take profit line set off one hot day would never be reached. Ranking
+# does not have that problem, and 08-28 measured eight window lengths with
+# size held fixed. 90일 was ahead of 30일 in both windows (5.5년
+# +0.119±0.213p, 8월 +1.197±1.699p, ledger 156). Both are inside their own
+# error bars and no measurement can close that gap (ledger 157 puts the
+# daily spread at 10.3p, so two sigma would take 82 years); the operator
+# decided on the four-out-of-four positive sign. The ATR term is left OFF
+# here: with it, 90일 lost to the current rule (-0.640p against -0.592p).
+RANK_WIN = 2160                  # 90일
+RANK_MIN = 1440                  # 이만큼도 없으면 순위는 30일 값으로
 # Whether the classes above still ride the cross-sectional side. Turned off
 # on 2026-08-27 by operator decision so every class asks the same question:
 # the trader already overrode all of them with the 2h rule at entry, so the
@@ -233,7 +245,77 @@ def slip_cost(book, usd: float, side: str) -> float | None:
     return abs(paid / qty / mid - 1.0)
 
 
-# ── bar loading (public APIs, one source per symbol) ─────────────────────
+# ── bar loading (one source per symbol, cache first) ─────────────────────
+#
+# The 90 day ranking window needs 2,184 bars and a Binance kline request
+# caps at 1,000. Asking three times an hour for 74 symbols would be 222
+# requests where 74 used to do, and 2,183 of every 2,184 bars asked for are
+# ones we already have on disk. The operator has said twice that the past
+# belongs in the cache and only the new day should be fetched.
+#
+# So: read the cache, ask only for what comes after its last bar, write the
+# merged series back. First run on a machine with the project cache tops up
+# about a day; after that it is one or two bars an hour. A machine with no
+# cache (a new install) falls through to the plain fetch and builds one.
+#
+# Source discipline (데이터목록 1조) is unchanged and is the reason this
+# does not simply read the Pacifica cache for everything even though that
+# file is fresher and covers all 75 symbols: a coin's size and side come
+# from Binance bars, so its ranking must too. Mixing the two inside one
+# symbol measured 4.2% disagreement on 08-13.
+
+def _cache_path(sym: str, bsym: str) -> str:
+    """이 종목의 봉이 사는 곳. 바이낸스면 선물 파일, 아니면 파시피카 파일."""
+    if bsym:
+        return os.path.join(hd.CACHE_DIR, f"{bsym}_1h_fut_ohlc.json.gz")
+    return os.path.join(hd.CACHE_DIR, f"pac_{sym}_1h_ohlc.json.gz")
+
+
+def _read_cache(path: str) -> list[dict]:
+    """캐시의 1시간봉. 없거나 깨졌으면 []."""
+    if not os.path.exists(path):
+        return []
+    try:
+        with gzip.open(path, "rt", encoding="utf-8") as f:
+            bars = json.load(f).get("bars") or []
+    except (OSError, ValueError, KeyError, AttributeError):
+        return []
+    out = []
+    for b in bars:
+        try:
+            c = float(b["c"])
+            out.append({"t": int(b["t"]), "c": c,
+                        "h": float(b.get("h") or c),
+                        "l": float(b.get("l") or c)})
+        except (TypeError, ValueError, KeyError):
+            continue
+    out.sort(key=lambda x: x["t"])
+    return out
+
+
+def _merge_bars(old: list[dict], new: list[dict]) -> list[dict]:
+    """시각으로 합친다. 같은 시각은 새 쪽이 이긴다(먼저 봤을 때 미완성일 수
+    있다). 정렬은 여기서 한 번만 한다."""
+    m = {b["t"]: b for b in old}
+    m.update({b["t"]: b for b in new})
+    return [m[k] for k in sorted(m)]
+
+
+def _write_cache(path: str, bars: list[dict]) -> None:
+    """원자적으로 쓴다. 실패해도 조용히 넘어간다(캐시는 편의이지 정답이 아니다)."""
+    if not bars:
+        return
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".seal.tmp"
+        with gzip.open(tmp, "wt", encoding="utf-8") as f:
+            json.dump({"start_ms": int(bars[0]["t"]),
+                       "end_ms": int(bars[-1]["t"]) + 3_600_000,
+                       "bars": bars}, f)
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
 
 def _binance_fut_bars(bsym: str, limit: int = 1000) -> list[dict]:
     """Most recent closed 1h bars from Binance USDT-margined futures.
@@ -298,17 +380,33 @@ def _drop_open_bar(bars: list[dict]) -> list[dict]:
 
 
 def load_bars(sym: str, base_url: str) -> tuple[list[dict], str]:
-    """1h bars for one symbol from a single source.
+    """1h bars for one symbol from a single source, cache first.
 
     Binance futures when the symbol is listed there, Pacifica otherwise.
     A non-empty note means the symbol must be skipped, not guessed at.
+
+    The cache holds the history and the fetch covers only what came after
+    it, so the ranking window can be 90 days without asking for 90 days of
+    bars every hour. When there is no cache the fetch is what it always
+    was and the cache is written for next time.
     """
     bsym = futures_symbol(sym)
+    path = _cache_path(sym, bsym)
+    old = _read_cache(path)
     if bsym:
-        b = _binance_fut_bars(bsym)
+        fresh = _binance_fut_bars(bsym)
     else:
         from .api_client import PacificaClient
-        b = _pacifica_bars(PacificaClient(base_url), sym)
+        fresh = _pacifica_bars(PacificaClient(base_url), sym)
+    if not fresh and not old:
+        return [], "bars 0"
+    b = _merge_bars(old, fresh) if old else fresh
+    # Only write when the fetch actually added something, so a failed fetch
+    # cannot rewrite the file and a run with nothing new costs no disk.
+    if fresh and old and b[-1]["t"] > old[-1]["t"]:
+        _write_cache(path, b)
+    elif fresh and not old:
+        _write_cache(path, b)
     if len(b) < WIN + PER:
         return [], f"bars {len(b)} < {WIN + PER}"
     return b, ""
@@ -379,6 +477,21 @@ def one(sym: str, base_url: str) -> dict | None:
         tou[lv] = (u / cnt, d_ / cnt) if cnt else (0.0, 0.0)
     # expected size: the window median scaled by how hot the ATR runs now
     pred = mv * (0.7 + 0.6 * pct)
+    # Ranking value: the same statistic over a longer window and with no
+    # ATR term. Falls back to pred when the symbol has not been listed long
+    # enough (SAMSUNG and SKHYNIX were five days short on 08-28), so a new
+    # listing keeps its seat rather than vanishing from the board.
+    rank_mv = rank_days = None
+    if i >= RANK_MIN + PER:
+        w = min(RANK_WIN, i - PER)
+        rs2 = sorted(abs(c[k] / c[k - PER] - 1.0)
+                     for k in range(i - w + 1, i + 1) if c[k - PER] > 0)
+        if rs2:
+            rank_mv = rs2[len(rs2) // 2]
+            # the window ACTUALLY used, not the one asked for: a symbol
+            # listed 86 days ago ranks on 85 days, and the seal should say
+            # so rather than stamping every row 90일
+            rank_days = round(w / 24)
     # Short-horizon touch rate, from the bars already loaded above rather
     # than from a cache file. The trader reads a cache because at entry it
     # has no bars of its own; this function does, and they are fresher and
@@ -397,6 +510,7 @@ def one(sym: str, base_url: str) -> dict | None:
             dn2 += 1
     h2 = ("long" if up2 >= dn2 else "short") if cnt2 else None
     return {"mv": mv, "atrq": pct, "pred": pred, "hit3": hit3,
+            "rank_mv": rank_mv, "rank_days": rank_days,
             "px": c[i], "tou": tou, "h2": h2,
             "h2_up": (up2 / cnt2) if cnt2 else None,
             "h2_dn": (dn2 / cnt2) if cnt2 else None}
@@ -460,8 +574,10 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
             if not d:
                 continue
             k = klass(sym)
+            base_v = d.get("rank_mv")
             d.update({"sym": sym, "cls": k,
-                      "score": d["pred"] * TRUST.get(k, 0.4)})
+                      "score": (base_v if base_v is not None else d["pred"])
+                      * TRUST.get(k, 0.4)})
             rows.append(d)
     rows.sort(key=lambda r: -r["score"])
 
@@ -513,6 +629,9 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
             "entry": px,
             "exp_move_pct": round(r["pred"] * 100, 2),
             "rank_score": round(r["score"], 5),
+            # which window ranked this pick. None means the symbol is too
+            # new for the long window and fell back to the 30일 size value.
+            "rank_days": r.get("rank_days"),
             "touch_up_pct": round(u * 100, 1),
             "touch_dn_pct": round(d_ * 100, 1),
             # The rates the side was actually read off, beside the 24h ones
