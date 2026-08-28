@@ -551,8 +551,19 @@ def recommend_now(client: PacificaClient, hours: int = CYCLE_HOURS,
         except Exception as e:
             out.append(f"{game}: 가격 히스토리 실패 {e}")
             continue
-        cut = -8760 * 2 if len(hist) > 8760 * 2 else 0
-        recent = hist[cut:] if cut else hist
+        # Whole series, not the last two years (2026-08-28 user decision:
+        # "통일해"). evaluate_print always used the full history and this
+        # used a two year slice, so the two tools returned different
+        # breakevens for the same offer: 1.30x to 1.81x apart on BTC, which
+        # is three to eight times the model difference that was just closed.
+        # The slice predates the public release and carries no recorded
+        # reason; the only thing that needed a bounded series was the signal
+        # computation, and those stopped conditioning the breakeven on
+        # 08-27. Full history is also the direction this module already
+        # argued for: deep_prices says Print fills in the tail, so dropping
+        # 2020 and 2022 makes it look better than it is.
+        cut = 0
+        recent = hist
         # Sliced from the same bars, so rlows[i] is the low of the hour whose
         # close is recent[i]. breakeven_cliff needs that guarantee to price
         # an intrabar liquidation. (2026-08-27)
