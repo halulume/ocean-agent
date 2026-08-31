@@ -639,9 +639,9 @@ def _recorded_distances(pos: dict, cfg: dict) -> tuple[float, float]:
     the slippage breaker, which asks whether a stop filled worse than its own
     distance, and for the estimated-PnL cap.
 
-    Tick rounding alone already moves these: SKHYNIX opened at 1.5x/1.0x with
-    an expected move of 3.98% and sits at 6.002% and 3.955%, not 5.970% and
-    3.980%. Across a geometry change the gap is the whole change.
+    Tick rounding alone already moves these, so a position's real distances
+    are read off its own recorded prices rather than recomputed. Across a
+    geometry change that gap is the whole change.
 
     Falls back to the config when a position predates the recorded prices or
     carries an unusable entry.
@@ -1030,17 +1030,25 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
         # nothing for us, so stop re-reading it every thirty seconds
         _cool_down()
         return
-    # Divide by the whole plan, not by what happens to be free. With the
-    # old divisor a single empty slot took the entire spendable margin:
-    # seven held plus one free put 97% of the account into that one
-    # entry. Anyone running the shipped defaults (no fixed notional)
-    # met that on their first refill.
-    margin_per = funds * cfg["deploy_pct"] / max(1, cfg["slots"])
     if cfg["notional_usd"] > 0:
-        # fixed notional wins over the proportional split, but never exceeds
-        # what the margin could carry anyway
-        margin_per = min(margin_per,
-                         cfg["notional_usd"] / max(1, cfg["leverage"]))
+        # A fixed notional is an absolute answer to "how much per pick", so
+        # it is not a share of anything: it is not divided by the slot count.
+        # Dividing it as well made every pick a fraction of a fraction, and
+        # the size the account holder asked for was never actually reached.
+        # No ceiling on top of it either. Trimming the asked-for size to
+        # whatever the balance happened to allow was the bot deciding for
+        # the account holder; the number they typed is the answer, and
+        # budget_slices below simply opens fewer picks when the margin does
+        # not stretch to more (2026-08-31 user instruction: do not block,
+        # let people pick their own size).
+        margin_per = cfg["notional_usd"] / max(1, cfg["leverage"])
+    else:
+        # Divide by the whole plan, not by what happens to be free. With the
+        # old divisor a single empty slot took the entire spendable margin:
+        # seven held plus one free put 97% of the account into that one
+        # entry. Anyone running the shipped defaults (no fixed notional)
+        # met that on their first refill.
+        margin_per = funds * cfg["deploy_pct"] / max(1, cfg["slots"])
     mkts = {m["symbol"]: m for m in client.get_markets()}
     prices = {p["symbol"]: p for p in client.get_prices()}
     # any live exchange position blocks that symbol, whoever opened it:
@@ -1096,9 +1104,9 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
     # The budget is this cycle's deployable funds in units of one seat
     # slice; a double is granted only when, after paying two slices here,
     # every remaining seat can still afford its one. Otherwise the pick
-    # simply enters at 1x. margin_per may sit below funds/slots when the
-    # fixed-notional cap bites, which is exactly the slack that makes a
-    # bonus affordable.
+    # simply enters at 1x. With a fixed notional margin_per is a flat size
+    # rather than a share of funds, so this count is simply how many of
+    # those sizes the spendable margin covers this cycle.
     budget_slices = (int(funds * cfg["deploy_pct"] // margin_per)
                      if margin_per > 0 else cfg["slots"])
     used_slices = 0
@@ -1753,49 +1761,42 @@ def _chase_stop_maker(client, policy, st, sym: str, pos: dict, live: dict,
 def _early_cut(client, policy, st, sym: str, pos: dict, live: dict,
                mark: float, adv: float, cut: float,
                quiet: bool = False) -> None:
-    """Rest a reduce-only limit at the mark and follow it until it fills.
+    """Take the market and be out. No resting order, no chase.
 
-    Deliberately the same machinery as the stop chase, and for the same
-    reason: nothing on the way out takes the market. The difference is
-    where it starts. The chase begins after the stop has been crossed and
-    is trying to leave a position already lost; this begins before, on a
-    position measured to be lost, and leaves while the tape is calm enough
-    that a resting order should still be a resting order.
+    This used to rest a reduce-only limit a tick to our side of the mark and
+    follow it down every couple of seconds, to save the taker fee. The saving
+    was real and much smaller than what the waiting cost, so it was dropped.
+    The reason is structural: the cut only fires while the price is running
+    away from us, and an order posted on the far side of a running market is
+    an order asking the market to come back. It fills where the move stops,
+    not where we decided to leave, and sometimes it does not fill at all and
+    the position runs on to the exchange stop instead.
 
-    The exchange stop is untouched throughout, so a gap that outruns this
-    still lands on the line it always had.
+    The exchange stop is untouched, so a fill that never comes back still
+    lands on the line it always had.
     """
     ch = pos.get("early_cut") or {}
-    tick = _tick_of(client, sym)
-    oid = ch.get("oid")
-    if oid is not None:
+    if ch.get("done"):
+        # Already sent. Only try again if the position somehow outlived it,
+        # and then not oftener than once every ten seconds.
         try:
-            if _round_to_tick(mark, tick) == _round_to_tick(
-                    float(ch.get("px") or 0), tick) and _order_alive(
-                        client, oid):
-                return                   # already resting in the right place
-        except (TypeError, ValueError):
-            pass
+            age = (_now() - dt.datetime.fromisoformat(ch["at"])).total_seconds()
+        except (KeyError, TypeError, ValueError):
+            age = 999.0
+        if age < 10:
+            return
+    if ch.get("oid") is not None:
+        # a resting order from the old chase, left over across a restart
         try:
-            client.cancel_order(sym, order_id=oid)
+            client.cancel_order(sym, order_id=ch["oid"])
         except PacificaError:
-            if _order_alive(client, oid):
-                return
-    tries = int(ch.get("tries", 0)) + 1
-    new_oid = close_limit(client, policy, sym, pos, live, mark, tick)
-    pos["early_cut"] = {"oid": new_oid, "at": _now().isoformat(),
-                        "px": mark, "tries": tries}
+            pass
+    close_market(client, policy, sym, pos, live)
+    pos["early_cut"] = {"done": True, "at": _now().isoformat(), "px": mark}
     save_state(st)
-    if tries == 1 and not quiet:
+    if not quiet:
         log(f"{sym}: 진입가 대비 {adv:.2f}% 밀렸다(문턱 {cut}%). 손절선까지 "
-            f"기다리지 않고 마크({mark})에 지정가를 걸어 정리한다. "
-            f"거래소 손절은 그대로 살아 있다")
-    elif tries % 30 == 0:
-        log(f"{sym}: 조기 정리 지정가 {tries}회째 미체결, 계속 따라간다")
-    if tries >= 30:
-        _warn_once(st, f"early_long:{sym}",
-                   f"{sym}: 조기 정리 지정가가 {tries}회 연속 미체결입니다. "
-                   f"아직 못 팔았고 거래소 손절만 남아 있습니다.")
+            f"기다리지 않고 시장가로 정리한다. 거래소 손절은 그대로 살아 있다")
 
 
 def _drop_stop_chase(client, st, sym: str, pos: dict) -> None:
@@ -1826,7 +1827,7 @@ def _drop_early_cut(client, st, sym: str, pos: dict) -> None:
             client.cancel_order(sym, order_id=ch["oid"])
         except PacificaError:
             pass
-    log(f"{sym}: 값이 조기 정리 문턱 위로 돌아왔다. 걸어둔 지정가를 거둔다")
+    log(f"{sym}: 값이 조기 정리 문턱 위로 돌아왔다. 조기 정리 표시를 지운다")
     save_state(st)
 
 
@@ -2075,8 +2076,8 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
         # follow, the early-cut machinery with its own words
         if pos.get("evict_req") and mark > 0 and not hit_tp and not hit_sl:
             if not pos.get("early_cut"):
-                log(f"{sym}: 자리 요청에 따라 정리한다. 마크({mark})에 "
-                    f"지정가를 걸고, 거래소 손절은 살려 둔다")
+                log(f"{sym}: 자리 요청에 따라 시장가로 정리한다. "
+                    f"거래소 손절은 살려 둔다")
             try:
                 _early_cut(client, policy, st, sym, pos, live, mark,
                            0.0, 0.0, quiet=True)
@@ -2096,7 +2097,7 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                     _early_cut(client, policy, st, sym, pos, live, mark,
                                _adv, _cut)
                 except PacificaError as e:
-                    log(f"{sym}: 조기 정리 지정가 실패({str(e)[:80]}), "
+                    log(f"{sym}: 조기 정리 시장가 실패({str(e)[:80]}), "
                         f"다음 회에 다시 건다. 거래소 손절은 살아 있다")
                 continue
         if held_h >= cfg["horizon_h"] or hit_tp or hit_sl:
@@ -2927,7 +2928,7 @@ def main():
     _ec = float(_cfg_banner.get("early_cut_pct", 0) or 0)
     if _ec > 0:
         modes.append(f"조기 정리(진입가 대비 {_ec}% 밀리면 손절선까지 안 가고 "
-                     f"제 가격에 정리, 거래소 손절은 유지)")
+                     f"시장가로 정리, 거래소 손절은 유지)")
     if _cfg_banner.get("expiry_exit") == "limit":
         modes.append(f"만기 청산 지정가(미체결 {_cfg_banner['expiry_wait_s']}s"
                      f"마다 갱신)")
