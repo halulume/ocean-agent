@@ -49,6 +49,9 @@ SEATS = 6                # regular picks that rank ahead of the specials
 SPECIAL = 2              # extra seats for funding-extreme symbols
 SPECIAL_APR = 1.00       # minimum |funding| APR for a special seat
 SPECIAL_MOVE = 0.03      # specials also need this much expected move
+# An operator may point OCEAN_OPERATOR_RULES at a local Python file whose
+# front_picks() supplies extra picks that lead the board. What such picks
+# are is that file's business; this module only places what it returns.
 SIZE = 300               # USD walked against the live book for the gate
 MAX_SLIP = 0.005         # slippage cap for the gate
 MIN_ROWS = 25            # refuse to seal on a thinner cross-section
@@ -695,12 +698,34 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
     chosen = specials[:SPECIAL]
     for sp in chosen:
         sp.pop("_apr", None)
+
+    # optional operator front picks: a local rules file may lead the
+    # board with picks of its own. Placed as returned, never invented
+    # here; a broken file changes nothing.
+    reb_chosen = []
+    op_path = os.environ.get("OCEAN_OPERATOR_RULES", "")
+    if op_path and os.path.exists(op_path):
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "operator_rules", op_path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            reb_chosen = list(mod.front_picks(
+                rows=rows, prices=pr, client=cl, picks=picks + chosen,
+                size=SIZE, max_slip=MAX_SLIP, pac_book=pac_book,
+                slip_cost=slip_cost, log=log) or [])
+        except Exception as e:                          # noqa: BLE001
+            log(f"운영자 규칙 실패({e!r}) — 없이 진행")
+            reb_chosen = []
     # Specials sit at ranks 7 and 8, right behind the six regular seats, the
     # way the engine's eight seats were always meant to be split. Appending
     # them after the bench put them at 11 and 12, where the engine only ever
     # reached them if three earlier picks were skipped, which silently
     # retired the funding seat when SLOTS went from six to ten.
-    picks = picks[:SEATS] + chosen + picks[SEATS:]
+    # operator front picks lead, regulars follow, funding specials keep
+    # their traditional slots right behind the regulars
+    picks = reb_chosen + picks[:SEATS] + chosen + picks[SEATS:]
     for i, p in enumerate(picks, 1):
         p["trade_rank"] = i
 
@@ -740,6 +765,10 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
             log(f"  {p['trade_rank']}. {p['sym']:<9} {p['dir']:<5} "
                 f"특별(펀딩 연 {p['funding_apr_pct']:+.0f}% · "
                 f"예상 {p['exp_move_pct']}%) · 슬리피지 {p['slip_pct']}%")
+        elif p.get("pin_side"):
+            log(f"  {p['trade_rank']}. {p['sym']:<9} {p['dir']:<5} "
+                f"특별(운영자 규칙 · 예상 {p['exp_move_pct']}%) · "
+                f"슬리피지 {p['slip_pct']}%")
         else:
             h2u, h2d = p.get("h2_up_pct"), p.get("h2_dn_pct")
             side_txt = ("" if h2u is None else
@@ -748,9 +777,10 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
                 f"예상 {p['exp_move_pct']}% · 24h도달 위{p['touch_up_pct']}%"
                 f"/아래{p['touch_dn_pct']}%{side_txt} · "
                 f"슬리피지 {p['slip_pct']}%")
-    nsp = sum(1 for p in picks if "funding_apr_pct" in p)
-    log(f"  일반 {len(picks)-nsp} · 특별(펀딩) {nsp} · "
-        f"빈 특별석 {SPECIAL-nsp}")
+    nfu = sum(1 for p in picks if "funding_apr_pct" in p)
+    nop = sum(1 for p in picks if p.get("pin_side"))
+    log(f"  일반 {len(picks)-nfu-nop} · 특별(펀딩) {nfu} · "
+        f"특별(운영자) {nop} · 빈 특별석 {max(0, SPECIAL-nfu)}")
     return path
 
 

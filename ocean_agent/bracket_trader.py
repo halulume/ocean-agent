@@ -1129,11 +1129,39 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
         # seal of six names must not stack on top of held ones (user: refill
         # emptied slots, never exceed the slot count).
         if held_start + entered_n >= cfg["slots"]:
+            # A seat_priority pick may claim a seat: when the book is
+            # full, the worst-performing non-priority holding is closed
+            # (maker chase, the early-cut machinery) and the pick enters
+            # on a later pass once its seat is empty.
+            if p.get("seat_priority") and not dry:
+                victim, vpnl = None, 0.0
+                for vsym, vpos in st["positions"].items():
+                    if vpos.get("seat_priority") or vpos.get("evict_req"):
+                        continue
+                    ve = float(vpos.get("entry_fill") or 0)
+                    vm = float(prices.get(vsym, {}).get("mark")
+                               or prices.get(vsym, {}).get("mid") or 0)
+                    if ve <= 0 or vm <= 0:
+                        continue
+                    pnl = ((vm / ve - 1) if vpos.get("dir") == "long"
+                           else (1 - vm / ve)) * 100
+                    if victim is None or pnl < vpnl:
+                        victim, vpnl = vsym, pnl
+                if victim is not None:
+                    st["positions"][victim]["evict_req"] = "priority"
+                    save_state(st)
+                    log(f"{victim}: 우선 픽({p['sym']})에 자리를 내주려고 "
+                        f"청산을 예약한다 (보유 중 최저 {vpnl:+.2f}%)")
+                continue
             break
         sym, direction = p["sym"], p["dir"]
         touch_dir = direction
         seat_src = _side_source
-        if _side_source == "touch2h":
+        # A pick may pin its own side: the seal set it deliberately, so
+        # the overrides below leave it alone and the record says so.
+        if p.get("pin_side"):
+            seat_src = "seal_pinned"
+        elif _side_source == "touch2h":
             s2 = _touch2h_side(sym)
             if s2 is None:
                 log(f"{sym}: 2시간 도달률 계산 불가(캐시 없음·오래됨) → "
@@ -1144,7 +1172,7 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                     log(f"{sym}: 방향 교체 {direction} → {s2} "
                         f"(2시간 도달률)")
                 direction = s2
-        if _side_source == "signal" and not dry:
+        if _side_source == "signal" and not dry and not p.get("pin_side"):
             sig_dir = _signal_side(client, sym)
             if sig_dir is None:
                 # Only reachable when bars could not be fetched at all: the
@@ -1156,6 +1184,14 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                 seat_src = "no_bars_touch"
             else:
                 direction = sig_dir
+        if _op_rules is not None:
+            try:
+                _why = _op_rules.entry_veto(sym, direction)
+            except Exception:                           # noqa: BLE001
+                _why = None
+            if _why:
+                log(f"{sym}: {_why}")
+                continue
         if sym in st["positions"]:
             continue
         if sym in live_syms:
@@ -1442,6 +1478,7 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                 "opened_at": _now().isoformat(), "seal": key,
                 "trade_rank": p.get("trade_rank"),
                 "basis": p.get("basis"),
+                "seat_priority": bool(p.get("seat_priority")),
             }
             if not confirmed:
                 # watch_positions re-reads the real entry once and
@@ -1714,7 +1751,8 @@ def _chase_stop_maker(client, policy, st, sym: str, pos: dict, live: dict,
 
 
 def _early_cut(client, policy, st, sym: str, pos: dict, live: dict,
-               mark: float, adv: float, cut: float) -> None:
+               mark: float, adv: float, cut: float,
+               quiet: bool = False) -> None:
     """Rest a reduce-only limit at the mark and follow it until it fills.
 
     Deliberately the same machinery as the stop chase, and for the same
@@ -1748,7 +1786,7 @@ def _early_cut(client, policy, st, sym: str, pos: dict, live: dict,
     pos["early_cut"] = {"oid": new_oid, "at": _now().isoformat(),
                         "px": mark, "tries": tries}
     save_state(st)
-    if tries == 1:
+    if tries == 1 and not quiet:
         log(f"{sym}: 진입가 대비 {adv:.2f}% 밀렸다(문턱 {cut}%). 손절선까지 "
             f"기다리지 않고 마크({mark})에 지정가를 걸어 정리한다. "
             f"거래소 손절은 그대로 살아 있다")
@@ -2033,6 +2071,19 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
         # concedes the spread and this does not. What is not yet known is
         # whether it truly fills as a maker; nothing has run live.
         # (08-28 user decision)
+        # a position marked for requested close: close at the mark and
+        # follow, the early-cut machinery with its own words
+        if pos.get("evict_req") and mark > 0 and not hit_tp and not hit_sl:
+            if not pos.get("early_cut"):
+                log(f"{sym}: 자리 요청에 따라 정리한다. 마크({mark})에 "
+                    f"지정가를 걸고, 거래소 손절은 살려 둔다")
+            try:
+                _early_cut(client, policy, st, sym, pos, live, mark,
+                           0.0, 0.0, quiet=True)
+            except PacificaError as e:
+                log(f"{sym}: 자리 양보 청산 지정가 실패({str(e)[:80]}), "
+                    f"다음 회에 다시 건다")
+            continue
         _cut = float(cfg.get("early_cut_pct", 0) or 0)
         if (_cut > 0 and mark > 0 and not hit_tp and not hit_sl
                 and entry > 0):
@@ -2456,6 +2507,36 @@ def _touch2h_side(sym, per_hours=2, level=0.010, max_stale_h=6.0):
     return "long" if up >= dn else "short"
 
 
+_op_rules = None            # optional module from a local rules file the
+                            # operator points at; absent, nothing changes
+
+
+def _load_operator_rules(policy) -> None:
+    """Load the operator's local rules file, if configured.
+
+    The file is plain Python OUTSIDE the package (policy key
+    `operator_rules`, or OCEAN_OPERATOR_RULES). What it decides lives in
+    that file, not here; shipped code only knows the two call shapes it
+    may answer: entry_veto(sym, direction) and, for the seal maker,
+    front_picks(...). Broken or missing, trading is unchanged."""
+    global _op_rules
+    path = str(policy.get("operator_rules", "") or
+               os.environ.get("OCEAN_OPERATOR_RULES", ""))
+    if not path or not os.path.exists(path):
+        return
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("operator_rules", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    except Exception as e:                              # noqa: BLE001
+        log(f"운영자 규칙 파일을 읽지 못함({e!r}), 없이 진행")
+        return
+    _op_rules = mod
+    os.environ["OCEAN_OPERATOR_RULES"] = path
+    log(f"운영자 규칙 적재: {os.path.basename(path)}")
+
+
 def _vote_net(sigs, j, tf):
     """Raw net vote over the signal table, DELIBERATELY ungated.
 
@@ -2860,6 +2941,7 @@ def main():
         log("부호 결정: 2시간 ±1.0% 도달률 (08-26 사용자 결정). "
             "봉인의 24시간 도달률 대신, 실제 보유 시간에 맞춘 지평. "
             "캐시가 없거나 오래되면 봉인 방향으로 물러선다")
+    _load_operator_rules(policy)
     if not _selfgen_enabled:
         log("봉인 자체 생성 꺼짐 (bracket_selfgen_seal: false), 외부 생성기를 기다립니다")
     use_mode(bracket_mode(policy), args.dry)   # before any file is touched

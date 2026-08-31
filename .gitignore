@@ -102,3 +102,4 @@ outputs/sim_report.txt
 오픈베타작업*.md
 # wheel/sdist extracted by release/preflight.py for its leak scan
 audit/
+operator_rules.py
