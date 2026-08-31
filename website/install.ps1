@@ -1,7 +1,7 @@
 # Ocean Agent one-command installer (Windows)
 # Installs uv, writes .env, and registers the MCP server in Claude Desktop.
 $ErrorActionPreference = 'Stop'
-$oaPkg = "ocean-agent@0.4.64"
+$oaPkg = "ocean-agent@0.4.65"
 
 # The console a new user lands in is the first impression, so it is dressed
 # as Claude instead of left as a black DOS box: light ground, dark text, the

@@ -2731,6 +2731,7 @@ def stop_watch_pass(client, policy, st: dict):
     except PacificaError:
         return False, slow               # the cycle will look properly
     under, nxt = {}, slow
+    cut_hit = False
     for sym, pos in list(held.items()):
         mk = float(prices.get(sym, {}).get("mark")
                    or prices.get(sym, {}).get("mid") or 0)
@@ -2753,6 +2754,26 @@ def stop_watch_pass(client, policy, st: dict):
         left = (mk - pos["sl"]) if up else (pos["sl"] - mk)
         if span <= 0 or left / span <= 0.17:
             nxt = fast
+        # The early cut is a line too, and it sits well inside the stop, so
+        # the test above never reaches the fast cadence in time for it: at
+        # the cut the price still has half the bracket to travel. The cut
+        # then fired up to a slow interval late, and a market order sent
+        # late leaves at a late price however fast it fills (measured
+        # 2026-08-31: threshold 2.0%, actual triggers 2.06~2.73%).
+        #
+        # The cut itself belongs to the cycle, and the cycle is half an
+        # hour apart, so crossing the line is not enough: this pass has to
+        # go and fetch it. A 30s move is about 0.16%, so watch every couple
+        # of seconds from half a point out, and wake the cycle the moment
+        # the line is crossed. Once the cut is marked done the flag stops,
+        # so a cut that could not be sent does not spin the loop.
+        _cut = float(policy.get("bracket_early_cut_pct", 0) or 0)
+        if _cut > 0 and _e > 0:
+            adv = (_e - mk) / _e * 100 if up else (mk - _e) / _e * 100
+            if adv >= _cut - 0.5:
+                nxt = fast
+            if adv >= _cut and not pos.get("early_cut"):
+                cut_hit = True
         if not past:
             if pos.get("sl_missed_at") or pos.get("stop_chase"):
                 try:
@@ -2777,13 +2798,13 @@ def stop_watch_pass(client, policy, st: dict):
         if waited >= grace:
             under[sym] = pos
     if not under:
-        return False, nxt
+        return cut_hit, nxt
     nxt = fast                           # a chase is live: stay on it
     try:
         live = {p.get("symbol"): p for p in client.get_positions()}
     except PacificaError:
-        return False, nxt
-    wake = False
+        return cut_hit, nxt
+    wake = cut_hit
     for sym, pos in under.items():
         if sym not in live:
             wake = True                  # gone: the cycle books it
@@ -2844,7 +2865,8 @@ def sleep_alive(seconds: int, dry: bool, st: dict | None = None,
         if _watch:
             _woke, _tick = stop_watch_pass(client, policy or {}, st)
             if _woke:
-                log("추격하던 포지션이 정리됐다. 대기를 끊고 장부에 적으러 간다")
+                log("정리할 자리가 생겼다(추격 종료 또는 조기 정리 문턱). "
+                    "대기를 끊고 사이클로 간다")
                 return
         else:
             _tick = SEAL_POLL_SEC
