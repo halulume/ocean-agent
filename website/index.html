@@ -1274,6 +1274,12 @@ OKX_API_PASSPHRASE=...</code></pre>
       regimes, not forecasts.</p>
 
     <div class="upd-list">
+        <a class="upd-row" href="#u-operator-rules" data-date="2026-08-31">
+          <span class="d">AUG 31</span>
+          <span class="t">0.4.63: A rules file of your own, if you want one</span>
+          <span class="tg new">new</span>
+          <span class="chev">&#8250;</span>
+        </a>
         <a class="upd-row" href="#u-release-check" data-date="2026-08-29">
           <span class="d">AUG 29</span>
           <span class="t">0.4.62: A release check that cannot read the wrong file</span>
@@ -1400,6 +1406,32 @@ OKX_API_PASSPHRASE=...</code></pre>
             full: the hourly picks, the Print judgments, the bot in eleven
             languages, and the free local model that answers without an API
             key.</p>
+    </div>
+  </section>
+
+  <section class="page" id="u-operator-rules">
+    <a class="upd-back" href="#updates">&#8249; All updates</a>
+    <div class="eyebrow">Updates &middot; AUG 31</div>
+    <h2>0.4.63: A rules file of your own, if you want one</h2>
+    <div class="upd-meta"><span class="tg new">new</span><span class="st">2026-08-31</span></div>
+    <div class="upd-article">
+          <p class="lede">The bot can now be pointed at a plain Python file
+            of your own, kept outside the package. Before each order it asks
+            that file whether to skip the trade, and when the board is built
+            it asks whether you have picks that should lead. Set
+            <b>operator_rules</b> in your policy, or the
+            <b>OCEAN_OPERATOR_RULES</b> environment variable. Point at
+            nothing and nothing changes: this is off unless you turn it on,
+            and a file that errors is ignored rather than obeyed.</p>
+
+          <p>Two smaller capabilities exist to serve it. A pick can pin its
+            own side, so the direction rules that normally overwrite a
+            side leave that one alone. And a pick can claim a seat when the
+            book is full, which closes the worst performing holding with a
+            resting order at the mark, the same patient exit the bot already
+            uses, and takes the seat once it is empty. Both are neutral
+            machinery. What decides to use them lives in your file, not in
+            the shipped code, and no default behaviour moved.</p>
     </div>
   </section>
 
@@ -1723,13 +1755,13 @@ OKX_API_PASSPHRASE=...</code></pre>
             it with Claude, and keeps it updated.</p>
 
           <p>Until now the only way to run it was to clone the repository. It now ships on PyPI
-            as <b>ocean-agent</b>, currently at version 0.4.62. Install with the one line
+            as <b>ocean-agent</b>, currently at version 0.4.63. Install with the one line
             installer on this site, which sets up uv, Python, your keys and Claude&#39;s MCP
             config in a single paste, or with <b>pip install ocean-agent</b> if you already have
             a Python environment.</p>
 
           <div class="upd-stats">
-            <div><b>0.4.62</b><span>current version</span></div>
+            <div><b>0.4.63</b><span>current version</span></div>
             <div><b>7,400+</b><span>measured combinations bundled</span></div>
             <div><b>9 years</b><span>of walk forward data shipped</span></div>
             <div><b>100</b><span>markets scanned</span></div>
