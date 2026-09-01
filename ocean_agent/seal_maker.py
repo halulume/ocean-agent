@@ -82,6 +82,44 @@ XSEC_DIR_CLASSES = {"기타·RWA"}
 #
 # Set SEAL_SIDE_SOURCE=touch24 in the environment to put it back.
 SIDE_SOURCE = os.environ.get("SEAL_SIDE_SOURCE", "touch2h")
+
+# Which statistic sizes a trade.
+#
+# "median" is the original: the 30 day median 24h move, scaled by where the
+# current ATR sits in its own recent distribution. It is an honest forecast
+# of the median move (measured 1.01x against the actual upside excursion)
+# but its heat term is a PERCENTILE, which carries rank and throws away
+# magnitude. Live trades show the cost of that: the ratio of actual to
+# expected runs 0.69 in calm entries and 1.61 in hot ones, a slope wide of
+# zero on two independent axes. No constant removes a slope.
+#
+# "atr28" drops the slow median and sizes straight off the current ATR,
+# which carries magnitude. The same slope measures -0.02, and the money
+# follows: at a matched width the replay improves 0.46 a day and the live
+# book 0.15 a trade.
+#
+# k is NOT portable between data sources. The replay wanted 2.0 on Binance
+# futures candles; on the Pacifica candles this package reads, the seated
+# picks carry a median ATR28 of 2.10%, so 1.43 lands the width at 3.0% and
+# 1.5 at 3.15%. Fit it on the picks that actually get seated, never on the
+# whole universe: ranking selects the volatile end, whose ATR is twice the
+# universe median.
+#
+# Default stays "median" so a plain install keeps the behaviour it has.
+PRED_INPUT_DEFAULT = "median"
+PRED_K_DEFAULT = 1.5
+
+
+def pred_cfg() -> tuple[str, float]:
+    """(input name, k), read at call time so a caller can set it per run."""
+    src = os.environ.get("SEAL_PRED_INPUT", PRED_INPUT_DEFAULT).strip().lower()
+    try:
+        k = float(os.environ.get("SEAL_PRED_K", "") or PRED_K_DEFAULT)
+    except ValueError:
+        k = PRED_K_DEFAULT
+    if src not in ("median", "atr28"):
+        src = PRED_INPUT_DEFAULT
+    return src, k
 PER2, LEVEL2 = 2, 0.010          # the short horizon: 2 bars, +-1.0%
 # Ranking window, in bars. Size still comes from the 30 day median (WIN):
 # a take profit line set off one hot day would never be reached. Ranking
@@ -479,8 +517,15 @@ def one(sym: str, base_url: str) -> dict | None:
             if 1.0 - min(lo[k + 1:k + 1 + PER]) / c[k] >= lv:
                 d_ += 1
         tou[lv] = (u / cnt, d_ / cnt) if cnt else (0.0, 0.0)
-    # expected size: the window median scaled by how hot the ATR runs now
-    pred = mv * (0.7 + 0.6 * pct)
+    # 28 bar ATR, for the size input that carries magnitude rather than rank
+    tr28 = 0.0
+    for k in range(i - 27, i + 1):
+        tr28 += max(h[k] - lo[k], abs(h[k] - c[k - 1]), abs(lo[k] - c[k - 1]))
+    atr28 = tr28 / 28 / c[i] if i >= 28 and c[i] > 0 else atr
+    # expected size: the window median scaled by how hot the ATR runs now,
+    # or k x ATR28 when the caller asks for it (see pred_cfg)
+    pred_src, pred_k = pred_cfg()
+    pred = (pred_k * atr28) if pred_src == "atr28" else mv * (0.7 + 0.6 * pct)
     # Ranking value: the same statistic over a longer window and with no
     # ATR term. Falls back to pred when the symbol has not been listed long
     # enough (SAMSUNG and SKHYNIX were five days short on 08-28), so a new
@@ -514,6 +559,7 @@ def one(sym: str, base_url: str) -> dict | None:
             dn2 += 1
     h2 = ("long" if up2 >= dn2 else "short") if cnt2 else None
     return {"mv": mv, "atrq": pct, "pred": pred, "hit3": hit3,
+            "atr28": atr28, "pred_src": pred_src,
             "rank_mv": rank_mv, "rank_days": rank_days,
             "px": c[i], "tou": tou, "h2": h2,
             "h2_up": (up2 / cnt2) if cnt2 else None,

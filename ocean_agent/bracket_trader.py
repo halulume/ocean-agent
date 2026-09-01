@@ -705,7 +705,8 @@ def _close_row(sym: str, pos: dict, est, cause: str) -> dict:
            "closed_at": _now().isoformat(),
            "trade_rank": pos.get("trade_rank"),
            "basis": pos.get("basis")}
-    for k in ("tp", "sl", "entry_fill", "amount", "exp_move_pct", "leverage"):
+    for k in ("tp", "sl", "entry_fill", "amount", "exp_move_pct", "leverage",
+              "pred_input"):
         v = pos.get(k)
         if v is not None:
             row[k] = v
@@ -927,6 +928,7 @@ def reconcile_pending(client, st: dict) -> None:
             "entry_intent": q.get("entry_intent"), "entry_fill": entry,
             "fill_confirmed": False, "tp": q.get("tp"), "sl": q.get("sl"),
             "exp_move_pct": q.get("exp_move_pct"),
+            "pred_input": q.get("pred_input") or PRED_INPUT_TAG,
             "leverage": q.get("leverage"),
             "opened_at": q.get("at") or _now().isoformat(),
             "seal": q.get("seal"), "trade_rank": q.get("trade_rank"),
@@ -1310,6 +1312,9 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                 "touch_dir": touch_dir, "side_source": seat_src,
                 "entry_intent": px, "tp": float(tp_s), "sl": float(sl_s),
                 "exp_move_pct": p["exp_move_pct"], "leverage": lev,
+                # which statistic sized this trade, so the 09-01 switchover
+                # can be graded later rather than argued about
+                "pred_input": PRED_INPUT_TAG,
                 "at": _now().isoformat(), "seal": key,
                 "trade_rank": p.get("trade_rank"),
                 # why the seal picked this trade; carried into the closed
@@ -1494,6 +1499,9 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                 "entry_fill": fill, "fill_confirmed": confirmed,
                 "tp": float(tp_s), "sl": float(sl_s),
                 "exp_move_pct": p["exp_move_pct"], "leverage": lev,
+                # which statistic sized this trade, so the 09-01 switchover
+                # can be graded later rather than argued about
+                "pred_input": PRED_INPUT_TAG,
                 "opened_at": _now().isoformat(), "seal": key,
                 "trade_rank": p.get("trade_rank"),
                 "basis": p.get("basis"),
@@ -2523,6 +2531,46 @@ _op_rules = None            # optional module from a local rules file the
                             # operator points at; absent, nothing changes
 
 
+PRED_INPUT_TAG = "median"
+
+
+def _apply_pred_input(policy, log) -> None:
+    """Choose which statistic sizes a trade, and say so in the log.
+
+    The shipped default sizes off the 30 day median move scaled by an ATR
+    PERCENTILE. That percentile carries rank, not magnitude, and live
+    trades show it missing regime: actual over expected runs 0.69 on calm
+    entries against 1.61 on hot ones. Sizing straight off ATR flattens
+    that to -0.02 and, at a matched width, earns 0.46 a day more in the
+    replay and 0.15 a trade more live.
+
+    k does not travel between candle sources. Fit it on the picks that get
+    seated (their ATR28 median is 2.10% on Pacifica candles, twice the
+    universe median) and not on the universe.
+
+    Every position records which input sized it, so the switchover can be
+    judged later instead of argued about.
+    """
+    global PRED_INPUT_TAG
+    src = str(policy.get("seal_pred_input", "median") or "median").lower()
+    if src not in ("median", "atr28"):
+        log(f"알 수 없는 seal_pred_input '{src}', 기본값으로 둡니다")
+        src = "median"
+    k = float(policy.get("seal_pred_k", 1.5) or 1.5)
+    os.environ["SEAL_PRED_INPUT"] = src
+    os.environ["SEAL_PRED_K"] = str(k)
+    PRED_INPUT_TAG = src if src == "median" else f"atr28x{k:g}"
+    if src == "atr28":
+        log(f"크기 결정: 예상변동 = {k:g} x ATR28 (09-01 사용자 결정). "
+            f"30일 중앙값 x ATR분위 를 대신한다. 분위는 순위만 담아 국면을 "
+            f"놓쳤고(잠잠 0.69 대 뜨거움 1.61), ATR 로 바꾸면 그 기울기가 "
+            f"-0.02 로 눕는다. 폭은 3% 근처로 현행과 같게 맞췄다. "
+            f"판정은 t 1.30 에서 내렸고 유의하지 않다. 거래마다 "
+            f"pred_input 을 남기니 100건쯤 뒤에 다시 판정한다")
+    else:
+        log("크기 결정: 예상변동 = 30일 중앙값 x (0.7 + 0.6 x ATR분위) (현행)")
+
+
 def _load_operator_rules(policy) -> None:
     """Load the operator's local rules file, if configured.
 
@@ -3013,6 +3061,7 @@ def main():
         log("부호 결정: 2시간 ±1.0% 도달률 (08-26 사용자 결정). "
             "봉인의 24시간 도달률 대신, 실제 보유 시간에 맞춘 지평. "
             "캐시가 없거나 오래되면 봉인 방향으로 물러선다")
+    _apply_pred_input(policy, log)
     _load_operator_rules(policy)
     if not _selfgen_enabled:
         log("봉인 자체 생성 꺼짐 (bracket_selfgen_seal: false), 외부 생성기를 기다립니다")
