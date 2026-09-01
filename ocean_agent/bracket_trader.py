@@ -59,7 +59,7 @@ import sys
 import time
 
 from .api_client import PacificaError
-from .autonomous import load_policy, make_client, log
+from .autonomous import load_policy, make_client, log, equity, record_equity
 from .position import _round_down_to_lot, _round_to_tick
 from . import data_file, notify
 
@@ -1313,8 +1313,12 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                 "entry_intent": px, "tp": float(tp_s), "sl": float(sl_s),
                 "exp_move_pct": p["exp_move_pct"], "leverage": lev,
                 # which statistic sized this trade, so the 09-01 switchover
-                # can be graded later rather than argued about
-                "pred_input": PRED_INPUT_TAG,
+                # can be graded later rather than argued about. The SEAL's
+                # value wins: exp_move_pct came from the seal, and the tag
+                # has to name what produced that number. PRED_INPUT_TAG is
+                # only this process's current setting, which is a different
+                # thing the moment the setting changes mid-book.
+                "pred_input": p.get("pred_input") or PRED_INPUT_TAG,
                 "at": _now().isoformat(), "seal": key,
                 "trade_rank": p.get("trade_rank"),
                 # why the seal picked this trade; carried into the closed
@@ -1500,8 +1504,12 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                 "tp": float(tp_s), "sl": float(sl_s),
                 "exp_move_pct": p["exp_move_pct"], "leverage": lev,
                 # which statistic sized this trade, so the 09-01 switchover
-                # can be graded later rather than argued about
-                "pred_input": PRED_INPUT_TAG,
+                # can be graded later rather than argued about. The SEAL's
+                # value wins: exp_move_pct came from the seal, and the tag
+                # has to name what produced that number. PRED_INPUT_TAG is
+                # only this process's current setting, which is a different
+                # thing the moment the setting changes mid-book.
+                "pred_input": p.get("pred_input") or PRED_INPUT_TAG,
                 "opened_at": _now().isoformat(), "seal": key,
                 "trade_rank": p.get("trade_rank"),
                 "basis": p.get("basis"),
@@ -2415,6 +2423,35 @@ def status(st) -> str:
     return "\n".join(lines)
 
 
+# The equity curve. autonomous.py has written one since the first bot, but
+# only autonomous.py ever called record_equity, so the file stopped the day
+# the book moved to brackets and stayed stopped for weeks. Asked on 09-01
+# where a day's money went, there was no series to answer with: the closed
+# rows carry realized dollars, and equity carries the open ones, and only
+# one of those was being kept.
+#
+# Throttled because a cycle is thirty seconds and the curve is not: one row
+# every five minutes is enough to read a day, and it costs one account call.
+# Never fatal. A curve is a report; aftercare is not, and the two must not
+# share a failure.
+EQUITY_REC_SEC = 300
+_last_equity_rec: float = 0.0
+
+
+def _record_equity_throttled(client) -> None:
+    global _last_equity_rec
+    now = time.time()
+    if now - _last_equity_rec < EQUITY_REC_SEC:
+        return
+    _last_equity_rec = now
+    try:
+        eq = equity(client)
+        if eq > 0:
+            record_equity(eq)
+    except Exception as e:                                  # noqa: BLE001
+        log(f"자본 곡선 기록 실패(계속 진행): {type(e).__name__}")
+
+
 def cycle(client, policy, st, cfg, dry: bool) -> None:
     if not dry:
         # entries that went out right before a crash are re-booked or
@@ -2446,6 +2483,7 @@ def cycle(client, policy, st, cfg, dry: bool) -> None:
         st["last_entry_at"] = st["last_cycle_ok_at"]
     if not dry:
         save_state(st)
+        _record_equity_throttled(client)
 
 
 SEAL_POLL_SEC = 30

@@ -560,6 +560,13 @@ def one(sym: str, base_url: str) -> dict | None:
     h2 = ("long" if up2 >= dn2 else "short") if cnt2 else None
     return {"mv": mv, "atrq": pct, "pred": pred, "hit3": hit3,
             "atr28": atr28, "pred_src": pred_src,
+            # The tag in the shape the trader records, built HERE so a pick
+            # carries what actually sized it. The trader knows only its own
+            # current setting, and a seal read after a switch would be
+            # stamped with the new one, mixing the two pools in the very
+            # column meant to tell them apart.
+            "pred_input": (f"atr28x{pred_k:g}" if pred_src == "atr28"
+                           else "median"),
             "rank_mv": rank_mv, "rank_days": rank_days,
             "px": c[i], "tou": tou, "h2": h2,
             "h2_up": (up2 / cnt2) if cnt2 else None,
@@ -678,6 +685,9 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
             "sym": r["sym"], "dir": direction, "xsec_dir": xsec_dir,
             "entry": px,
             "exp_move_pct": round(r["pred"] * 100, 2),
+            # which statistic produced exp_move_pct, carried so the trade
+            # is graded against the rule that actually sized it
+            "pred_input": r.get("pred_input"),
             "rank_score": round(r["score"], 5),
             # which window ranked this pick. None means the symbol is too
             # new for the long window and fell back to the 30일 size value.
@@ -733,6 +743,7 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
         specials.append({
             "sym": sym, "dir": "short" if f > 0 else "long", "entry": px,
             "exp_move_pct": round(d["pred"] * 100, 2),
+            "pred_input": d.get("pred_input"),
             "rank_score": round(apr, 3), "slip_pct": round(slip * 100, 3),
             "funding_apr_pct": round(apr * 100, 0),
             "basis": (f"특별픽: 펀딩 연 {apr*100:+.0f}% 받는 쪽"
