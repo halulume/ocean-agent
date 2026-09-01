@@ -620,7 +620,25 @@ def bracket_prices(px: float, direction: str, mv: float, cfg: dict,
     long_ = direction == "long"
     tp_d = tp_distance_pct(cfg, mv * 100) / 100
     tp = px * (1 + tp_d) if long_ else px * (1 - tp_d)
-    sl = px * (1 - cfg["sl_mult"] * mv) if long_ else px * (1 + cfg["sl_mult"] * mv)
+    # The stop IS the cut, and the exchange holds it. 09-02 user decision.
+    #
+    # It used to be 1.3 x expected move, sitting outside a 2% cut that the
+    # loop ran itself. That put the line which actually decided the trade
+    # inside the bot: it could be late by up to a poll, it could miss while
+    # the process was restarting, and on a thin overnight book it could
+    # fail to fill and let the price run to the far line. On 09-02 SAMSUNG
+    # stopped at 1.64% and SKHYNIX at 1.89%, both before 2% was ever seen.
+    #
+    # One line now, at the cut, registered with the venue. It cannot be
+    # late and it does not need the bot awake. On a quiet name where 1.3 x
+    # move used to sit inside 2%, the stop is now slightly WIDER than it
+    # was; that is the price of having one rule instead of two.
+    #
+    # The loop's cut and its chase are left in place: they still cover the
+    # requested-close path and any position opened before this change.
+    _cut = float(cfg.get("early_cut_pct", 0) or 0) / 100.0
+    _sl_d = _cut if _cut > 0 else cfg["sl_mult"] * mv
+    sl = px * (1 - _sl_d) if long_ else px * (1 + _sl_d)
     tp_s, sl_s = _round_to_tick(tp, tick), _round_to_tick(sl, tick)
     tp_f, sl_f = float(tp_s), float(sl_s)
     ok = (sl_f < px < tp_f) if long_ else (tp_f < px < sl_f)
