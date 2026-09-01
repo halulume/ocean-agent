@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "ocean-agent",
   "display_name": "Ocean Agent",
-  "version": "0.4.65",
+  "version": "0.4.66",
   "description": "Talk to Claude and trade Pacifica perpetuals, measured-edge setups, exchange-native stop-loss/take-profit, and market analysis from ~9 years of price history.",
   "long_description": "Ocean Agent turns natural language into correctly risk-sized perpetual-futures actions on Pacifica.\n\nEvery setup it shows is MEASURED, not backtested: win rates come from walk-forward validation over ~9 years of price history, where a prediction is formed using only data available at that moment and then checked against what actually happened. Entries are gated by a re-measured signal matrix (7,434 combinations) that ships with the extension, so it filters from day one.\n\nOrders always preview first, nothing is sent until you approve it. Ocean Agent signs orders with your API key and has no withdrawal function.",
   "author": {

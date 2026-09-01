@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ocean-agent"
-version = "0.4.65"
+version = "0.4.66"
 description = "Pacifica trading MCP server, measured-edge setups, exchange-native brackets, funding carry, and a policy-governed autonomous trading entity"
 readme = "README.md"
 license = { text = "BUSL-1.1" }

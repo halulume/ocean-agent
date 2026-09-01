@@ -1,6 +1,6 @@
 [project]
 name = "ocean-agent-mcpb"
-version = "0.4.65"
+version = "0.4.66"
 requires-python = ">=3.10"
 
 # uv 타입이라 클로드가 이 선언을 보고 파이썬과 의존성을 알아서 설치한다.
@@ -10,5 +10,5 @@ requires-python = ">=3.10"
 # version. It was left at 0.3.2 through 34 releases while manifest.json said
 # otherwise, so an MCPB install reported a version it was not running.
 dependencies = [
-    "ocean-agent==0.4.65",
+    "ocean-agent==0.4.66",
 ]

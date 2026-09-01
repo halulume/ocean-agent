@@ -1243,6 +1243,17 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
             else:
                 log(f"{sym}: 증거금 여유 부족, 강신호 보너스 생략하고 1배 "
                     f"진입 (남은 자리 {seats_after} 보호)")
+        # The asked-for size is never trimmed to fit (the account holder
+        # chose it), but a seat the margin cannot carry must not be tried
+        # either: the venue answers 422 and the seal is retried every few
+        # minutes, so one unaffordable pick becomes a stream of failures.
+        # Stop taking seats for this cycle instead, and say so once.
+        # (2026-09-01, live: balance $21 against a $50 seat, four 422s)
+        if used_slices + bonus > budget_slices:
+            log(f"가용 증거금이 자리 하나(증거금 ${margin_per:,.0f})에 못 "
+                f"미쳐 이번 회차는 여기서 멈춘다. 크기는 줄이지 않는다. "
+                f"자리가 비거나 입금이 있으면 다음 회차에 들어간다")
+            break
         amount = _round_down_to_lot(margin_per * lev * bonus / px, lot)
         if amount <= 0 or amount * px < float(m.get("min_order_size") or 10):
             # Counted as a failed attempt, not as a decision: the account is
@@ -2723,7 +2734,17 @@ def stop_watch_pass(client, policy, st: dict):
     slow = SEAL_POLL_SEC
     fast = max(1, int(policy.get("bracket_sl_chase_sec", 2) or 2))
     held = st.get("positions") or {}
-    if not held or not policy.get("bracket_sl_maker", False):
+    # This pass carries three jobs now, not one. The maker stop chase is
+    # what it was written for, but the cut and the expiry also live here:
+    # both are decided in the cycle, which is half an hour wide, so this is
+    # what fetches them in time. Gating all of it on bracket_sl_maker would
+    # mean turning the maker stop off silently restores a half-hour delay
+    # on two exits that have nothing to do with it. Each job asks for
+    # itself. (2026-09-01)
+    _cut_on = float(policy.get("bracket_early_cut_pct", 0) or 0) > 0
+    _exp_on = float(policy.get("bracket_horizon_h", 24) or 0) > 0
+    _chase_on = bool(policy.get("bracket_sl_maker", False))
+    if not held or not (_chase_on or _cut_on or _exp_on):
         return False, slow
     grace = fast
     try:
@@ -2731,7 +2752,7 @@ def stop_watch_pass(client, policy, st: dict):
     except PacificaError:
         return False, slow               # the cycle will look properly
     under, nxt = {}, slow
-    cut_hit = False
+    wake_now = False
     for sym, pos in list(held.items()):
         mk = float(prices.get(sym, {}).get("mark")
                    or prices.get(sym, {}).get("mid") or 0)
@@ -2773,7 +2794,29 @@ def stop_watch_pass(client, policy, st: dict):
             if adv >= _cut - 0.5:
                 nxt = fast
             if adv >= _cut and not pos.get("early_cut"):
-                cut_hit = True
+                wake_now = True
+        # Same trap, second door: the expiry is judged in the cycle too, so
+        # a position could sit half an hour past its horizon before the exit
+        # limit was even posted. Whatever that delay costs was being read as
+        # an expiry fill cost. Marked by exit_limit, so a posted exit does
+        # not wake the loop again. (2026-09-01)
+        # Third door: a seat asked for by a front pick. The request is
+        # written by the cycle, but waiting for the next one to act on it
+        # keeps the pick out of the seat for up to half an hour. Marked by
+        # early_cut, which is the machinery the eviction uses. (2026-09-01)
+        if pos.get("evict_req") and not pos.get("early_cut"):
+            wake_now = True
+        _hz = float(policy.get("bracket_horizon_h", 24) or 0)
+        if _hz > 0 and not pos.get("exit_limit"):
+            try:
+                _op = dt.datetime.fromisoformat(pos["opened_at"])
+                if (_now() - _op).total_seconds() / 3600 >= _hz:
+                    wake_now = True
+            except (KeyError, TypeError, ValueError):
+                pass
+        if not _chase_on:
+            continue                     # cut and expiry only; venue keeps
+            #                              the stop and fills it itself
         if not past:
             if pos.get("sl_missed_at") or pos.get("stop_chase"):
                 try:
@@ -2798,13 +2841,13 @@ def stop_watch_pass(client, policy, st: dict):
         if waited >= grace:
             under[sym] = pos
     if not under:
-        return cut_hit, nxt
+        return wake_now, nxt
     nxt = fast                           # a chase is live: stay on it
     try:
         live = {p.get("symbol"): p for p in client.get_positions()}
     except PacificaError:
-        return cut_hit, nxt
-    wake = cut_hit
+        return wake_now, nxt
+    wake = wake_now
     for sym, pos in under.items():
         if sym not in live:
             wake = True                  # gone: the cycle books it
@@ -2859,13 +2902,19 @@ def sleep_alive(seconds: int, dry: bool, st: dict | None = None,
         # minute late no matter how close a position sat to its line. On
         # the measured 0.122% per ten seconds that is the whole point of
         # this code, spent. (08-28 review A2)
+        # Same three jobs as the pass itself: the chase, the cut, and the
+        # expiry. Gating this on the maker stop alone was the outer half of
+        # the same trap. (2026-09-01)
+        _p = policy or {}
         _watch = (not dry and client is not None and st is not None
                   and (st.get("positions") or {})
-                  and (policy or {}).get("bracket_sl_maker", False))
+                  and (bool(_p.get("bracket_sl_maker", False))
+                       or float(_p.get("bracket_early_cut_pct", 0) or 0) > 0
+                       or float(_p.get("bracket_horizon_h", 24) or 0) > 0))
         if _watch:
             _woke, _tick = stop_watch_pass(client, policy or {}, st)
             if _woke:
-                log("정리할 자리가 생겼다(추격 종료 또는 조기 정리 문턱). "
+                log("정리할 자리가 생겼다(추격 종료 · 조기 정리 문턱 · 만기). "
                     "대기를 끊고 사이클로 간다")
                 return
         else:
