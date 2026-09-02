@@ -1212,6 +1212,23 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                 seat_src = "no_bars_touch"
             else:
                 direction = sig_dir
+        # The operator's rules file may own the side. It answers 'long',
+        # 'short', or None; None leaves whatever the rules above decided,
+        # so a rules file without this hook changes nothing.
+        if (_op_rules is not None and not p.get("pin_side")
+                and hasattr(_op_rules, "side_for")):
+            try:
+                _od = _op_rules.side_for(sym, direction)
+            except Exception:                           # noqa: BLE001
+                _od = None
+            if _od in ("long", "short"):
+                if _od != direction:
+                    log(f"{sym}: 방향 교체 {direction} → {_od} (운영자 규칙)")
+                direction = _od
+                seat_src = "op_side"
+            else:
+                log(f"{sym}: 운영자 방향 규칙 침묵 → {seat_src} 방향"
+                    f"({direction}) 유지")
         if _op_rules is not None:
             try:
                 _why = _op_rules.entry_veto(sym, direction)
@@ -2160,7 +2177,7 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                     _early_cut(client, policy, st, sym, pos, live, mark,
                                _adv, _cut)
                 except PacificaError as e:
-                    log(f"{sym}: 조기 정리 시장가 실패({str(e)[:80]}), "
+                    log(f"{sym}: 조기 정리 지정가 실패({str(e)[:80]}), "
                         f"다음 회에 다시 건다. 거래소 손절은 살아 있다")
                 continue
         if held_h >= cfg["horizon_h"] or hit_tp or hit_sl:
@@ -2520,6 +2537,14 @@ def cycle(client, policy, st, cfg, dry: bool) -> None:
     if not dry:
         save_state(st)
         _record_equity_throttled(client)
+    # Housekeeping the operator's rules file wants on every cycle. It must
+    # return immediately: anything slow belongs in a process of its own, not
+    # in the loop that watches open positions.
+    if _op_rules is not None and hasattr(_op_rules, "on_cycle"):
+        try:
+            _op_rules.on_cycle(dry)
+        except Exception as e:                          # noqa: BLE001
+            log(f"운영자 주기 작업 실패({e!r}), 매매는 그대로 진행")
 
 
 SEAL_POLL_SEC = 30

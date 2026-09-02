@@ -682,6 +682,20 @@
       <div class="iwrap gated"><pre><code>sh -c "$(curl -LsSf https://oceanagent.fi/install.sh)"</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
     </div>
     <div class="istep">
+      <div class="ihead">If the tools do not appear in chat</div>
+      <p class="body" style="margin-top:0">Quit Claude completely and open it again. Closing the window is not
+        enough on Windows: right click the icon in the system tray, next to
+        the clock, and quit from there. The installer writes Claude&#39;s config,
+        and Claude only reads it at start. When you asked Claude itself to run
+        the install it will not restart on its own, because doing so would
+        close the very conversation running the install.</p>
+      <p class="body">Still nothing? Ask Claude to run the check for you, in
+        the Code tab: <b>&#34;run the Ocean Agent doctor&#34;</b>. Or paste the line
+        below where you pasted the installer, PowerShell on Windows and
+        Terminal on macOS. It names whatever is missing.</p>
+      <div class="iwrap gated"><pre><code>uv run --with ocean-agent python -m ocean_agent.doctor</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
+    </div>
+    <div class="istep">
       <div class="ihead">Optional: run the autonomous bot</div>
       <div class="iwrap gated"><pre><code>uv run --with ocean-agent python -m ocean_agent.autonomous --dry</code></pre><button class="cbtn" onclick="copyCode(this)">Copy</button></div>
       <p class="body" style="margin-top:8px">Only for hands off trading. <code>--dry</code> decides but places no orders; drop it when you trust it.</p>

@@ -102,4 +102,8 @@ outputs/sim_report.txt
 오픈베타작업*.md
 # wheel/sdist extracted by release/preflight.py for its leak scan
 audit/
-operator_rules.py
+# Mechanisms are assets and never ship (2026-08-31 decision). The pattern is
+# deliberately wide: on 09-02 two copies (operator_rules.bak2 and
+# operator_rules.new.py) sat outside a rule that matched the one filename
+# exactly, carrying the same rules, one `git add -A` from being staged.
+operator_rules*

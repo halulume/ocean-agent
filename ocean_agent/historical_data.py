@@ -424,12 +424,73 @@ def _cached_ohlc(bsym: str, binterval: str, end_ms: int,
         return None, None, None
 
 
+def _step_of(bars: list) -> int:
+    """이 봉들의 간격. 가장 흔한 차이를 쓴다(결측이 있어도 흔들리지 않는다)."""
+    if len(bars) < 3:
+        return 0
+    seen = {}
+    for i in range(1, min(len(bars), 200)):
+        d = int(bars[i]["t"]) - int(bars[i - 1]["t"])
+        if d > 0:
+            seen[d] = seen.get(d, 0) + 1
+    return max(seen, key=seen.get) if seen else 0
+
+
+def _touching(old: list, new: list) -> bool:
+    """두 덩이가 붙어 있거나 겹치는가. 떨어져 있으면 합치면 안 된다.
+
+    합치기가 start_ms 는 min 을, end_ms 는 max 를 취하므로, 사이가 빈 두
+    덩이를 합치면 파일이 '그 구간을 다 덮었다'고 말하면서 실제로는 구멍을
+    품는다. 조용히 틀리는 자료는 이 저장소가 08-10 에 한 번 겪은 부류다
+    (19/75 종목 사고). 떨어져 있으면 합치지 않고 새 것만 정직하게 남긴다.
+    """
+    if not old or not new:
+        return True
+    step = _step_of(old) or _step_of(new)
+    if step <= 0:
+        return True                       # 간격을 모르면 판단하지 않는다
+    o0, o1 = int(old[0]["t"]), int(old[-1]["t"])
+    n0, n1 = int(new[0]["t"]), int(new[-1]["t"])
+    return n0 <= o1 + step and o0 <= n1 + step
+
+
 def _store_ohlc(bsym: str, binterval: str, end_ms: int, bars: list,
-                start_ms: int = EARLIEST_MS) -> None:
+                start_ms: int = EARLIEST_MS, replace: bool = False) -> None:
+    """이미 있는 캐시와 합쳐서 저장한다. 좁은 요청이 넓은 캐시를 못 줄인다.
+
+    2026-09-02 사고: extended_ohlc 는 파시피카 이력의 '앞'만 바이낸스로
+    채우므로 pac_start 까지만 받는다. 그 조각을 그대로 저장하면서 BTC·ETH
+    1시간봉의 04-30 이후 넉 달이 사라졌다. 에러는 없었고, 예측기가 넉 달
+    묵은 봉으로 방향을 계산했다.
+
+    바로 위 _cached_ohlc 는 '앞쪽' 경계를 이미 이렇게 막아놨다("잘린 결과가
+    다시 캐시에 저장돼 이미 받아둔 과거가 사라진다"). 뒤쪽 경계만 비어 있던
+    것이라, 같은 규칙을 저장 쪽에도 세운다. 이어받기(671행)가 쓰던 시각 기준
+    합치기와 같은 방법이고, 같은 시각이면 새로 받은 봉이 이긴다.
+
+    replace=True 는 정말로 갈아치워야 할 때만 쓴다. 거래량(v) 없는 옛 캐시는
+    _cached_ohlc 가 아예 안 읽어 전 구간을 다시 받으므로, 그 경우는 여기서도
+    합치지 않는다.
+    """
     if not bars:
         return
     try:
         path = _ohlc_cache_path(bsym, binterval)
+        if not replace:
+            try:
+                with gzip.open(path, "rt", encoding="utf-8") as f:
+                    old = json.load(f)
+                ob = old.get("bars")
+                if isinstance(ob, list) and ob and "v" in ob[0] \
+                        and _touching(ob, bars):
+                    m = {int(b["t"]): b for b in ob}
+                    m.update({int(b["t"]): b for b in bars})
+                    bars = [m[k] for k in sorted(m)]
+                    start_ms = min(int(start_ms),
+                                   int(old.get("start_ms") or EARLIEST_MS))
+                    end_ms = max(int(end_ms), int(old.get("end_ms") or 0))
+            except (OSError, ValueError, KeyError, TypeError):
+                pass                      # 없거나 깨진 캐시는 그냥 새로 쓴다
         # 현물은 spot/ 아래라 CACHE_DIR 만 만들면 안 된다.
         os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = path + ".tmp"
