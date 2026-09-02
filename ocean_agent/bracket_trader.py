@@ -1826,15 +1826,14 @@ def _early_cut(client, policy, st, sym: str, pos: dict, live: dict,
     """Rest a reduce-only limit at the mark and follow it until it fills.
 
     0.4.64 made this take the market, on the argument that an order posted
-    on the far side of a running market asks the market to come back. The
-    measurement behind that (ledger 187) was taken on 08-31, BEFORE the
-    lateness fixes of 09-01: the cut then waited for the next cycle, so
-    what was charged to the limit order included the cost of firing late.
+    on the far side of a running market asks the market to come back. That
+    measurement predated the lateness fixes that followed it: the cut then
+    waited for the next cycle, so what was charged to the limit order
+    included the cost of firing late.
 
-    With the lateness gone, the market order still slips. Measured against
-    the model's -2.03, real fills come in 0.205%p worse on average, which
-    is eight times the 0.026 of headroom ledger 167 found the 2% threshold
-    to have. A taker exit costs more than the threshold is worth.
+    With the lateness gone, the market order still slips, by well more than
+    the headroom the threshold was measured to have. A taker exit costs
+    more than the threshold is worth.
 
     So it rests again, the same machinery as the stop chase and for the
     same reason: nothing on the way out takes the market. The failure mode
