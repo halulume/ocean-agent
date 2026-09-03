@@ -550,8 +550,17 @@ def latest_seal() -> dict | None:
                 rec = json.load(f)
         except (OSError, json.JSONDecodeError):
             continue
-        if (str(rec.get("rule", "")).startswith("자산군")
-                and any("trade_rank" in p for p in rec.get("picks", []))):
+        # A seal with an empty pick list is an answer, not a broken file:
+        # the operator's rules can say nothing on this board will be
+        # traded. any() is False on an empty list, so asking it here made
+        # the loop walk back to an OLDER seal and trade names the rules
+        # had just refused. The 386 seals on disk confirm the two halves
+        # do different jobs: the rule string alone separates the 21 files
+        # from the retired forecast process, and every 자산군 seal that
+        # has picks carries trade_rank on them. So ask for the shape of a
+        # seal, not for a pick inside it. (2026-09-03)
+        if ("picks" in rec
+                and str(rec.get("rule", "")).startswith("자산군")):
             rec["_path"] = path
             return rec
     return None
