@@ -2586,8 +2586,21 @@ SEAL_POLL_SEC = 30
 # enough exists, the loop generates one itself so a standalone install
 # needs no external scheduler. At most one attempt per hour, and a failed
 # generation only logs: position aftercare must never die with it.
-SEAL_FRESH_H = 1.0
-SEAL_GEN_MIN_INTERVAL_SEC = 3600
+# 2026-09-03 user decision: rebuild every half hour, not every hour.
+# The board a seal carries is only as current as the seal, and with rules
+# that read a fast signal the names go stale before the hour is out: on
+# 09-03 the four Bollinger signals lit eight symbols at 12:48, five
+# different ones by 13:30, and three by 17:24. A name that lights at 19:00
+# and is dark again at 19:45 never reaches the file, so the seat is not
+# entered late, it is lost.
+#
+# Late entry itself costs nothing measurable, which is why the interval and
+# not the rule is what moves: replaying 81,757 fires with the entry pushed
+# one, two and three hours past the signal bar moved the fill price by
+# +0.000 / +0.004 / +0.004% and direction accuracy by under 0.3 points
+# (research/boll_delay_0903.py). What delay costs is seats, not price.
+SEAL_FRESH_H = 0.5
+SEAL_GEN_MIN_INTERVAL_SEC = 1800
 _last_seal_gen: float = 0.0
 # An operator who runs an external seal generator sets
 # bracket_selfgen_seal: false in policy.yaml so the bot never competes
