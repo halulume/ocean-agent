@@ -578,19 +578,33 @@ def select_picks(rec: dict, cfg: dict) -> list[dict]:
                 f"({p.get('exp_move_pct')}% < {cfg['vol_floor_pct']}%)")
             continue
         # Both caps end up as a limit on the expected move, because that is
-        # what a pick carries. The stop cap is converted through the live
-        # multiple so it keeps meaning "the stop may not sit past this"
-        # whatever the geometry does next. Tighter of the two wins.
+        # what a pick carries. The stop cap is converted through whatever
+        # actually sets the stop, so it keeps meaning "the stop may not sit
+        # past this" however the geometry changes. Tighter of the two wins.
+        #
+        # 09-03: that conversion still used sl_mult after be1a93a moved the
+        # stop onto the cut. With a 2% cut the stop no longer grows with the
+        # expected move at all, so a pick was being refused for a stop it was
+        # never going to get: LIT read as 4.0% x 1.3 = 5.20% against the 5.00%
+        # ceiling, while its real stop was the 2% cut. The gate now asks the
+        # same question bracket_prices answers.
         _mv = p.get("exp_move_pct", 0)
         _slm = cfg.get("sl_mult", 1.0) or 1.0
-        _caps = [c for c in (cfg.get("vol_ceiling_pct", 0),
-                             (cfg.get("sl_ceiling_pct", 0) / _slm
-                              if cfg.get("sl_ceiling_pct", 0) else 0)) if c]
+        _cut = float(cfg.get("early_cut_pct", 0) or 0)
+        _slc = cfg.get("sl_ceiling_pct", 0)
+        if _cut > 0:
+            # 손절 거리가 예상변동과 무관하게 고정이다. 상한을 넘는지는
+            # 픽마다 달라지지 않으므로 이 관문은 여기서 할 일이 없다.
+            _sl_cap = 0 if _cut <= _slc or not _slc else 1e-9
+        else:
+            _sl_cap = (_slc / _slm) if _slc else 0
+        _caps = [c for c in (cfg.get("vol_ceiling_pct", 0), _sl_cap) if c]
         ceil = min(_caps) if _caps else 0
         if ceil and _mv > ceil:
+            _shown = _cut if _cut > 0 else _mv * _slm
             log(f"변동폭 상한 초과로 건너뜀: {p['sym']} "
-                f"(예상변동 {_mv}% × 손절 {_slm}배 = 손절선 "
-                f"{_mv * _slm:.2f}%, 상한 {ceil * _slm:.2f}%)")
+                f"(예상변동 {_mv}% · 손절선 {_shown:.2f}%, "
+                f"상한 {_slc:.2f}%)")
             continue
         out.append(p)
         if len(out) == cfg["slots"]:
@@ -1227,7 +1241,17 @@ def enter_positions(client, policy, st, cfg, dry: bool) -> None:
                 direction = _od
                 seat_src = "op_side"
             else:
-                log(f"{sym}: 운영자 방향 규칙 침묵 → {seat_src} 방향"
+                # 왜 침묵했는지 물어본다. 규칙 파일이 안 알려주면 예전처럼
+                # 사유 없이 찍는다. 침묵이 캐시가 낡아서인지 판단이 갈려서
+                # 인지 로그에서 구분이 안 되던 자리다.
+                _r = ""
+                if hasattr(_op_rules, "side_reason"):
+                    try:
+                        _r = str(_op_rules.side_reason() or "")[:120]
+                    except Exception:                   # noqa: BLE001
+                        _r = ""
+                log(f"{sym}: 운영자 방향 규칙 침묵"
+                    f"{f' ({_r})' if _r else ''} → {seat_src} 방향"
                     f"({direction}) 유지")
         if _op_rules is not None:
             try:

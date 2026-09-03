@@ -760,6 +760,7 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
     # board with picks of its own. Placed as returned, never invented
     # here; a broken file changes nothing.
     reb_chosen = []
+    op_mod = None
     op_path = os.environ.get("OCEAN_OPERATOR_RULES", "")
     if op_path and os.path.exists(op_path):
         try:
@@ -768,6 +769,7 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
                 "operator_rules", op_path)
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
+            op_mod = mod
             reb_chosen = list(mod.front_picks(
                 rows=rows, prices=pr, client=cl, picks=picks + chosen,
                 size=SIZE, max_slip=MAX_SLIP, pac_book=pac_book,
@@ -783,6 +785,25 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
     # operator front picks lead, regulars follow, funding specials keep
     # their traditional slots right behind the regulars
     picks = reb_chosen + picks[:SEATS] + chosen + picks[SEATS:]
+    # Three readers share this file: the trader, the Telegram bot and the
+    # MCP daily_picks tool. When the operator's rules refuse an entry, the
+    # refusal used to happen at entry time only, so the other two kept
+    # showing names that would never be traded. The hook lets the rules
+    # hand back the list they will actually act on, and it stays neutral:
+    # what gets dropped is decided in that file, not here. Missing or
+    # broken, or anything but a non-empty list, and the board is unchanged.
+    # (2026-09-03 user decision: every pick, Telegram and LLM included.)
+    if op_mod is not None:
+        try:
+            kept = getattr(op_mod, "filter_picks", None)
+            got = list(kept(picks) or []) if kept else None
+            if got:
+                if len(got) != len(picks):
+                    log(f"운영자 규칙이 픽 {len(picks)} 중 {len(got)}개만 "
+                        f"남겼습니다")
+                picks = got
+        except Exception as e:                          # noqa: BLE001
+            log(f"운영자 규칙 filter_picks 실패({e!r}) — 판 그대로 진행")
     for i, p in enumerate(picks, 1):
         p["trade_rank"] = i
 
