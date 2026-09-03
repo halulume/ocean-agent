@@ -796,8 +796,14 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
     if op_mod is not None:
         try:
             kept = getattr(op_mod, "filter_picks", None)
-            got = list(kept(picks) or []) if kept else None
-            if got:
+            got = kept(picks) if kept else None
+            # None means "leave the board alone" (no hook, or the rules
+            # could not decide). An empty list is an answer, not a
+            # failure: it says nothing on this board will be traded, and
+            # the file must say so too, or the Telegram and LLM readers
+            # go back to listing names the trader will refuse.
+            if got is not None:
+                got = list(got)
                 if len(got) != len(picks):
                     log(f"운영자 규칙이 픽 {len(picks)} 중 {len(got)}개만 "
                         f"남겼습니다")
