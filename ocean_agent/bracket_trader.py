@@ -2595,10 +2595,11 @@ SEAL_POLL_SEC = 30
 # entered late, it is lost.
 #
 # Late entry itself costs nothing measurable, which is why the interval and
-# not the rule is what moves: replaying 81,757 fires with the entry pushed
-# one, two and three hours past the signal bar moved the fill price by
-# +0.000 / +0.004 / +0.004% and direction accuracy by under 0.3 points
-# (research/boll_delay_0903.py). What delay costs is seats, not price.
+# not the rule is what moves: replaying the signal with entry pushed one,
+# two and three hours past the signal bar left both the fill price and the
+# direction accuracy where they were. A band break is a mean-reversion
+# call, so price drifts back toward the entry rather than away from it.
+# What delay costs is seats, not price.
 SEAL_FRESH_H = 0.5
 SEAL_GEN_MIN_INTERVAL_SEC = 1800
 _last_seal_gen: float = 0.0
