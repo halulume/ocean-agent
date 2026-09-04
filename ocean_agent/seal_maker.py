@@ -490,6 +490,28 @@ def _touch_side(h2, u: float, d_: float) -> str:
     return "long" if u >= d_ else "short"
 
 
+def _load_operator(log=print):
+    """The operator's local rules file, or None. Loaded once per seal.
+
+    Hoisted out of the pick stage on 09-04: the seal now has to ask the
+    rules a question (board_needed) BEFORE it spends five minutes scoring a
+    board those rules may throw away.
+    """
+    op_path = os.environ.get("OCEAN_OPERATOR_RULES", "")
+    if not op_path or not os.path.exists(op_path):
+        return None
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("operator_rules",
+                                                      op_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception as e:                              # noqa: BLE001
+        log(f"운영자 규칙 불러오기 실패({e!r}) — 없이 진행")
+        return None
+
+
 def one(sym: str, base_url: str) -> dict | None:
     """Score one symbol from its own bars; None when it cannot be scored."""
     b, note = load_bars(sym, base_url)
@@ -643,18 +665,42 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
     _pace()
     pr = {p["symbol"]: p for p in cl.get_prices()}
 
+    op_mod = _load_operator(log)
+    # When the operator's rules build the whole board themselves, the scored
+    # board below is dead weight: filter_picks replaces it wholesale a few
+    # lines down, so every bar fetched to score it is thrown away. Measured
+    # on 09-04, that scoring was 5m31s of a 5m31s seal, which pinned the
+    # seal to a 30-minute cycle and made it miss half the 15m signals. So
+    # ask first, and skip the scoring when the rules say they do not read it.
+    board = True
+    if op_mod is not None:
+        try:
+            fn = getattr(op_mod, "board_needed", None)
+            board = bool(fn()) if fn else True
+        except Exception as e:                          # noqa: BLE001
+            log(f"운영자 규칙 board_needed 실패({e!r}) — 점수판 그대로 냅니다")
+
     rows = []
-    with ThreadPoolExecutor(max_workers=6) as ex:
-        for sym, d in ex.map(lambda s: (s, one(s, base)), sorted(mk)):
-            if not d:
-                continue
-            k = klass(sym)
-            base_v = d.get("rank_mv")
-            d.update({"sym": sym, "cls": k,
-                      "score": (base_v if base_v is not None else d["pred"])
-                      * TRUST.get(k, 0.4)})
-            rows.append(d)
-    rows.sort(key=lambda r: -r["score"])
+    if board:
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            for sym, d in ex.map(lambda s: (s, one(s, base)), sorted(mk)):
+                if not d:
+                    continue
+                k = klass(sym)
+                base_v = d.get("rank_mv")
+                d.update({"sym": sym, "cls": k,
+                          "score": (base_v if base_v is not None
+                                    else d["pred"]) * TRUST.get(k, 0.4)})
+                rows.append(d)
+        rows.sort(key=lambda r: -r["score"])
+    else:
+        # Bare rows: the symbol list and nothing else. Every reader of a
+        # score is skipped below, and the rules pick from their own data.
+        # Nothing here touches the network, so the seal costs seconds.
+        rows = [{"sym": s, "cls": klass(s), "pred": 0.0, "score": 0.0}
+                for s in sorted(mk)]
+        log(f"점수판 건너뜀: 운영자 규칙이 판을 직접 만듭니다 "
+            f"({len(rows)}종목)")
 
     # cross-section of 24h moves; the median divides long from short
     r24s = []
@@ -671,7 +717,7 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
         return None
 
     picks = []
-    for r in rows:
+    for r in (rows if board else []):
         if len(picks) >= SLOTS:
             break
         # gate on what the live book can actually absorb
@@ -734,7 +780,7 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
     # special seats: funding extremes, taking the side that receives it
     got = {p["sym"] for p in picks}
     specials = []
-    for q in pr.values():
+    for q in (pr.values() if board else []):
         sym = q["symbol"]
         if sym in got or sym not in mk:
             continue
@@ -778,17 +824,9 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
     # board with picks of its own. Placed as returned, never invented
     # here; a broken file changes nothing.
     reb_chosen = []
-    op_mod = None
-    op_path = os.environ.get("OCEAN_OPERATOR_RULES", "")
-    if op_path and os.path.exists(op_path):
+    if op_mod is not None:
         try:
-            import importlib.util
-            spec = importlib.util.spec_from_file_location(
-                "operator_rules", op_path)
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            op_mod = mod
-            reb_chosen = list(mod.front_picks(
+            reb_chosen = list(op_mod.front_picks(
                 rows=rows, prices=pr, client=cl, picks=picks + chosen,
                 size=SIZE, max_slip=MAX_SLIP, pac_book=pac_book,
                 slip_cost=slip_cost, log=log) or [])
@@ -823,7 +861,11 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
             if got is not None:
                 got = list(got)
                 if len(got) != len(picks):
-                    log(f"운영자 규칙이 픽 {len(picks)} 중 {len(got)}개만 "
+                    # "0 중 8" reads as nonsense, and that is exactly the
+                    # case when the rules build the board themselves.
+                    log(f"운영자 규칙이 픽 {len(got)}개를 냈습니다"
+                        if not picks else
+                        f"운영자 규칙이 픽 {len(picks)} 중 {len(got)}개만 "
                         f"남겼습니다")
                 picks = got
         except Exception as e:                          # noqa: BLE001
@@ -841,15 +883,22 @@ def make_seal(out_dir: str | None = None, log=print) -> str | None:
            # live constants rather than typed out, so it cannot drift again.
            # bracket_trader.latest_seal() matches on "자산군" only, so the
            # rest of the line is record, not behaviour.
-           "rule": ("자산군별 점수(예상변동×신뢰도) → 호가 관문(슬리피지) → "
-                    + ("2시간 ±1% 도달률 방향" if SIDE_SOURCE == "touch2h"
-                       else "24시간 ±3% 도달률 방향")
-                    + ((f", 단 {'·'.join(sorted(XSEC_DIR_CLASSES))} 는 "
-                        "횡단면 24h 상대순위 방향(중앙값 위 롱·아래 숏)"
-                        + (f" (예외 종목: {'·'.join(sorted(XSEC_DIR_SYMS))})"
-                           if XSEC_DIR_SYMS else ""))
-                       if XSEC_DIR_ENABLED and XSEC_DIR_CLASSES else "")
-                    + " → 베이스 모드 변동성 브래킷"),
+           # Must keep starting with 자산군: bracket_trader.latest_seal()
+           # matches on that prefix. The rest is record, and it has to say
+           # what actually chose these picks, so it changes when the scored
+           # board is skipped.
+           "rule": (("자산군별 점수(예상변동×신뢰도) → 호가 관문(슬리피지) → "
+                     + ("2시간 ±1% 도달률 방향" if SIDE_SOURCE == "touch2h"
+                        else "24시간 ±3% 도달률 방향")
+                     + ((f", 단 {'·'.join(sorted(XSEC_DIR_CLASSES))} 는 "
+                         "횡단면 24h 상대순위 방향(중앙값 위 롱·아래 숏)"
+                         + (f" (예외 종목: {'·'.join(sorted(XSEC_DIR_SYMS))})"
+                            if XSEC_DIR_SYMS else ""))
+                        if XSEC_DIR_ENABLED and XSEC_DIR_CLASSES else "")
+                     + " → 베이스 모드 변동성 브래킷")
+                    if board else
+                    ("자산군 점수판 없이 운영자 규칙이 직접 고른 픽 → "
+                     "호가 관문(슬리피지) → 베이스 모드 변동성 브래킷")),
            "picks": picks, "scores": {}}
     out_dir = out_dir or OUTPUTS_DIR
     os.makedirs(out_dir, exist_ok=True)

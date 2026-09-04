@@ -2600,8 +2600,12 @@ SEAL_POLL_SEC = 30
 # direction accuracy where they were. A band break is a mean-reversion
 # call, so price drifts back toward the entry rather than away from it.
 # What delay costs is seats, not price.
-SEAL_FRESH_H = 0.5
-SEAL_GEN_MIN_INTERVAL_SEC = 1800
+# 09-04: the signal moved to 15m bars, so a seal older than one bar is
+# already looking at a chart that has changed. It used to be half an
+# hour because the seal cost 5m31s to build; skipping the scored board
+# put that at 43s, and a quarter-hour became affordable.
+SEAL_FRESH_H = 0.25
+SEAL_GEN_MIN_INTERVAL_SEC = 900
 _last_seal_gen: float = 0.0
 # An operator who runs an external seal generator sets
 # bracket_selfgen_seal: false in policy.yaml so the bot never competes
