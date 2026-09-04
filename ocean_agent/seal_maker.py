@@ -307,7 +307,25 @@ def slip_cost(book, usd: float, side: str) -> float | None:
 # measured once and disagreed by several percent.
 
 def _cache_path(sym: str, bsym: str) -> str:
-    """이 종목의 봉이 사는 곳. 바이낸스면 선물 파일, 아니면 파시피카 파일."""
+    """이 종목의 봉이 사는 곳. 접합본이 있으면 그것, 없으면 옛 차례대로.
+
+    2026-09-04 사용자 결정: 봇도 측정도 접합본만 본다.
+
+    접합본(ub_)은 [파시피카 첫 봉 이전의 외부 봉] + [파시피카 그 뒤 전부] 다.
+    겹치는 구간은 파시피카가 이기므로, 우리가 실제로 매매하는 장부의 값을
+    쓰면서 그 이전 과거까지 갖는다. 위 주석이 경계한 "한 종목 안에서 두
+    거래소를 섞는 것" 과는 다르다. 섞는 것이 아니라 이어 붙인 것이고, 이음매는
+    검증한다 (08-08 가격 일치 0.04~0.15%, 09-04 이음매 0.10~0.56%).
+
+    이 줄이 바뀌기 전까지는 오히려 한 자리 안이 갈려 있었다. 봉인은 코인을
+    바이낸스 봉으로 뽑아 순위를 매기는데, 방향(볼린저)과 크기(1.85 x ATR28)는
+    운영자 규칙이 파시피카·접합본으로 냈다. 같은 자리를 두 장부로 판단했다.
+
+    배포본에는 ub_ 파일이 없다. 그 경우 아래 두 줄이 그대로 돌아 예전과 같다.
+    """
+    ub = os.path.join(hd.CACHE_DIR, f"ub_{sym}_1h_ohlc.json.gz")
+    if os.path.exists(ub):
+        return ub
     if bsym:
         return os.path.join(hd.CACHE_DIR, f"{bsym}_1h_fut_ohlc.json.gz")
     return os.path.join(hd.CACHE_DIR, f"pac_{sym}_1h_ohlc.json.gz")
