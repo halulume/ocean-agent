@@ -3261,11 +3261,15 @@ def main():
     elif _sl_buf > 0: modes.append(f"손절 트리거-지정가(버퍼 {_sl_buf}×변동)")
     _ec = float(_cfg_banner.get("early_cut_pct", 0) or 0)
     if _ec > 0:
-        # The loop's own cut stands down when the exchange stop already sits
-        # at the cut line, which a fixed early_cut_pct always makes true. Say
-        # that, rather than describing machinery that no longer runs.
-        modes.append(f"컷 {_ec}% 고정, 거래소가 들고 있음(손절선이 곧 그 선. "
-                     f"봇이 따로 정리하지 않음)")
+        # The loop's cut stands down only where the exchange stop already
+        # sits at the cut line. A fixed early_cut_pct makes that true for
+        # anything opened since, but a position opened under sl_mult still
+        # carries a farther stop and the loop still cuts it. Saying "the
+        # bot does not cut" flat is wrong for exactly those positions, and
+        # this line is read to decide what is happening to one.
+        modes.append(f"컷 {_ec}% 고정, 새로 여는 자리는 거래소가 들고 있음"
+                     f"(손절선이 곧 그 선). 손절선이 그보다 먼 옛 자리는 "
+                     f"봇이 마크에 지정가를 걸어 정리한다")
     if _cfg_banner.get("expiry_exit") == "limit":
         modes.append(f"만기 청산 지정가(미체결 {_cfg_banner['expiry_wait_s']}s"
                      f"마다 갱신)")
