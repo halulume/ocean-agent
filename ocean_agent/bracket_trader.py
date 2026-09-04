@@ -2198,6 +2198,22 @@ def watch_positions(client, policy, st, cfg, dry: bool) -> None:
                     f"다음 회에 다시 건다")
             continue
         _cut = float(cfg.get("early_cut_pct", 0) or 0)
+        # 09-04 user instruction: hand the cut to the exchange, do not run
+        # it here. When early_cut_pct is on, bracket_prices puts the
+        # exchange stop at exactly that distance (_sl_d = _cut), so this
+        # loop cut can only race the exchange to the same line, never
+        # reach it earlier. The exchange already holds it, with a trigger
+        # limit and the chase, so the loop stands down.
+        #
+        # It is a distance test rather than a flat switch because a
+        # position opened before the change may still carry a stop set
+        # from sl_mult x mv, which sits farther out. There the loop cut is
+        # what it was built to be: an exit that happens before the stop.
+        _stop_d = 0.0
+        if entry > 0 and pos.get("sl"):
+            _stop_d = abs(float(pos["sl"]) / entry - 1) * 100
+        if _cut > 0 and _stop_d and _cut >= _stop_d - 1e-9:
+            _cut = 0.0          # 거래소 손절이 이미 그 선에 있다
         if (_cut > 0 and mark > 0 and not hit_tp and not hit_sl
                 and entry > 0):
             _adv = ((entry - mark) / entry * 100 if long_
