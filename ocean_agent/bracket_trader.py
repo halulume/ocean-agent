@@ -3211,8 +3211,11 @@ def main():
     elif _sl_buf > 0: modes.append(f"손절 트리거-지정가(버퍼 {_sl_buf}×변동)")
     _ec = float(_cfg_banner.get("early_cut_pct", 0) or 0)
     if _ec > 0:
-        modes.append(f"조기 정리(진입가 대비 {_ec}% 밀리면 손절선까지 안 가고 "
-                     f"마크에 지정가를 걸어 따라감, 거래소 손절은 유지)")
+        # The loop's own cut stands down when the exchange stop already sits
+        # at the cut line, which a fixed early_cut_pct always makes true. Say
+        # that, rather than describing machinery that no longer runs.
+        modes.append(f"컷 {_ec}% 고정, 거래소가 들고 있음(손절선이 곧 그 선. "
+                     f"봇이 따로 정리하지 않음)")
     if _cfg_banner.get("expiry_exit") == "limit":
         modes.append(f"만기 청산 지정가(미체결 {_cfg_banner['expiry_wait_s']}s"
                      f"마다 갱신)")
@@ -3364,7 +3367,11 @@ def main():
               else f"TP {cfg['tp_mult']}x")
     log(f"브래킷 트레이더 시작 · {MODE} 모드 · 슬롯 {cfg['slots']} · "
         f"{cfg['leverage']}배 · 자본 {cfg['capital_pct']:.0f}% · "
-        f"{tp_txt} / SL {cfg['sl_mult']}x · "
+        f"{tp_txt} / SL "
+        + (f"{float(cfg.get('early_cut_pct') or 0)}% 고정"
+           if float(cfg.get("early_cut_pct") or 0) > 0
+           else f"{cfg['sl_mult']}x") + " · "
+        + f"하한 {policy.get('bracket_vol_floor_pct', 0)}% · "
         f"{'DRY RUN' if args.dry else '실주문'}")
     try:
         while True:
