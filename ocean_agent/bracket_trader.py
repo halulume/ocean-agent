@@ -2616,11 +2616,26 @@ SEAL_POLL_SEC = 30
 # direction accuracy where they were. A band break is a mean-reversion
 # call, so price drifts back toward the entry rather than away from it.
 # What delay costs is seats, not price.
-# 09-04: the signal moved to 15m bars, so a seal older than one bar is
-# already looking at a chart that has changed. It used to be half an
-# hour because the seal cost 5m31s to build; skipping the scored board
-# put that at 43s, and a quarter-hour became affordable.
-SEAL_FRESH_H = 0.25
+# How stale a seal may be before it is rebuilt. Two numbers, because the
+# seal has two costs. When the operator's rules build the board themselves
+# the seal skips its scoring and takes seconds (43.5s measured 09-04), and
+# then the signal's own bar length is the right window: a 15m signal wants
+# a quarter hour. When the board is scored the seal costs minutes (5m31s),
+# and a quarter-hour window would leave it building a third of the time.
+#
+# Read off the last build rather than pinned, so switching modes cannot
+# leave the wrong number behind. Half an hour until the first build tells
+# us which mode we are in.
+SEAL_FRESH_FAST_H = 0.25
+SEAL_FRESH_SLOW_H = 0.5
+SEAL_FAST_SECS = 90.0           # under this, the seal is the cheap kind
+_last_seal_secs = 0.0
+
+
+def seal_fresh_h() -> float:
+    if _last_seal_secs and _last_seal_secs <= SEAL_FAST_SECS:
+        return SEAL_FRESH_FAST_H
+    return SEAL_FRESH_SLOW_H
 SEAL_GEN_MIN_INTERVAL_SEC = 900
 _last_seal_gen: float = 0.0
 # An operator who runs an external seal generator sets
@@ -2873,7 +2888,7 @@ def maybe_generate_seal() -> None:
         return
     try:
         age_h = _newest_seal_age_h()
-        if age_h <= SEAL_FRESH_H:
+        if age_h <= seal_fresh_h():
             return
         if time.time() - _last_seal_gen < SEAL_GEN_MIN_INTERVAL_SEC:
             return
@@ -2881,7 +2896,12 @@ def maybe_generate_seal() -> None:
         ago = "없음" if age_h > 1e8 else f"{age_h:.1f}시간 지남"
         log(f"봉인 {ago}, 새로 만듭니다 (몇 분 걸릴 수 있음)")
         from . import seal_maker
+        global _last_seal_secs
+        _t_seal = time.time()
         path = seal_maker.make_seal(out_dir=OUTPUTS_DIR, log=log)
+        _last_seal_secs = time.time() - _t_seal
+        log(f"봉인 생성 {_last_seal_secs:.0f}초 · 다음 갱신 주기 "
+            f"{seal_fresh_h()*60:.0f}분")
         if path is None:
             log("봉인 생성 보류(표본 부족), 다음 시간에 재시도합니다")
     except Exception as e:                 # noqa: BLE001
