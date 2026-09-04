@@ -23,6 +23,7 @@ import os
 import re
 import sys
 import time
+import threading
 from datetime import datetime, timezone
 
 import yaml
@@ -79,6 +80,13 @@ def keep_awake_off():
         pass
 
 
+# The trader builds its seal on its own thread from 09-04, so two threads
+# can reach the file section below at once. Appends alone would be fine;
+# the 2MB trim is not, because it reads the whole file and writes it back.
+# One lock around both, held only for the file work.
+_LOG_LOCK = threading.Lock()
+
+
 def log(msg: str) -> None:
     line = f"[{datetime.now():%m-%d %H:%M:%S}] {msg}"
     # flush 필수, 콘솔이 아닌 곳(파이프·리다이렉트)으로 나가면 버퍼에 갇혀
@@ -88,6 +96,7 @@ def log(msg: str) -> None:
     # 최근 것만 유지(대략 5000줄 넘으면 뒤쪽 절반만 보존)해 무한 증가 방지.
     log_path = _log_file()
     try:
+      with _LOG_LOCK:
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(line + "\n")
         if os.path.getsize(log_path) > 2_000_000:   # ~2MB 넘으면 절반 트림

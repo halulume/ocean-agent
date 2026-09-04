@@ -52,6 +52,7 @@ Run:  python -m ocean_agent.bracket_trader [--once] [--dry] [--status]
 """
 import argparse
 import datetime as dt
+import threading
 import glob
 import json
 import os
@@ -2630,6 +2631,7 @@ SEAL_FRESH_FAST_H = 0.25
 SEAL_FRESH_SLOW_H = 0.5
 SEAL_FAST_SECS = 90.0           # under this, the seal is the cheap kind
 _last_seal_secs = 0.0
+_seal_thread = None             # the build in flight, or None
 
 
 def seal_fresh_h() -> float:
@@ -2877,14 +2879,48 @@ def _newest_seal_age_h() -> float:
     return (time.time() - max(os.path.getmtime(p) for p in files)) / 3600.0
 
 
-def maybe_generate_seal() -> None:
-    """Generate a fresh seal when the newest one is older than an hour.
+def _build_seal() -> None:
+    """The seal build itself, on its own thread. Never raises."""
+    global _last_seal_secs
+    t_seal = time.time()
+    try:
+        from . import seal_maker
+        path = seal_maker.make_seal(out_dir=OUTPUTS_DIR, log=log)
+        _last_seal_secs = time.time() - t_seal
+        log(f"봉인 생성 {_last_seal_secs:.0f}초 · 다음 갱신 주기 "
+            f"{seal_fresh_h()*60:.0f}분 · 그동안 고리는 계속 돌았다")
+        if path is None:
+            log("봉인 생성 보류(표본 부족), 다음 시간에 재시도합니다")
+    except Exception as e:                 # noqa: BLE001
+        log(f"봉인 생성 실패({type(e).__name__}: {str(e)[:120]}), "
+            f"기존 봉인과 보유 관리로 계속합니다")
 
-    Every failure path logs and returns: the loop's job of watching and
-    closing positions continues on the existing seal (or none).
+
+def maybe_generate_seal() -> None:
+    """Start a seal build when the newest one is stale. Does not block.
+
+    It used to build in line, which stopped the loop for as long as the
+    build took. That was tolerable at 43s and is not at five or six
+    minutes: measured on 09-04, two builds held the loop for 229s and
+    342s, and nothing else runs in that time - not the stop chase, not
+    the early cut, not the expiry close. The exchange stop is resting
+    throughout so a position is never unprotected, but a chase that
+    stands still for six minutes fills worse than one that does not.
+
+    So the build runs on its own thread and the loop carries on. One at a
+    time: a call while a build is running returns. The seal is written
+    atomically (tmp then replace) and picked up by fresh_seal_waiting on a
+    later pass, which is what happened before as well.
+
+    What this costs: the build's API calls now overlap the loop's instead
+    of taking turns, so a rate limit is likelier. Both sides pace
+    themselves and the loop retries a 429 on its next cycle, which is a
+    cheaper failure than a six-minute stall.
     """
-    global _last_seal_gen
+    global _last_seal_gen, _seal_thread
     if not _selfgen_enabled:
+        return
+    if _seal_thread is not None and _seal_thread.is_alive():
         return
     try:
         age_h = _newest_seal_age_h()
@@ -2894,18 +2930,12 @@ def maybe_generate_seal() -> None:
             return
         _last_seal_gen = time.time()
         ago = "없음" if age_h > 1e8 else f"{age_h:.1f}시간 지남"
-        log(f"봉인 {ago}, 새로 만듭니다 (몇 분 걸릴 수 있음)")
-        from . import seal_maker
-        global _last_seal_secs
-        _t_seal = time.time()
-        path = seal_maker.make_seal(out_dir=OUTPUTS_DIR, log=log)
-        _last_seal_secs = time.time() - _t_seal
-        log(f"봉인 생성 {_last_seal_secs:.0f}초 · 다음 갱신 주기 "
-            f"{seal_fresh_h()*60:.0f}분")
-        if path is None:
-            log("봉인 생성 보류(표본 부족), 다음 시간에 재시도합니다")
+        log(f"봉인 {ago}, 뒤에서 만듭니다 (고리는 계속 돕니다)")
+        _seal_thread = threading.Thread(target=_build_seal, name="seal",
+                                        daemon=True)
+        _seal_thread.start()
     except Exception as e:                 # noqa: BLE001
-        log(f"봉인 생성 실패({type(e).__name__}: {str(e)[:120]}), "
+        log(f"봉인 생성 시작 실패({type(e).__name__}: {str(e)[:120]}), "
             f"기존 봉인과 보유 관리로 계속합니다")
 
 
